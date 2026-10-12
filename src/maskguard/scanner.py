@@ -148,8 +148,9 @@ def load_registry(path):
 
 def summary(registry):
     """Flat list of tagged columns for display."""
-    return [{"table": t, "column": c, "tag": m.get("tag"), "kind": m.get("kind"), "confidence": m.get("confidence"),
-             "evidence": m.get("evidence")} for t, cols in registry.items() for c, m in cols.items() if m.get("tag")]
+    return [{"table": t, "column": c, "tag": m.get("tag"), "kind": m.get("kind"), "source": m.get("source"),
+             "confidence": m.get("confidence"), "evidence": m.get("evidence")}
+            for t, cols in registry.items() for c, m in cols.items() if m.get("tag")]
 
 
 class ScanWorker(threading.Thread):

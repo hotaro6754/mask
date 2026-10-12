@@ -112,7 +112,8 @@ with t_query:
 
 # ---- scanner --------------------------------------------------------------------------------------------
 with t_scan:
-    st.write("Columns tagged from headers **and** sampled values (Luhn, Verhoeff, PAN, IBAN, email, phone, SSN). "
+    st.write("Columns tagged by a LightGBM classifier over sampled values plus checksum rules (Verhoeff, Luhn, PAN, "
+             "GSTIN, IBAN, EPIC); checksum-confirmed tags always win, uncertain columns are still masked for review. "
              "A background worker rescans every "
              f"{app.settings.scan_interval}s; unscanned tables are rejected until tagged.")
     if s.role == "admin" and st.button("Rescan now"):
