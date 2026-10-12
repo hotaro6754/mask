@@ -70,7 +70,7 @@ def _attack_query(r, kind, k):
 
 def _run(app, role, sql, ts):
     try:
-        res = rewrite(sql, role, app.gateway.registry, app.gateway.policy, app.backend.dialect)
+        res = rewrite(sql, role, app.gateway.registry, app.gateway.policy, app.backend.dialect, app.backend.default_schema)
     except Rejected:
         return Event(ts, "reject", fingerprint(sql, app.backend.dialect), 0, {})
     try:

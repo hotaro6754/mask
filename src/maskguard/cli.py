@@ -13,6 +13,7 @@
   maskguard hash-password                hash a password for the users file
   maskguard train-scanner                retrain the LightGBM PII column classifier (synthetic data only)
   maskguard classify COLUMN V1 V2 ...    classify one column from sample values
+  maskguard pia [--out data/pia.md]      automated Privacy Impact Assessment from the live system
   maskguard simulate-attack [--kind K]   run an insider attack as intruder.ian and watch the threat engine block it
 Settings come from MASKGUARD_* environment variables (see README).
 """
@@ -55,6 +56,7 @@ def main(argv=None):
     tr = sub.add_parser("train-scanner"); tr.add_argument("--per-kind", type=int, default=300)
     tr.add_argument("--seed", type=int, default=7)
     cl = sub.add_parser("classify"); cl.add_argument("column"); cl.add_argument("values", nargs="+")
+    pi = sub.add_parser("pia"); pi.add_argument("--out", default="data/pia.md"); pi.add_argument("--days", type=int, default=30)
     sa = sub.add_parser("simulate-attack"); sa.add_argument("--kind", default="enumeration",
         choices=["enumeration", "binary_search", "order_probe", "bulk_paging", "firewall_probe"])
     args = p.parse_args(argv)
@@ -129,6 +131,14 @@ def main(argv=None):
               f"{sc_['maskguard_leaks']}/{sc_['pii_attacks']} · firewall rejected "
               f"{sc_['firewall_rejected']}/{sc_['firewall_attacks']}")
         return 1 if sc_["maskguard_leaks"] else 0
+    elif args.cmd == "pia":
+        import json, os
+        from .pia import build, to_markdown
+        r = build(app, args.days)
+        os.makedirs(os.path.dirname(args.out) or ".", exist_ok=True)
+        open(args.out, "w").write(to_markdown(r))
+        json.dump(r, open(os.path.splitext(args.out)[0] + ".json", "w"), indent=2, default=str)
+        print(f"PIA written to {args.out} ({r['tagged_columns']} personal-data columns, {len(r['residual_risks'])} residual risks)")
     elif args.cmd == "simulate-attack":
         from .threat_sim import live_attack
         sess = app.auth.login("intruder.ian", "intruder123")

@@ -197,6 +197,12 @@ with t_audit:
                                                        "rows", "ms")} for e in rows]),
                  width="stretch", hide_index=True)
     st.caption("Literals are replaced with ? before logging, so values typed into queries never reach the log.")
+    if s.role == "admin":
+        from maskguard.pia import build as build_pia, to_markdown
+        md = to_markdown(build_pia(app))
+        st.download_button("Download automated PIA report (Markdown)", md, file_name="maskguard_pia.md")
+        with st.expander("Preview PIA report"):
+            st.markdown(md)
 
 # ---- performance ----------------------------------------------------------------------------------------
 with t_perf:

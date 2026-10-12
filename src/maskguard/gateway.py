@@ -52,7 +52,7 @@ class Gateway:
             self.audit.append(**base, decision="blocked", reason="session blocked by threat engine")
             raise Rejected("session blocked by the threat engine; ask an admin to review the alert")
         try:
-            res = rewrite(sql, session.role, self.registry, self.policy, dialect)
+            res = rewrite(sql, session.role, self.registry, self.policy, dialect, self.backend.default_schema)
         except Rejected as e:
             a = self._assess(session, "reject", fp, now=now, observe=observe)
             self.audit.append(**base, decision="reject", reason=str(e)[:160], **self._risk_fields(a))

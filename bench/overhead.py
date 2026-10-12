@@ -18,6 +18,10 @@ def main(n=200):
     tmp = tempfile.mkdtemp()
     db = os.environ.get("MASKGUARD_DB", f"sqlite:///{tmp}/bench.db")
     app = config.build(config.Settings(db=db, audit=f"{tmp}/audit.jsonl", registry_out=f"{tmp}/reg.yaml"))
+    # measure the full pipeline (DP noise + threat scoring included) without the policy stopping a 800-query loop
+    app.gateway.dp_ledger.daily_budget = 1e12
+    if app.gateway.threat:
+        app.gateway.threat.alert = app.gateway.threat.block = 1000
     s = app.auth.login(*config.DEMO_ACCOUNTS["analyst"])
     direct, gated = [], []
     for _ in range(n):
@@ -31,7 +35,7 @@ def main(n=200):
     print(f"direct   p50 {ms(statistics.median(direct))}  p95 {ms(pct(direct, .95))}")
     print(f"gateway  p50 {ms(statistics.median(gated))}  p95 {ms(pct(gated, .95))}")
     print(f"overhead p50 {ms(statistics.median(gated) - statistics.median(direct))} "
-          "(parse + rewrite + masking functions + audit write)")
+          "(parse + rewrite + masking functions + DP noise + threat scoring + audit write)")
 
 
 if __name__ == "__main__":

@@ -202,7 +202,7 @@ class Connection:
         if local is not None:
             return local[0]
         gw = self.app.gateway
-        res = rewrite(sql, self.session.role, gw.registry, gw.policy, gw.backend.dialect)
+        res = rewrite(sql, self.session.role, gw.registry, gw.policy, gw.backend.dialect, gw.backend.default_schema)
         loop = asyncio.get_running_loop()
         cols, _ = await loop.run_in_executor(None, gw.backend.execute, f"SELECT * FROM ({res.sql}) AS mg_describe LIMIT 0")
         return cols[: res.dp["n_visible"]] if res.dp else cols

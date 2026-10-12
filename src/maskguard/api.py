@@ -7,6 +7,7 @@ GET  /registry   (admin)                    -> scanner tags with evidence
 POST /scan       (admin)                    -> rescan now
 GET  /integrity  (admin)                    -> SHA-256 checksum per table (proves data is untouched)
 GET  /audit      (admin)                    -> last entries + chain verification
+GET  /pia?fmt=md   (admin)                   -> automated Privacy Impact Assessment
 GET  /attacks                               -> attack suite for the caller's role
 GET  /threats    (admin)                    -> per-user risk, alerts and blocks from the threat engine
 POST /threats/{user}/unblock (admin)        -> lift a block
@@ -100,7 +101,8 @@ def query(body: Query, s=Depends(session)):
     except Exception as e:
         raise HTTPException(400, f"query failed: {type(e).__name__}")
     return {"role": s.role, "columns": r.columns, "rows": [[_json(v) for v in row] for row in r.rows],
-            "row_count": len(r.rows), "masked": r.masked, "rewritten_sql": r.rewritten_sql, "ms": round(r.ms, 2)}
+            "row_count": len(r.rows), "masked": r.masked, "rewritten_sql": r.rewritten_sql, "ms": round(r.ms, 2),
+            "risk": r.risk, "dp": r.dp}
 
 
 @app.get("/registry")
@@ -140,6 +142,14 @@ def unblock(user: str, s=Depends(admin)):
         a.gateway.threat.unblock(user)
     a.gateway.audit.append(user=s.user, role=s.role, decision="unblock", target=user)
     return {"unblocked": user}
+
+
+@app.get("/pia")
+def pia(days: int = 30, fmt: str = "json", _=Depends(admin)):
+    from fastapi.responses import PlainTextResponse
+    from .pia import build, to_markdown
+    r = build(get_app(), days)
+    return PlainTextResponse(to_markdown(r), media_type="text/markdown") if fmt == "md" else r
 
 
 @app.get("/attacks")

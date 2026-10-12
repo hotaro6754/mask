@@ -7,7 +7,7 @@ from fastapi.testclient import TestClient
 from maskguard import api, masks
 from maskguard.audit import AuditLog
 from maskguard.auth import check_password, hash_password
-from tests.conftest import PG_URL
+from tests.conftest import MYSQL_URL, PG_URL
 
 
 @pytest.fixture
@@ -93,8 +93,8 @@ def test_cli_roles_and_attack(sqlite_env, capsys, monkeypatch, tmp_path):
 def test_postgres_functions_match_python():
     from maskguard.backends import PostgresBackend
     b = PostgresBackend(PG_URL)
-    for v in ["4111-2222-3333-1111", "123-45-6789", "ABCDE1234F", "x", ""]:
-        for pre, suf in [(4, 4), (0, 4), (2, 1)]:
+    for v in ["4111-2222-3333-1111", "123-45-6789", "ABCDE1234F", "x", "", "अंकिता साहा", "Ravi*Kumar!", "+91 98765 43210"]:
+        for pre, suf in [(4, 4), (0, 4), (2, 1), (1, 0)]:
             assert b.admin_query("SELECT mg_partial(%s, %s, %s)", (v, pre, suf))[1][0][0] == masks.partial(v, pre, suf)
     for v in ["ravi@bank.in", "noatsign", "a@", "@b.c"]:
         assert b.admin_query("SELECT mg_email(%s)", (v,))[1][0][0] == masks.email(v)
@@ -117,3 +117,40 @@ def test_dashboard_renders_for_every_role(tmp_path, monkeypatch):
     at.radio(key="role_toggle").set_value("admin").run()
     next(b for b in at.button if b.label == "Run simulated attack").click().run()
     assert not at.exception and any("blocked at query" in e.value for e in at.error)
+
+
+@pytest.mark.skipif(not MYSQL_URL, reason="MASKGUARD_TEST_MYSQL not set")
+def test_mysql_functions_match_python():
+    from maskguard import textpii
+    from maskguard.backends import MySQLBackend
+    b = MySQLBackend(MYSQL_URL)
+    q = lambda sql, *a: b.admin_query(sql, a)[1][0][0]
+    for v in ["4111-2222-3333-1111", "123-45-6789", "ABCDE1234F", "x", "", "अंकिता साहा", "Ravi*Kumar!", "+91 98765 43210"]:
+        for pre, suf in [(4, 4), (0, 4), (2, 1), (1, 0)]:
+            assert q("SELECT mg_partial(%s, %s, %s)", v, pre, suf) == masks.partial(v, pre, suf)
+    for v in ["ravi@bank.in", "noatsign", "a@", "@b.c"]:
+        assert q("SELECT mg_email(%s)", v) == masks.email(v)
+    for v in ["ravi@bank.in", "123-45-6789", "x" * 200]:
+        assert q("SELECT mg_hmac(%s)", v) == masks.token(v)
+    for t in ["Call 98765 43210 or mail a@b.co", "Aadhaar 2345 6789 0124, PAN ABCPK1234L", "दर्ज मूल्य 12 जनवरी 1961 है।",
+              "UPI ravi.k@okaxis, card 4111-1111-1111-1111, pin 560001"]:
+        assert q("SELECT mg_redact_text(%s)", t) == textpii.redact(t)
+
+
+def test_automated_pia(sqlite_env):
+    from maskguard.pia import build, to_markdown
+    from maskguard.threat_sim import live_attack
+    env = sqlite_env
+    env.run("support", "SELECT ssn FROM users LIMIT 1")
+    live_attack(env.gw, env.auth.login("intruder.ian", "intruder123"), "enumeration", n=40)
+    env.gw.query(env.login("analyst"), "SELECT avg(balance) FROM accounts")
+    r = build(env.app)
+    cols = {f"{i['table']}.{i['column']}" for i in r["inventory"]}
+    assert {"users.aadhaar", "accounts.balance", "support_tickets.message"} <= cols
+    row = next(m for m in r["access_matrix"] if m["column"] == "accounts.balance")
+    assert row == {"column": "accounts.balance", "admin": "full value", "support": "partially masked",
+                   "analyst": "noisy SUM/AVG/COUNT only"}
+    assert any(t["user"] == "intruder.ian" and t["action"] == "block" for t in r["activity"]["threat_events"])
+    assert r["activity"]["epsilon_spent"]["analyst.ali"] == 0.5 and r["controls"]["audit_chain_valid"]
+    md = to_markdown(r)
+    assert "Who sees what" in md and "Rule 6" in md and "8876" not in md

@@ -20,7 +20,8 @@ ALLOWED_FUNCS = {"count", "sum", "avg", "min", "max", "lower", "upper", "length"
                  "currentdate", "floor", "ceil",
                  "and", "or", "xor", "exists"}  # sqlglot models these operators as Func nodes
 ROOTS = (exp.Select, exp.SetOperation)
-FORBIDDEN = (exp.Into, exp.Lock, exp.Command, exp.Pragma, exp.Set)
+FORBIDDEN = (exp.Into, exp.Lock, exp.Command, exp.Pragma, exp.Set,
+             exp.Parameter, exp.SessionParameter, exp.Placeholder)  # variables could expose session secrets
 DEFAULT_SCHEMA = {"sqlite": "main", "postgres": "public"}
 
 
@@ -177,7 +178,7 @@ def action_for(meta, role, policy):
     return policy["roles"][role].get(meta["tag"], policy["default_action"])
 
 
-def rewrite(sql, role, registry, policy, dialect="sqlite"):
+def rewrite(sql, role, registry, policy, dialect="sqlite", schema=None):
     if role not in policy["roles"]:
         raise Rejected(f"unknown role: {role}")
     try:
@@ -189,13 +190,14 @@ def rewrite(sql, role, registry, policy, dialect="sqlite"):
     tree = stmts[0]
     _validate(tree)
 
-    schema = DEFAULT_SCHEMA.get(dialect, "public")
+    schema = (schema or DEFAULT_SCHEMA.get(dialect, "public")).lower()
     k = (policy.get("min_group_size") or {}).get(role)
     if k:
         for select in list(tree.find_all(exp.Select)):
             if _is_aggregate(select):
                 _apply_group_floor(select, k)
 
+    real_names = {t.lower(): t for t in registry}  # canonical spelling as found in the database
     registry = {t.lower(): cols for t, cols in registry.items()}
     masked, jobs = [], []
     for scope in traverse_scope(tree):
@@ -221,7 +223,8 @@ def rewrite(sql, role, registry, policy, dialect="sqlite"):
                 masked.append(f"{table.name.lower()}.{col}:{action}")
             bounds = dp_cols.get(col.lower())[1:] if dp_plan and col.lower() in dp_cols else None
             projections.append(_mask_expr(col, meta, action, policy, bounds).as_(col, quoted=True))
-        inner = exp.Table(this=exp.to_identifier(table.name), db=exp.to_identifier(schema))  # pinned: a CTE can't capture it
+        inner = exp.Table(this=exp.to_identifier(real_names[table.name.lower()], quoted=True),
+                          db=exp.to_identifier(schema))  # pinned to the real table: a CTE can't capture it
         table.replace(exp.select(*projections).from_(inner).subquery(table.alias_or_name))
 
     cap = (policy.get("max_rows") or {}).get(role)

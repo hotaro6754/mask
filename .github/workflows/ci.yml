@@ -1,0 +1,33 @@
+name: CI
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env: {POSTGRES_PASSWORD: maskguard, POSTGRES_DB: bank}
+        ports: ["5432:5432"]
+        options: --health-cmd "pg_isready -U postgres" --health-interval 2s --health-retries 30
+      mysql:
+        image: mysql:8.4
+        env: {MYSQL_ROOT_PASSWORD: maskguard, MYSQL_DATABASE: bank}
+        ports: ["3306:3306"]
+        options: --health-cmd "mysqladmin ping -h 127.0.0.1 -pmaskguard" --health-interval 3s --health-retries 40
+    env:
+      MASKGUARD_HMAC_KEY: ci-only-hmac-key
+      MASKGUARD_JWT_SECRET: ci-only-jwt-secret-0123456789-0123456789
+      MASKGUARD_TEST_PG: postgresql://postgres:maskguard@127.0.0.1:5432/bank
+      MASKGUARD_TEST_MYSQL: mysql://root:maskguard@127.0.0.1:3306/bank
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - run: sudo apt-get update && sudo apt-get install -y postgresql-client
+      - run: uv sync
+      - name: Tests on SQLite, PostgreSQL and MySQL
+        run: uv run pytest -q
+      - name: Attack suite must report zero leaks
+        run: uv run maskguard attack -u analyst.ali -p analyst123

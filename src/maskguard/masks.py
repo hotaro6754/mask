@@ -1,15 +1,21 @@
 import hashlib, hmac, os
 
+# Characters kept as-is by partial masking so formats stay readable (4111-XXXX-XXXX-1111). Everything else, in any
+# script, is maskable. One explicit set keeps SQLite, PostgreSQL and MySQL byte-identical (no locale-dependent
+# "is this a letter" checks).
+SEPARATORS = " \t\n\r-/.,:()+_@#"
+
+
 def partial(value, prefix=0, suffix=4, mask_char="X"):
     if value is None:
         return None
     s = str(value)
-    total = sum(c.isalnum() for c in s)
+    total = sum(c not in SEPARATORS for c in s)
     if prefix + suffix >= total:
         prefix = suffix = 0
     seen, out = 0, []
     for c in s:
-        if c.isalnum():
+        if c not in SEPARATORS:
             seen += 1
             out.append(c if (seen <= prefix or seen > total - suffix) else mask_char)
         else:

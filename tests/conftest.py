@@ -6,12 +6,15 @@ os.environ.setdefault("MASKGUARD_JWT_SECRET", "test-jwt-secret-not-for-prod-0123
 
 from maskguard import config  # noqa: E402
 
-PG_URL = os.environ.get("MASKGUARD_TEST_PG")  # e.g. postgresql://postgres@127.0.0.1:5432/bank
-BACKENDS = ["sqlite", pytest.param("postgres", marks=pytest.mark.skipif(not PG_URL, reason="MASKGUARD_TEST_PG not set"))]
+PG_URL = os.environ.get("MASKGUARD_TEST_PG")        # e.g. postgresql://postgres@127.0.0.1:5432/bank
+MYSQL_URL = os.environ.get("MASKGUARD_TEST_MYSQL")  # e.g. mysql://maskguard:maskguard@127.0.0.1:3306/bank
+BACKENDS = ["sqlite", pytest.param("postgres", marks=pytest.mark.skipif(not PG_URL, reason="MASKGUARD_TEST_PG not set")),
+            pytest.param("mysql", marks=pytest.mark.skipif(not MYSQL_URL, reason="MASKGUARD_TEST_MYSQL not set"))]
 
 
 def make_settings(tmp_path, backend):
-    return config.Settings(db=PG_URL if backend == "postgres" else f"sqlite:///{tmp_path}/bank.db",
+    db = {"postgres": PG_URL, "mysql": MYSQL_URL}.get(backend) or f"sqlite:///{tmp_path}/bank.db"
+    return config.Settings(db=db,
                            audit=str(tmp_path / "audit.jsonl"), registry_out=str(tmp_path / "registry.yaml"),
                            seed_if_empty=True)
 

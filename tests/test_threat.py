@@ -83,3 +83,12 @@ def test_threat_endpoints(sqlite_env):
         assert not sqlite_env.gw.threat.is_blocked("intruder.ian")
     finally:
         api.state.clear()
+
+
+def test_fast_scorer_matches_sklearn():
+    m = AnomalyModel.load()
+    assert m._trees is not None
+    X = np.load("src/maskguard/ml/threat_benign_windows.npz")["X"]
+    rng = np.random.default_rng(1)
+    test = np.vstack([X[rng.integers(0, len(X), 100)], rng.normal(0, 3, (50, X.shape[1])).astype(np.float32)])
+    assert np.allclose([m.score(x) for x in test], -m.forest.score_samples(test), atol=1e-12)

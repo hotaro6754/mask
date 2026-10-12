@@ -148,6 +148,36 @@ class AnomalyModel:
         from sklearn.ensemble import IsolationForest
         self.forest = IsolationForest(n_estimators=200, contamination="auto", random_state=seed).fit(X_benign)
         self.benign_scores = np.sort(-self.forest.score_samples(X_benign))  # higher = more anomalous
+        self._compile()
+
+    def _compile(self):
+        """Flatten the fitted trees for a direct single-sample scorer (sklearn's per-call overhead is ~15 ms;
+        walking 200 small trees in Python is well under 1 ms). Same arithmetic as IsolationForest.score_samples;
+        tests check the two agree. Falls back to sklearn if its internals change."""
+        f = self.forest
+        try:
+            from sklearn.ensemble._iforest import _average_path_length
+            if f._max_features != f.n_features_in_:
+                raise AttributeError("feature subsampling not supported by the fast path")
+            self._trees = [(t.tree_.children_left.tolist(), t.tree_.children_right.tolist(), t.tree_.feature.tolist(),
+                            t.tree_.threshold.tolist(), (dl + apl - 1.0).tolist())
+                           for t, dl, apl in zip(f.estimators_, f._decision_path_lengths, f._average_path_length_per_tree)]
+            self._denominator = len(f.estimators_) * float(_average_path_length([f._max_samples])[0])
+        except AttributeError:
+            self._trees = None
+
+    def score(self, x):
+        """Anomaly score of one window (higher = more unusual)."""
+        if self._trees is None:
+            return float(-self.forest.score_samples(x[None, :])[0])
+        xs = np.asarray(x, dtype=np.float32).tolist()
+        depth = 0.0
+        for left, right, feat, thr, leaf_depth in self._trees:
+            n = 0
+            while left[n] != -1:
+                n = left[n] if xs[feat[n]] <= thr[n] else right[n]
+            depth += leaf_depth[n]
+        return 2.0 ** (-depth / self._denominator) if self._denominator else 1.0
 
     @classmethod
     def load(cls, path=TRAIN_PATH):
@@ -156,7 +186,7 @@ class AnomalyModel:
     def risk(self, x):
         """Calibrated on normal windows only: 70 = beyond their 99.9th percentile, 90 = beyond the most unusual one.
         (A session spans ~20 windows, so per-window thresholds must be strict to keep per-session false alarms low.)"""
-        s = float(-self.forest.score_samples(x[None, :])[0])
+        s = self.score(x)
         b = self.benign_scores
         pct = np.searchsorted(b, s) / len(b)
         p99, p999, top = b[int(0.99 * (len(b) - 1))], b[int(0.999 * (len(b) - 1))], b[-1]
@@ -170,9 +200,14 @@ class AnomalyModel:
 
 
 class ThreatEngine:
-    def __init__(self, cfg=None, model=None, use_rules=True):
+    def __init__(self, cfg=None, model=None, use_rules=True, async_ml=False):
         cfg = cfg or {}
         self.use_rules = use_rules
+        # ML can only alert, so the gateway scores it off the query's critical path (IsolationForest ~15 ms/call);
+        # one pending job per user, coalesced. Evaluation/tests use synchronous scoring for determinism.
+        self.async_ml = async_ml
+        self.ml_risk, self._pending = {}, set()
+        self._pool = None
         self.alert, self.block = cfg.get("alert", 70), cfg.get("block", 90)
         self.block_seconds = 60 * cfg.get("block_minutes", 15)
         self.min_queries = cfg.get("min_queries", 8)
@@ -193,7 +228,7 @@ class ThreatEngine:
                 model = AnomalyModel.load()
             except Exception:
                 model = None
-        return cls(cfg, model)
+        return cls(cfg, model, async_ml=cfg.get("async_ml", False))
 
     def is_blocked(self, user, now=None):
         until = self.blocked_until.get(user)
@@ -211,7 +246,11 @@ class ThreatEngine:
         r_risk, reasons = rule_risk(events, long_events) if self.use_rules else (0, [])
         m_risk, feats = 0, window_features(events, long_events)
         if self.model is not None and len(long_events) >= self.min_queries:
-            m_risk = self.model.risk(feats)
+            if self.async_ml:
+                self._score_later(user, feats)
+                m_risk = self.ml_risk.get(user, 0)   # latest finished score for this user
+            else:
+                m_risk = self.model.risk(feats)
             if m_risk >= 90:
                 reasons = reasons + ["anomaly: more unusual than any normal session seen in training"]
             elif m_risk >= self.alert:
@@ -226,10 +265,35 @@ class ThreatEngine:
         self.latest[user] = (event.ts, a)
         return a
 
+    def _score_later(self, user, feats):
+        with self.lock:
+            if user in self._pending:
+                return
+            self._pending.add(user)
+            if self._pool is None:
+                from concurrent.futures import ThreadPoolExecutor
+                self._pool = ThreadPoolExecutor(max_workers=1, thread_name_prefix="maskguard-threat-ml")
+        self._pool.submit(self._score, user, feats)
+
+    def _score(self, user, feats):
+        try:
+            self.ml_risk[user] = self.model.risk(feats)
+        finally:
+            with self.lock:
+                self._pending.discard(user)
+
+    def drain(self, timeout=10):
+        """Wait for background ML scores (tests, demos)."""
+        import time as _t
+        end = _t.time() + timeout
+        while self._pending and _t.time() < end:
+            _t.sleep(0.01)
+
     def unblock(self, user):
         self.blocked_until.pop(user, None)
         self.windows.pop(user, None)
         self.long_windows.pop(user, None)
+        self.ml_risk.pop(user, None)
 
     def snapshot(self):
         return {u: {"risk": a.risk, "action": a.action, "reasons": a.reasons, "blocked": self.is_blocked(u),
