@@ -1,0 +1,16 @@
+version: 1
+default_action: deny            # unknown role or tag -> deny (fail closed)
+roles:
+  admin:   {PII_HIGH: allow,   FINANCIAL_CONFIDENTIAL: allow,   PII_MEDIUM: allow}
+  support: {PII_HIGH: partial, FINANCIAL_CONFIDENTIAL: partial, PII_MEDIUM: allow}
+  analyst: {PII_HIGH: hmac,    FINANCIAL_CONFIDENTIAL: redact,  PII_MEDIUM: redact}
+max_rows: {admin: 10000, support: 100, analyst: 1000}
+partial:
+  card:    {prefix: 4, suffix: 4}
+  ssn:     {prefix: 0, suffix: 4}
+  aadhaar: {prefix: 0, suffix: 4}
+  pan:     {prefix: 2, suffix: 1}
+  phone:   {prefix: 0, suffix: 4}
+  iban:    {prefix: 4, suffix: 4}
+  default: {prefix: 0, suffix: 2}
+bucket_size: 10000
