@@ -115,8 +115,11 @@ library call (~15 ms per call).
 The full suite runs against SQLite, PostgreSQL 16 and MySQL 8.4 (CI services), including: masking per role,
 attack suite, free-text redaction parity (Python vs PL/pgSQL vs MySQL, byte-identical), HMAC parity across engines,
 DP fail-closed cases, budget enforcement, threat blocking/unblocking, the PostgreSQL wire proxy with real `psql` and
-`psycopg` clients, the REST API, the Python SDK, the CLI, and the Streamlit dashboard. The Postman collection
-(`docs/MaskGuard.postman_collection.json`, 17 requests, 19 assertions) passes under Newman.
+`psycopg` clients, the REST API (including forged/unsigned tokens, capability denials and error-message leakage),
+the Python SDK, the CLI (exit codes, JSON output, local and remote mode), row-level filters, policy edits,
+integrity proofs, and both dashboards (the Control Room through a Playwright browser walkthrough). The Postman
+collection (`postman/`, 54 requests, 119 body assertions, 25 of them negative/security cases) passes under Newman
+against the API on SQLite, PostgreSQL 16 and MySQL 8.4.
 
 ## Known limits
 

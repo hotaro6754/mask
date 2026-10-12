@@ -7,10 +7,11 @@ per role at query time. Stored data never changes.
 | Role | Sees |
 |---|---|
 | **Admin** | real values |
-| **Support** | partial masks: `4111-XXXX-XXXX-1111`, `XXX-XX-6789`, `r***@bank.in`, `[PHONE]` inside notes, balances rounded to 10,000 |
+| **Support** | partial masks: `4111-XXXX-XXXX-1111`, `XXX-XX-6789`, `r***@bank.in`, `[PHONE]` inside notes, balances rounded to 10,000; frozen accounts hidden (row-level filter) |
 | **Analyst** | `REDACTED` or keyed-HMAC tokens (joinable, not reversible); balances only through differentially private SUM/AVG/COUNT |
+| **Auditor** | `REDACTED` for every personal-data column; reads policies, scanner evidence, the audit log and integrity proofs |
 
-![One query, three roles](docs/img/roles.png)
+![The maskguard CLI: real health checks, then one query as four roles](docs/img/cli.png)
 
 ## What it does
 
@@ -47,46 +48,42 @@ per role at query time. Stored data never changes.
 ## Run it
 
 ```bash
-docker compose up --build            # PostgreSQL + dashboard :8501 + API :8000/docs + Postgres proxy :6543
-```
-
-Or locally, on SQLite:
-
-```bash
 uv sync
-make dashboard                        # Streamlit; demo data is seeded automatically
-make api                              # REST API on :8000
-uv run maskguard proxy                # psql "host=localhost port=6543 user=support.sam dbname=bank"
-uv run maskguard roles "SELECT name, ssn, email FROM users LIMIT 3"
-uv run maskguard attack -u analyst.ali -p analyst123
-uv run maskguard simulate-attack --kind enumeration
-uv run maskguard scan
+export MASKGUARD_HMAC_KEY=dev-only-hmac-key-change-me      # PowerShell: $env:MASKGUARD_HMAC_KEY="dev-only-hmac-key-change-me"
+uv run maskguard                                           # interactive security console (banner, live checks, playground)
+uv run maskguard serve                                     # REST API + Control Room dashboard: http://127.0.0.1:8000/ui/
 ```
 
-Demo accounts (`policies/users.demo.yaml`): `admin.ann / admin123`, `support.sam / support123`,
-`analyst.ali / analyst123`, and `intruder.ian / intruder123` for the threat demo. Create real accounts with
-`maskguard hash-password`, and set `MASKGUARD_DEMO=0` in production.
+Or `docker compose up --build`: PostgreSQL 16, API + dashboard on :8000, classic Streamlit dashboard on :8501, and the
+PostgreSQL wire proxy on :6543. **[docs/DEMO_RUNBOOK.md](docs/DEMO_RUNBOOK.md)** walks through the whole demo with
+exact commands and expected output.
 
-**Python SDK**
+| Interface | What it gives you |
+|---|---|
+| **CLI** `maskguard` | Interactive console, plus `doctor`, `status`, `db inspect`, `scan --dry-run`, `pii list`, `roles show`, `policy explain`, `query --role/--table`, `compare`, `audit list`, `integrity proof`, `test` and more. `--json` output, stable exit codes, and `--api URL` to run through the REST API |
+| **Control Room** `/ui/` | Overview, live role playground (one real request per role, side by side, with per-field explanations and an integrity check), PII discovery, policy studio (validated, audited edits), role explorer, audit explorer, integrity proofs, API lab, CLI guide |
+| **REST API** `/docs` | Health and readiness, demo identities, query and query builder, policy explain, matrix and edits, scan, audit search, integrity baseline, verify and proof. Capability-checked |
+| **Postman** `postman/` | 54 requests and 119 body assertions, including 25 negative and security cases and integrity before and after. `npx newman run …` |
+| **PostgreSQL proxy** :6543 | `psql "host=localhost port=6543 user=support.sam dbname=bank"`: any PostgreSQL client, masked |
+| **Python SDK** | `MaskGuardClient.demo(url, "analyst").query_df("SELECT status, avg(balance) FROM accounts GROUP BY status")` |
 
-```python
-from maskguard.client import MaskGuardClient
-mg = MaskGuardClient("http://localhost:8000", "analyst.ali", "analyst123")
-mg.query_df("SELECT status, avg(balance) FROM accounts GROUP BY status")   # noisy, budget-charged
-```
+![Control Room playground: four roles, four real requests, per-field explanations, integrity verified](docs/img/control-room-playground.png)
 
-**Postman:** import `docs/MaskGuard.postman_collection.json` and run the collection (17 requests, 19 assertions).
+Demo identities (`policies/users.demo.yaml`, synthetic):
+- `admin.ann`, `support.sam`, `analyst.ali`, `auditor.aud`, with passwords `<role>123`;
+- `intruder.ian` for the threat demo.
 
-**Any Postgres client:**
-`psql "host=localhost port=6543 user=support.sam dbname=bank"`. The proxy speaks the simple and extended protocols.
-GUI tools that introspect `pg_catalog` are refused by design.
+Demo mode (one-click identities) is off when `MASKGUARD_ENV=production`, and refused if forced on there. Create
+real users with `maskguard hash-password`. All settings are in `.env.example`.
 
 ## Architecture
+
+Security boundary, role and capability model, policy semantics and integrity method: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
 ```
 psql / drivers ─► PG wire proxy ─┐
 REST API / SDK / Postman ────────┼─► Auth (JWT role) ─► Threat engine ─► Rewriter (sqlglot) ─► SQLite | PostgreSQL | MySQL
-Dashboard / CLI ─────────────────┘                                          ▲      ▲              (read-only)
+Dashboards / CLI ────────────────┘                                          ▲      ▲              (read-only)
                                                        Policy YAML ─────────┘      │                   │
                                                        AI PII scanner (background) ┴◄──────────────────┘
                                      Audit log (hash-chained, no literals) ◄── every decision, risk score, ε spent
@@ -109,12 +106,27 @@ Dashboard / CLI ─────────────────┘          
 ```bash
 make test                                                      # SQLite
 MASKGUARD_TEST_PG=postgresql://… MASKGUARD_TEST_MYSQL=mysql://… uv run pytest -q    # all three databases
+uv run maskguard test                                          # security regression: attacks per role + integrity proof
+make postman                                                   # Newman against a running API
 ```
 
-CI (`.github/workflows/ci.yml`) runs the suite against PostgreSQL 16 and MySQL 8.4 services and fails the build
-if the attack suite reports any leak.
+CI (`.github/workflows/ci.yml`) runs the following, and fails on any leak, any failed assertion, or any change to
+the source data:
+- the test suite against PostgreSQL 16 and MySQL 8.4;
+- the attack suite;
+- `maskguard test`;
+- the Postman collection under Newman.
+
+The suite includes a Playwright walkthrough of the dashboard: every page, no JavaScript errors, and no horizontal
+scroll at phone width. It also includes CLI tests for exit codes and JSON output in local and remote mode.
 
 ## Research context
+
+[docs/REFERENCE_RESEARCH.md](docs/REFERENCE_RESEARCH.md) reviews 14 related open-source projects at source level. It
+records what each one verifiably does, which ideas MaskGuard adopted (strictness-ordered actions, policy versions in
+audit entries, explain output, negative API assertions, CLI conventions) and which it deliberately rejected
+(post-query masking, regex SQL parsing, unsalted hashes).
+
 
 Prabowo et al., *Privacy-Preserving Tools and Technologies: Government Adoption and Challenges*, IEEE Access 13
 (2025), lists data masking's weakness as "limited protection against sophisticated attacks". It also names
@@ -134,5 +146,6 @@ these gaps to a MaskGuard component.
 ## Submission material
 
 - `docs/MaskGuard_Round1_Submission.pptx`: the Round 1 deck.
-- `docs/demo.mp4`: a dashboard walkthrough.
+- `docs/demo.mp4`: a walkthrough of the classic dashboard.
+- `docs/IMPLEMENTATION_REPORT.md`: requirements matrix with evidence-based status, test totals and remaining work.
 - `docs/EVALUATION.md` and `docs/eval/*.json`: every number behind the claims above.

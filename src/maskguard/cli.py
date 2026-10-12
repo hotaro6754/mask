@@ -266,8 +266,10 @@ def doctor(json_out: bool = typer.Option(False, "--json")):
             checks.append({"name": f"python: {mod}", "ok": True, "detail": "importable"})
         except Exception as e:
             checks.append({"name": f"python: {mod}", "ok": mod in ("psycopg", "pymysql"), "detail": type(e).__name__})
-    checks.append({"name": "MASKGUARD_HMAC_KEY", "ok": bool(os.environ.get("MASKGUARD_HMAC_KEY")),
-                   "detail": "set" if os.environ.get("MASKGUARD_HMAC_KEY") else "missing: analyst tokens will fail closed"})
+    key = os.environ.get("MASKGUARD_HMAC_KEY", "")
+    checks.append({"name": "MASKGUARD_HMAC_KEY", "ok": len(key.encode()) >= 16,
+                   "detail": "set (≥ 16 bytes)" if len(key.encode()) >= 16 else
+                             "too short: use ≥ 16 random bytes" if key else "missing: analyst tokens will fail closed"})
     checks.append({"name": "MASKGUARD_JWT_SECRET", "ok": True,
                    "detail": "set" if os.environ.get("MASKGUARD_JWT_SECRET") else "not set: tokens reset on restart (warning)"})
     try:
@@ -361,8 +363,9 @@ TAG_STYLE = {"PII_HIGH": C["bad"], "FINANCIAL_CONFIDENTIAL": "gold3", "PII_MEDIU
 
 def pii_table(rows, show_public=False):
     t = Table(box=box.SIMPLE_HEAD, header_style="bold", pad_edge=False)
-    for h in ("Table", "Column", "Classification", "Kind", "Confidence", "Signals (no values)"):
-        t.add_column(h, overflow="fold")
+    for h in ("Table", "Column", "Classification", "Kind", "Confidence"):
+        t.add_column(h, no_wrap=True)
+    t.add_column("Signals (no values)", overflow="fold", ratio=1)
     for r in rows:
         tag = r.get("tag") or "PUBLIC"
         if tag == "PUBLIC" and not show_public:
