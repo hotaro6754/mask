@@ -26,3 +26,9 @@ partial:                        # characters kept at each end; separators are pr
   address: {prefix: 0, suffix: 0}
   default: {prefix: 0, suffix: 2}
 bucket_size: 10000              # partial masking of numbers = round down to this bucket
+threat:                         # insider-threat engine (rules + IsolationForest over each user's query stream)
+  enabled: true
+  ml: true
+  alert: 70                     # risk 0-100: log + dashboard alert
+  block: 90                     # block the user for block_minutes
+  block_minutes: 15

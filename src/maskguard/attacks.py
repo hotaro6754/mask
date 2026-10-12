@@ -139,7 +139,8 @@ def run_suite(gateway, session, attacks=None):
             t, c = a.probes.split(".")
             allowed = action_for(registry.get(t, {}).get(c, {}), role, policy) == "allow"
         naive = _outcome(lambda sql: naive_query(backend, sql, role, registry, policy), a, facts, order, secrets, allowed)
-        guard = _outcome(lambda sql: gateway.execute(session, sql), a, facts, order, secrets, allowed)
+        # self-test: masking is what is being measured here, so don't let it trip the threat engine for this user
+        guard = _outcome(lambda sql: gateway.execute(session, sql, observe=False), a, facts, order, secrets, allowed)
         results.append({"attack": a.name, "category": a.category, "check": a.check, "naive": naive, "maskguard": guard})
     return results
 

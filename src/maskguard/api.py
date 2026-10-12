@@ -8,6 +8,8 @@ POST /scan       (admin)                    -> rescan now
 GET  /integrity  (admin)                    -> SHA-256 checksum per table (proves data is untouched)
 GET  /audit      (admin)                    -> last entries + chain verification
 GET  /attacks                               -> attack suite for the caller's role
+GET  /threats    (admin)                    -> per-user risk, alerts and blocks from the threat engine
+POST /threats/{user}/unblock (admin)        -> lift a block
 """
 import datetime, decimal
 from contextlib import asynccontextmanager
@@ -123,6 +125,21 @@ def integrity(_=Depends(admin)):
 def audit(n: int = 20, _=Depends(admin)):
     log = get_app().gateway.audit
     return {"chain_valid": log.verify(), "entries": log.tail(n)}
+
+
+@app.get("/threats")
+def threats(_=Depends(admin)):
+    t = get_app().gateway.threat
+    return {"enabled": t is not None, "users": t.snapshot() if t else {}}
+
+
+@app.post("/threats/{user}/unblock")
+def unblock(user: str, s=Depends(admin)):
+    a = get_app()
+    if a.gateway.threat:
+        a.gateway.threat.unblock(user)
+    a.gateway.audit.append(user=s.user, role=s.role, decision="unblock", target=user)
+    return {"unblocked": user}
 
 
 @app.get("/attacks")

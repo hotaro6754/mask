@@ -12,6 +12,7 @@
   maskguard hash-password                hash a password for the users file
   maskguard train-scanner                retrain the LightGBM PII column classifier (synthetic data only)
   maskguard classify COLUMN V1 V2 ...    classify one column from sample values
+  maskguard simulate-attack [--kind K]   run an insider attack as intruder.ian and watch the threat engine block it
 Settings come from MASKGUARD_* environment variables (see README).
 """
 import argparse, getpass, sys, time
@@ -52,6 +53,8 @@ def main(argv=None):
     tr = sub.add_parser("train-scanner"); tr.add_argument("--per-kind", type=int, default=300)
     tr.add_argument("--seed", type=int, default=7)
     cl = sub.add_parser("classify"); cl.add_argument("column"); cl.add_argument("values", nargs="+")
+    sa = sub.add_parser("simulate-attack"); sa.add_argument("--kind", default="enumeration",
+        choices=["enumeration", "binary_search", "order_probe", "bulk_paging", "firewall_probe"])
     args = p.parse_args(argv)
 
     if args.cmd == "hash-password":
@@ -117,6 +120,13 @@ def main(argv=None):
               f"{sc_['maskguard_leaks']}/{sc_['pii_attacks']} · firewall rejected "
               f"{sc_['firewall_rejected']}/{sc_['firewall_attacks']}")
         return 1 if sc_["maskguard_leaks"] else 0
+    elif args.cmd == "simulate-attack":
+        from .threat_sim import live_attack
+        sess = app.auth.login("intruder.ian", "intruder123")
+        app.gateway.threat.unblock(sess.user)
+        for n, sql, risk, action, reasons, outcome in live_attack(app.gateway, sess, args.kind):
+            print(f"{n:3} risk {risk:3} {action:5} {sql[:70]:70} -> {outcome[:60]}")
+        print("reasons:", "; ".join(reasons))
     elif args.cmd == "integrity":
         for t in app.backend.tables():
             print(f"{t:20} {app.backend.checksum(t)}")

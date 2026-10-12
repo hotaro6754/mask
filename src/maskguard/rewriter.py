@@ -28,6 +28,25 @@ DEFAULT_SCHEMA = {"sqlite": "main", "postgres": "public"}
 class Result:
     sql: str
     masked: list = field(default_factory=list)
+    shape: dict = field(default_factory=dict)  # what the query does, for the threat engine (no literal values)
+
+
+def _shape(tree, jobs, registry, role, policy):
+    """Query features for insider-threat detection, computed before rewriting."""
+    masked_cols = {c.lower() for t in jobs for c, m in registry[t.name.lower()].items()
+                   if action_for(m, role, policy) != "allow"}
+    pred_nodes = list(tree.find_all(exp.Where, exp.Having)) + [j.args["on"] for j in tree.find_all(exp.Join) if j.args.get("on")]
+    pred_cols = {c.name.lower() for n in pred_nodes for c in n.find_all(exp.Column)}
+    order_cols = {c.name.lower() for o in tree.find_all(exp.Order) for c in o.find_all(exp.Column)}
+    lits = [l.this for l in tree.find_all(exp.Literal)]
+    lim = tree.args.get("limit") if isinstance(tree, exp.Select) else None
+    lim_n = lim.expression.name if lim is not None and lim.expression is not None else ""
+    top = tree if isinstance(tree, exp.Select) else None
+    return {"tables": sorted({t.name.lower() for t in jobs}),
+            "n_literals": len(lits), "literal_hash": hash(tuple(lits)) & 0xFFFFFFFF,
+            "pred_masked": len(pred_cols & masked_cols), "order_masked": len(order_cols & masked_cols),
+            "small_limit": bool(lim_n.isdigit() and int(lim_n) <= 5), "offset": bool(top is not None and top.args.get("offset")),
+            "aggregate": bool(top is not None and _is_aggregate(top)), "star": any(isinstance(e, exp.Star) for e in (top.expressions if top else []))}
 
 
 def _as_text(c):
@@ -114,6 +133,7 @@ def rewrite(sql, role, registry, policy, dialect="sqlite"):
                 if table.name.lower() not in registry:
                     raise Rejected(f"table not registered: {table.name}")
                 jobs.append(table)
+    shape = _shape(tree, jobs, registry, role, policy)
     for table in jobs:
         projections = []
         for col, meta in registry[table.name.lower()].items():
@@ -134,4 +154,4 @@ def rewrite(sql, role, registry, policy, dialect="sqlite"):
                 tree = tree.limit(cap)
         else:
             tree = exp.select("*").from_(tree.subquery("q")).limit(cap)
-    return Result(tree.sql(dialect=dialect), sorted(set(masked)))
+    return Result(tree.sql(dialect=dialect), sorted(set(masked)), shape)

@@ -76,8 +76,8 @@ if not s:
     st.info("Log in to run queries.")
     st.stop()
 
-t_query, t_scan, t_attack, t_integrity, t_audit, t_perf = st.tabs(
-    ["Query console", "PII scanner", "Attack suite", "Data integrity", "Audit log", "Performance"])
+t_query, t_scan, t_attack, t_threat, t_integrity, t_audit, t_perf = st.tabs(
+    ["Query console", "PII scanner", "Attack suite", "Threat monitor", "Data integrity", "Audit log", "Performance"])
 
 # ---- query console --------------------------------------------------------------------------------------
 with t_query:
@@ -139,6 +139,46 @@ with t_attack:
                                     "MaskGuard detail": r["maskguard"]["detail"]} for r in results]),
                      width="stretch", hide_index=True)
 
+# ---- threat monitor -------------------------------------------------------------------------------------
+with t_threat:
+    st.write("Every user's query stream is scored by explainable rules (enumeration, probing masked columns, firewall "
+             "hits, bulk paging; 5-minute and 24-hour windows) and an IsolationForest trained on normal sessions. "
+             f"Alert at risk {gw.threat.alert if gw.threat else '-'}, block at {gw.threat.block if gw.threat else '-'}; "
+             "the ML score alone can alert but never block.")
+    if gw.threat is None:
+        st.info("Threat engine disabled in policy.")
+    else:
+        kind = st.selectbox("Simulated insider attack (runs as intruder.ian, role support)",
+                            ["enumeration", "binary_search", "order_probe", "bulk_paging", "firewall_probe"])
+        if st.button("Run simulated attack", type="primary"):
+            from maskguard.threat_sim import live_attack
+            intruder = app.auth.login("intruder.ian", "intruder123")
+            gw.threat.unblock(intruder.user)
+            steps = live_attack(gw, intruder, kind)
+            df = pd.DataFrame([{"query": n, "risk": r} for n, _, r, *_ in steps]).set_index("query")
+            st.line_chart(df, height=220)
+            last = steps[-1]
+            first_alert = next((n for n, _, r, a, *_ in steps if a != "none"), None)
+            (st.error if last[3] == "block" else st.warning)(
+                f"First alert at query {first_alert}; " + (f"blocked at query {last[0]}." if last[3] == "block" else "not blocked."))
+            st.caption("Reasons: " + "; ".join(last[4]))
+            st.dataframe(pd.DataFrame([{"#": n, "query": q, "risk": r, "action": a, "result": o} for n, q, r, a, _, o in steps]),
+                         width="stretch", hide_index=True)
+        snap = gw.threat.snapshot()
+        if snap:
+            st.markdown("**Current risk per user**")
+            st.dataframe(pd.DataFrame([{"user": u, **{k: v for k, v in d.items() if k != "at"},
+                                        "reasons": "; ".join(d["reasons"])} for u, d in snap.items()]),
+                         width="stretch", hide_index=True)
+        if s.role == "admin":
+            blocked = [u for u, d in snap.items() if d["blocked"]]
+            if blocked:
+                who = st.selectbox("Blocked user", blocked)
+                if st.button("Unblock"):
+                    gw.threat.unblock(who)
+                    gw.audit.append(user=s.user, role=s.role, decision="unblock", target=who)
+                    st.rerun()
+
 # ---- integrity ------------------------------------------------------------------------------------------
 with t_integrity:
     st.write("SHA-256 of every row in each table, taken when the dashboard started and again now. "
@@ -153,7 +193,7 @@ with t_audit:
     ok = gw.audit.verify()
     (st.success if ok else st.error)("Hash chain intact" if ok else "Hash chain BROKEN - log was modified")
     rows = gw.audit.tail(50)[::-1]
-    st.dataframe(pd.DataFrame([{k: e.get(k) for k in ("ts", "user", "role", "decision", "sql", "masked", "reason",
+    st.dataframe(pd.DataFrame([{k: e.get(k) for k in ("ts", "user", "role", "decision", "risk", "sql", "masked", "reason",
                                                        "rows", "ms")} for e in rows]),
                  width="stretch", hide_index=True)
     st.caption("Literals are replaced with ? before logging, so values typed into queries never reach the log.")

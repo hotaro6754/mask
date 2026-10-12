@@ -114,3 +114,6 @@ def test_dashboard_renders_for_every_role(tmp_path, monkeypatch):
         assert not at.exception
         at.button[0].click().run()  # "Run query" (compare all roles)
         assert not at.exception and not at.error
+    at.radio(key="role_toggle").set_value("admin").run()
+    next(b for b in at.button if b.label == "Run simulated attack").click().run()
+    assert not at.exception and any("blocked at query" in e.value for e in at.error)
