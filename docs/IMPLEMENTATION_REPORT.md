@@ -74,7 +74,16 @@ are listed with their status in the report.
 
 ## 5. Test totals (this run)
 
-RESULTS_PLACEHOLDER
+| Check | Result |
+|---|---|
+| `pytest` on SQLite + PostgreSQL 16 + MySQL 8.4 (`MASKGUARD_TEST_PG`, `MASKGUARD_TEST_MYSQL` set) | **412 passed, 0 failed, 0 skipped** (11 min 43 s) |
+| Baseline before this iteration (SQLite + PostgreSQL) | 272 passed, 93 skipped |
+| New test files | `test_policy_integrity.py` (11 tests × backends), `test_api_v1.py` (12), `test_cli.py` (12), `test_dashboard_ui.py` (2, incl. Playwright) |
+| Newman, `postman/` collection | 54/54 requests, 119/119 assertions, against the API on **SQLite, PostgreSQL and MySQL** |
+| `maskguard test` (attack suite as support, analyst, auditor + audit chain + integrity proof) | all PASS; 0/17 leaks per role (naive masking: 14/17) |
+
+A pre-existing warning remains: asyncio prints "Task was destroyed but it is pending" when the PG-proxy test
+fixture shuts its server down at the end of the session. It does not affect results.
 
 ## 6. Evidence that masking left the database unchanged
 
