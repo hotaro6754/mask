@@ -149,7 +149,7 @@ def test_automated_pia(sqlite_env):
     assert {"users.aadhaar", "accounts.balance", "support_tickets.message"} <= cols
     row = next(m for m in r["access_matrix"] if m["column"] == "accounts.balance")
     assert row == {"column": "accounts.balance", "admin": "full value", "support": "partially masked",
-                   "analyst": "noisy SUM/AVG/COUNT only"}
+                   "analyst": "noisy SUM/AVG/COUNT only", "auditor": "redacted"}
     assert any(t["user"] == "intruder.ian" and t["action"] == "block" for t in r["activity"]["threat_events"])
     assert r["activity"]["epsilon_spent"]["analyst.ali"] == 0.5 and r["controls"]["audit_chain_valid"]
     md = to_markdown(r)

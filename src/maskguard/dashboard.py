@@ -91,7 +91,7 @@ with t_query:
                 with col:
                     st.subheader(role.title())
                     try:
-                        r = gw.query(app.auth.login(user, pw), sql)
+                        r = gw.query(app.auth.login(user, pw), sql, channel="dashboard")
                         st.dataframe(frame(r.columns, r.rows), width="stretch", hide_index=True)
                         st.caption(f"{len(r.rows)} rows · {r.ms:.1f} ms · masked: {', '.join(r.masked) or 'nothing'}")
                     except Rejected as e:
@@ -100,7 +100,7 @@ with t_query:
                         st.error(f"Query failed: {type(e).__name__}: {e}")
         else:
             try:
-                r = gw.query(s, sql)
+                r = gw.query(s, sql, channel="dashboard")
                 st.dataframe(frame(r.columns, r.rows), width="stretch", hide_index=True)
                 st.caption(f"{len(r.rows)} rows · {r.ms:.1f} ms · masked: {', '.join(r.masked) or 'nothing'}")
                 with st.expander("Rewritten SQL that actually ran"):

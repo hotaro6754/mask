@@ -1,10 +1,11 @@
-import threading, time
+import secrets, threading, time
 from dataclasses import dataclass, field
 
 from .audit import AuditLog, fingerprint
 from .rewriter import Rejected, rewrite
 from .threat import Event, ThreatEngine
 from .dp import BudgetExceeded, PrivacyLedger, apply_noise
+from .policy import version as policy_version
 
 
 @dataclass
@@ -16,6 +17,8 @@ class QueryResult:
     ms: float = 0.0
     risk: int = 0
     dp: dict = None  # {"epsilon": spent, "remaining": budget left today} when noise was added
+    request_id: str = ""
+    policy_version: str = ""
 
 
 class Gateway:
@@ -41,13 +44,23 @@ class Gateway:
             return None
         return self.threat.observe(session.user, Event(now or time.time(), decision, fp, rows, shape or {}))
 
-    def query(self, session, sql, now=None, observe=True):
+    def query(self, session, sql, now=None, observe=True, channel="engine"):
+        rid = "req-" + secrets.token_hex(6)
+        try:
+            return self._query(session, sql, now, observe, channel, rid)
+        except Rejected as e:
+            e.request_id = rid
+            raise
+
+    def _query(self, session, sql, now, observe, channel, rid):
         t0 = time.perf_counter()
         if not self.auth.valid(session):
             raise PermissionError("not authenticated")
         dialect = self.backend.dialect
         fp = fingerprint(sql, dialect)
-        base = dict(user=session.user, role=session.role, sql=fp, backend=dialect)
+        pv = policy_version(self.policy)
+        base = dict(request_id=rid, channel=channel, user=session.user, role=session.role, sql=fp, backend=dialect,
+                    policy_version=pv)
         if observe and self.threat is not None and self.threat.is_blocked(session.user, now):
             self.audit.append(**base, decision="blocked", reason="session blocked by threat engine")
             raise Rejected("session blocked by the threat engine; ask an admin to review the alert")
@@ -80,12 +93,12 @@ class Gateway:
                           **({"dp_epsilon": dp_info["epsilon"], "dp_remaining": dp_info["remaining"]} if dp_info else {}))
         if a is not None and a.action == "block":  # withhold this result too: the session is now blocked
             raise Rejected("session blocked by the threat engine: " + "; ".join(a.reasons)[:200])
-        return QueryResult(cols, rows, res.sql, res.masked, ms, a.risk if a else 0, dp_info)
+        return QueryResult(cols, rows, res.sql, res.masked, ms, a.risk if a else 0, dp_info, rid, pv)
 
     @staticmethod
     def _risk_fields(a):
         return {} if a is None else {"risk": a.risk, "threat_action": a.action, "threat_reasons": a.reasons}
 
-    def execute(self, session, sql, now=None, observe=True):  # (columns, rows) convenience
-        r = self.query(session, sql, now, observe)
+    def execute(self, session, sql, now=None, observe=True, channel="engine"):  # (columns, rows) convenience
+        r = self.query(session, sql, now, observe, channel)
         return r.columns, r.rows

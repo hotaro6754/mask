@@ -1,4 +1,5 @@
-# DEMO ACCOUNTS ONLY. Passwords: admin.ann/admin123, support.sam/support123, analyst.ali/analyst123, intruder.ian/intruder123 (threat demo)
+# DEMO ACCOUNTS ONLY. Passwords: admin.ann/admin123, support.sam/support123, analyst.ali/analyst123, auditor.aud/auditor123,
+# intruder.ian/intruder123 (threat demo)
 # Create real users with: maskguard hash-password
 users:
   admin.ann:
@@ -10,6 +11,9 @@ users:
   analyst.ali:
     role: analyst
     password_hash: pbkdf2_sha256$200000$2PR2HzHDElhBE3oC/JgPAg==$/95pugLcukGbeYxl2drrzWMvRNYrqvPplm/Qrz6NC9c=
+  auditor.aud:
+    role: auditor
+    password_hash: pbkdf2_sha256$200000$WUpSCSOe0upBvO4xiBbr3Q==$A2Vhy8gHINP11Y4z4h9eNrhY0jM7+o0qaHQtS+x0FT0=
   intruder.ian:
     role: support
     password_hash: pbkdf2_sha256$200000$VPXl2UUiNTLH4jcjhAEWLQ==$D0ERyrVFw8Hh8OXhRQu/Br1QS8cKGdrY5YnzxGec6uw=

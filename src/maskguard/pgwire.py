@@ -192,7 +192,7 @@ class Connection:
         if local is not None:
             return local
         loop = asyncio.get_running_loop()
-        res = await loop.run_in_executor(None, self.app.gateway.query, self.session, sql)
+        res = await loop.run_in_executor(None, lambda: self.app.gateway.query(self.session, sql, channel="pgwire"))
         return res.columns, res.rows, f"SELECT {len(res.rows)}"
 
     async def describe(self, query, nparams):

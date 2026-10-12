@@ -6,8 +6,32 @@ roles:
   admin:   {PII_HIGH: allow,   FINANCIAL_CONFIDENTIAL: allow,   PII_MEDIUM: allow,  PII_IN_TEXT: allow}
   support: {PII_HIGH: partial, FINANCIAL_CONFIDENTIAL: partial, PII_MEDIUM: allow,  PII_IN_TEXT: redact_text}
   analyst: {PII_HIGH: hmac,    FINANCIAL_CONFIDENTIAL: aggregate, PII_MEDIUM: redact, PII_IN_TEXT: redact}
-max_rows: {admin: 10000, support: 100, analyst: 1000}
-min_group_size: {support: 5, analyst: 5}   # aggregates over fewer rows are suppressed
+  auditor: {PII_HIGH: redact,  FINANCIAL_CONFIDENTIAL: redact,  PII_MEDIUM: redact, PII_IN_TEXT: redact}
+# What each role may do besides querying. The API and CLI check these; nothing here can unmask data.
+role_info:
+  admin:
+    label: Admin
+    description: Data owner. Sees real values; runs scans, edits policy, manages threat blocks. Every action is audited.
+    capabilities: [query, policy.read, policy.write, registry.read, scan.run, audit.read, integrity.verify,
+                   integrity.baseline, threats.manage, pia.read]
+  support:
+    label: Support agent
+    description: Helps customers. Sees partial identifiers (last 4 digits) and rounded balances; never frozen accounts.
+    capabilities: [query]
+  analyst:
+    label: Analyst
+    description: Studies trends. Identifiers become joinable HMAC tokens; money only through noisy aggregates.
+    capabilities: [query]
+  auditor:
+    label: Auditor
+    description: Reviews controls. Reads policies, scanner evidence, the audit log and integrity proofs; no raw PII.
+    capabilities: [query, policy.read, registry.read, audit.read, integrity.verify, pia.read]
+# Row-level security: rows outside a role's scope never enter its masked view. Column-vs-literal predicates only.
+row_filters:
+  support:
+    accounts: "status <> 'frozen'"     # frozen accounts are handled by the fraud desk, not first-line support
+max_rows: {admin: 10000, support: 100, analyst: 1000, auditor: 100}
+min_group_size: {support: 5, analyst: 5, auditor: 5}   # aggregates over fewer rows are suppressed
 partial:                        # characters kept at each end; separators are preserved
   card:    {prefix: 4, suffix: 4}
   ssn:     {prefix: 0, suffix: 4}

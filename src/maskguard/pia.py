@@ -75,7 +75,8 @@ def build(app, since_days=30):
             "controls": {"masking": True, "threat_engine": gw.threat is not None,
                          "threat_thresholds": {"alert": gw.threat.alert, "block": gw.threat.block} if gw.threat else None,
                          "differential_privacy": policy.get("dp"), "row_caps": policy.get("max_rows"),
-                         "min_group_size": policy.get("min_group_size"), "audit_chain_valid": gw.audit.verify()},
+                         "min_group_size": policy.get("min_group_size"), "row_filters": policy.get("row_filters") or {},
+                         "audit_chain_valid": gw.audit.verify()},
             "activity": {"days": since_days, "decisions": dict(stats), "users": len(users - {None}),
                          "threat_events": [{"user": u, "action": a, "count": n} for (u, a), n in alerts.items()],
                          "epsilon_spent": {u: round(v, 2) for u, v in eps.items()}},
@@ -99,6 +100,7 @@ def to_markdown(r):
           f"- Differential privacy: ε per query {c['differential_privacy'].get('epsilon_per_query') if c['differential_privacy'] else '-'}, "
           f"daily budget {c['differential_privacy'].get('daily_budget') if c['differential_privacy'] else '-'}.",
           f"- Row caps {c['row_caps']}; aggregates over fewer than {c['min_group_size']} rows suppressed.",
+          f"- Row-level filters: {c['row_filters'] or 'none'}.",
           f"- Audit log hash chain: {'intact' if c['audit_chain_valid'] else 'BROKEN — investigate'}.", "",
           f"## 4. Activity, last {r['activity']['days']} days", "",
           f"- Decisions: {r['activity']['decisions'] or 'none recorded'}; distinct users: {r['activity']['users']}."]

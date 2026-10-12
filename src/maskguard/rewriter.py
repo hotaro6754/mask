@@ -172,6 +172,37 @@ def _apply_group_floor(select, k):
     select.set("having", exp.Having(this=exp.and_(having.this, floor) if having else floor))
 
 
+ROW_FILTER_NODES = (exp.Column, exp.Identifier, exp.Literal, exp.Null, exp.Boolean, exp.Paren, exp.Tuple, exp.Neg,
+                    exp.EQ, exp.NEQ, exp.GT, exp.GTE, exp.LT, exp.LTE, exp.And, exp.Or, exp.Not, exp.In, exp.Is,
+                    exp.Between)
+
+
+def compile_row_filter(sql, table):
+    """Parse a policy row filter ("status <> 'frozen'"); only column-vs-literal comparisons are accepted."""
+    tree = sqlglot.parse_one(sql)
+    for node in tree.walk():
+        if not isinstance(node, ROW_FILTER_NODES):
+            raise ValueError(f"row filter for {table} may only compare columns with literals: {sql}")
+    return tree
+
+
+def _row_filter(policy, role, table, real_table, columns):
+    """Policy row filter for this role and table, with columns pinned to the real table (or None)."""
+    sql = ((policy.get("row_filters") or {}).get(role) or {}).get(table)
+    if not sql:
+        return None
+    try:
+        cond = compile_row_filter(sql, table)
+    except Exception:
+        raise Rejected("row filter in policy is invalid; refusing the query") from None
+    real_cols = {c.lower(): c for c in columns}
+    for c in cond.find_all(exp.Column):
+        if c.name.lower() not in real_cols:
+            raise Rejected("row filter in policy references an unknown column; refusing the query")
+        c.replace(exp.column(real_cols[c.name.lower()], table=real_table, quoted=True))
+    return cond
+
+
 def action_for(meta, role, policy):
     if not meta.get("tag"):
         return "allow"
@@ -225,7 +256,12 @@ def rewrite(sql, role, registry, policy, dialect="sqlite", schema=None):
             projections.append(_mask_expr(col, meta, action, policy, bounds).as_(col, quoted=True))
         inner = exp.Table(this=exp.to_identifier(real_names[table.name.lower()], quoted=True),
                           db=exp.to_identifier(schema))  # pinned to the real table: a CTE can't capture it
-        table.replace(exp.select(*projections).from_(inner).subquery(table.alias_or_name))
+        view = exp.select(*projections).from_(inner)
+        cond = _row_filter(policy, role, table.name.lower(), real_names[table.name.lower()], registry[table.name.lower()])
+        if cond is not None:  # row-level security: rows outside the role's scope never enter the view
+            view = view.where(cond)
+            masked.append(f"{table.name.lower()}:row_filter")
+        table.replace(view.subquery(table.alias_or_name))
 
     cap = (policy.get("max_rows") or {}).get(role)
     if cap:
