@@ -1,0 +1,61 @@
+{
+  "sentences": 4500,
+  "detectors": {
+    "bpb regex_checksum": {
+      "redaction_recall": 0.868,
+      "over_redaction": 0.0,
+      "strict_precision": 0.9331,
+      "strict_recall": 0.8653,
+      "per_label_redaction_recall": {
+        "DATE_OF_BIRTH": 1.0,
+        "EMAIL": 1.0,
+        "IN_AADHAAR": 1.0,
+        "IN_BANK_ACCOUNT": 1.0,
+        "IN_GSTIN": 1.0,
+        "IN_IFSC": 1.0,
+        "IN_MOBILE": 1.0,
+        "IN_PAN": 1.0,
+        "IN_PASSPORT": 1.0,
+        "IN_PINCODE": 1.0,
+        "IN_UPI_ID": 1.0,
+        "IN_VEHICLE_REG": 1.0,
+        "IN_VOTER_ID": 1.0,
+        "PERSON_NAME": 0.0,
+        "POSTAL_ADDRESS": 0.0
+      },
+      "by_language": {
+        "english": 0.868,
+        "hindi": 0.868,
+        "hinglish": 0.868
+      }
+    },
+    "MaskGuard text redactor": {
+      "redaction_recall": 0.868,
+      "over_redaction": 0.0,
+      "strict_precision": 0.8855,
+      "strict_recall": 0.8211,
+      "per_label_redaction_recall": {
+        "DATE_OF_BIRTH": 1.0,
+        "EMAIL": 1.0,
+        "IN_AADHAAR": 1.0,
+        "IN_BANK_ACCOUNT": 1.0,
+        "IN_GSTIN": 1.0,
+        "IN_IFSC": 1.0,
+        "IN_MOBILE": 1.0,
+        "IN_PAN": 1.0,
+        "IN_PASSPORT": 1.0,
+        "IN_PINCODE": 1.0,
+        "IN_UPI_ID": 1.0,
+        "IN_VEHICLE_REG": 1.0,
+        "IN_VOTER_ID": 1.0,
+        "PERSON_NAME": 0.0,
+        "POSTAL_ADDRESS": 0.0
+      },
+      "by_language": {
+        "english": 0.868,
+        "hindi": 0.868,
+        "hinglish": 0.868
+      }
+    }
+  }
+}

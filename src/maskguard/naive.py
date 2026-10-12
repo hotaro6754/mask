@@ -19,6 +19,9 @@ def _mask_value(v, meta, action, policy):
         return masks.partial(v, p["prefix"], p["suffix"])
     if action == "hmac":
         return masks.token(v)
+    if action == "redact_text":
+        from .textpii import redact
+        return redact(v)
     if action == "redact":
         return None if meta.get("type") == "num" else "REDACTED"
     return None

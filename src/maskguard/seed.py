@@ -20,7 +20,7 @@ CREATE TABLE users (id INTEGER PRIMARY KEY, name TEXT, email TEXT, phone TEXT, a
 CREATE TABLE accounts (id INTEGER PRIMARY KEY, user_id INTEGER, credit_card TEXT, iban TEXT,
                        balance NUMERIC(12,2), status TEXT);
 CREATE TABLE support_tickets (id INTEGER PRIMARY KEY, user_id INTEGER, contact TEXT, payment_ref TEXT,
-                              order_ref TEXT, notes TEXT, status TEXT);
+                              order_ref TEXT, notes TEXT, status TEXT, message TEXT);
 """
 
 
@@ -58,6 +58,23 @@ def card():
     return "-".join(n[i:i + 4] for i in range(0, 16, 4)) if len(n) == 16 else n
 
 
+MESSAGES = ["Customer called from {phone} asking why the card was blocked.",
+            "Please send statements to {email} from next month.",
+            "KYC done at branch, Aadhaar {aadhaar} verified by officer.",
+            "Refund of the reversed fee should go to UPI {upi} today.",
+            "Customer wants a statement for account {acct} for the last quarter.",
+            "Card blocked after a suspicious transaction, customer informed.",
+            "Customer asked about the annual fee and was told it is waived.",
+            "Address change request received, documents pending.",
+            "Escalated to the branch manager for a callback tomorrow."]
+
+
+def message(r):
+    t = r.choice(MESSAGES)
+    return t.format(phone=phone(), email=fake.email(), aadhaar=aadhaar(), acct=str(r.randint(10**10, 10**12)),
+                    upi=fake.user_name() + "@okaxis")
+
+
 def make_db(backend, n=300, seed=7):
     random.seed(seed); Faker.seed(seed); fake.seed_instance(seed); fake_gb.seed_instance(seed); fake.unique.clear()
     backend.admin_script(DDL)
@@ -68,7 +85,7 @@ def make_db(backend, n=300, seed=7):
                          random.choice(["active", "frozen"])))
         tickets.append((i, random.randint(1, n), phone(), card(), not_aadhaar(),
                         random.choice(["Card blocked", "Statement request", "KYC update", "Fee reversal"]),
-                        random.choice(["open", "closed"])))
+                        random.choice(["open", "closed"]), message(random)))
     backend.insert_many("users", users)
     backend.insert_many("accounts", accounts)
     backend.insert_many("support_tickets", tickets)

@@ -72,8 +72,15 @@ def _secrets(backend, registry, role, policy):
     out = set()
     for table, cols in registry.items():
         for col, meta in cols.items():
-            if action_for(meta, role, policy) != "allow":
-                out |= {str(r[0]) for r in backend.admin_query(f'SELECT "{col}" FROM "{table}"')[1] if r[0] is not None}
+            action = action_for(meta, role, policy)
+            if action == "allow":
+                continue
+            values = [str(r[0]) for r in backend.admin_query(f'SELECT "{col}" FROM "{table}"')[1] if r[0] is not None]
+            if action == "redact_text":  # the secret is the identifiers inside the text, not the whole sentence
+                from .textpii import find
+                out |= {span[3] for v in values for span in find(v)}
+            else:
+                out |= set(values)
     return out
 
 

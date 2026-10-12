@@ -3,7 +3,7 @@
 | Phase | Scope | Status |
 |---|---|---|
 | 1. ML PII discovery | LightGBM column classifier (85 features incl. checksum pass-rates) + checksum rules, 20 PII kinds incl. Indian IDs; fail-closed review band; evaluated on bharat-pii-bench | **built** |
-| 2. PII inside free text | DB-side redaction of identifiers inside notes/comments (SQLite UDF + PL/pgSQL); span-level eval on bharat-pii-bench T3 and ai4privacy/pii-masking-300k | next (ai4privacy needs `huggingface.co` allowed) |
+| 2. PII inside free text | DB-side redaction of 16 identifier types inside notes/comments (SQLite UDF + generated PL/pgSQL, byte-identical); `PII_IN_TEXT` tag; T3 eval: 100% of structured IDs, 0% over-redaction | **built**; names/addresses in text need NER (ai4privacy-300k / pii-masker, blocked until `huggingface.co` is allowed) |
 | 3. Query-stream threat detection | rules + IsolationForest over session features; enumeration/differencing detection; auto-block | planned |
 | 4. Differential-privacy aggregates | `aggregate` policy action: clipped SUM/AVG/COUNT + Laplace noise + per-user ε budget | planned |
 | 5. Drop-in integration | PostgreSQL wire-protocol proxy, MySQL backend, Python SDK, Postman collection, CI | planned |

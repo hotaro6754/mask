@@ -120,3 +120,12 @@ def test_audit_log_has_no_pii_literals_and_chain_verifies(env):
 def test_admin_is_not_reported_as_leaking(env):
     sc = score(run_suite(env.gw, env.login("admin")))
     assert sc["maskguard_leaks"] == 0 and sc["naive_leaks"] == 0
+
+
+@pytest.mark.parametrize("sql", [
+    "SELECT id FROM users WHERE id = 1 OR id = 2",
+    "SELECT id FROM users WHERE id > 1 AND NOT id = 3 AND city <> 'x'",
+    "SELECT EXISTS (SELECT 1 FROM users WHERE id = 1)",
+])
+def test_ordinary_boolean_logic_is_allowed(env, sql):
+    assert env.run("support", sql)[1]

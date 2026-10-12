@@ -7,6 +7,7 @@ import hashlib, sqlite3, threading
 from urllib.parse import urlparse
 
 from . import masks
+from .textpii import pg_function_sql
 
 NUMERIC_TYPES = {"INTEGER", "INT", "BIGINT", "SMALLINT", "REAL", "NUMERIC", "FLOAT", "DOUBLE", "DECIMAL",
                  "DOUBLE PRECISION"}
@@ -130,6 +131,7 @@ class PostgresBackend(Backend):
         self.lock = threading.Lock()
         with self.lock:
             self.conn.execute(PG_FUNCTIONS)
+            self.conn.execute(pg_function_sql())
             key = hmac_key if hmac_key is not None else masks._key().decode()
             self.conn.execute("SELECT set_config('maskguard.hmac_key', %s, false)", (key,))
             self.conn.execute(f"SET statement_timeout = {int(statement_timeout_ms)}")

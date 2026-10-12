@@ -20,6 +20,8 @@ KIND_TAG = {
     # quasi-identifiers
     "name": "PII_MEDIUM", "address": "PII_MEDIUM", "dob": "PII_MEDIUM", "pincode": "PII_MEDIUM",
     "vehicle_reg": "PII_MEDIUM", "ifsc": "PII_MEDIUM",
+    # identifiers embedded in free text (notes, comments)
+    "free_text_pii": "PII_IN_TEXT",
 }
 HEADER_WORDS = {"email": "email", "mail": "email", "phone": "phone", "mobile": "phone", "msisdn": "phone",
                 "ssn": "ssn", "aadhaar": "aadhaar", "aadhar": "aadhaar", "pan": "pan", "card": "card", "cc": "card",
@@ -97,6 +99,12 @@ def ml_available():
     return _ML["ok"]
 
 
+def _texty(sample):
+    """Mostly multi-word values: worth checking for identifiers inside the text."""
+    vals = [str(v) for v in sample[:50] if v is not None]
+    return bool(vals) and sum(len(v.split()) >= 4 for v in vals) / len(vals) >= 0.5
+
+
 def classify_column(column, values):
     """Hybrid scanner. Returns {kind, tag, confidence, evidence, source, probs} or None for non-PII columns."""
     if not ml_available():
@@ -107,9 +115,13 @@ def classify_column(column, values):
     kind = d["kind"]
     if kind in KIND_TAG:
         return _out(kind, d["confidence"], d["evidence"], source=d["source"], probs=d["probs"])
-    if kind == "free_text":
-        return {"kind": "free_text", "confidence": d["confidence"], "evidence": d["evidence"], "source": d["source"],
-                "probs": d["probs"]}
+    if kind == "free_text" or _texty(sample):
+        from .textpii import scan_values
+        has, ev = scan_values(sample)
+        if has:
+            return _out("free_text_pii", "high", f"free text; {ev}", source="ml+patterns", probs=d["probs"])
+        if kind == "free_text":
+            return None
     hk = header_kind(column)  # ML says not PII; a PII header with a non-confident model still masks (fail closed)
     if hk and d["confidence"] != "high":
         return _out(hk, "review", f"header says {hk}; {d['evidence']}", source="header", probs=d["probs"])

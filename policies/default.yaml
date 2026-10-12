@@ -1,9 +1,10 @@
 version: 1
 default_action: deny            # unknown tag -> deny (fail closed); unknown role is rejected outright
+# actions: allow | partial | hmac | redact | redact_text (identifiers inside free text) | deny
 roles:
-  admin:   {PII_HIGH: allow,   FINANCIAL_CONFIDENTIAL: allow,   PII_MEDIUM: allow}
-  support: {PII_HIGH: partial, FINANCIAL_CONFIDENTIAL: partial, PII_MEDIUM: allow}
-  analyst: {PII_HIGH: hmac,    FINANCIAL_CONFIDENTIAL: redact,  PII_MEDIUM: redact}
+  admin:   {PII_HIGH: allow,   FINANCIAL_CONFIDENTIAL: allow,   PII_MEDIUM: allow,  PII_IN_TEXT: allow}
+  support: {PII_HIGH: partial, FINANCIAL_CONFIDENTIAL: partial, PII_MEDIUM: allow,  PII_IN_TEXT: redact_text}
+  analyst: {PII_HIGH: hmac,    FINANCIAL_CONFIDENTIAL: redact,  PII_MEDIUM: redact, PII_IN_TEXT: redact}
 max_rows: {admin: 10000, support: 100, analyst: 1000}
 min_group_size: {support: 5, analyst: 5}   # aggregates over fewer rows are suppressed
 partial:                        # characters kept at each end; separators are preserved

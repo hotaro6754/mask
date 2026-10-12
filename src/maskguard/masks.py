@@ -41,3 +41,5 @@ def register_sqlite(conn):
     conn.create_function("mg_email", 1, email, deterministic=True)
     conn.create_function("mg_hmac", 1, token, deterministic=True)
     conn.create_function("mg_bucket", 2, bucket, deterministic=True)
+    from .textpii import redact
+    conn.create_function("mg_redact_text", 1, redact, deterministic=True)

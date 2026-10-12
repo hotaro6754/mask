@@ -17,7 +17,8 @@ class Rejected(Exception):
 
 ALLOWED_FUNCS = {"count", "sum", "avg", "min", "max", "lower", "upper", "length", "substring", "coalesce", "abs",
                  "round", "trim", "concat", "dpipe", "cast", "trycast", "nullif", "if", "case", "extract",
-                 "currentdate", "floor", "ceil"}
+                 "currentdate", "floor", "ceil",
+                 "and", "or", "xor", "exists"}  # sqlglot models these operators as Func nodes
 ROOTS = (exp.Select, exp.SetOperation)
 FORBIDDEN = (exp.Into, exp.Lock, exp.Command, exp.Pragma, exp.Set)
 DEFAULT_SCHEMA = {"sqlite": "main", "postgres": "public"}
@@ -48,6 +49,8 @@ def _mask_expr(col, meta, action, policy):
         return fn("mg_partial", _as_text(c), exp.Literal.number(p["prefix"]), exp.Literal.number(p["suffix"]))
     if action == "hmac":
         return fn("mg_hmac", _as_text(c))
+    if action == "redact_text":  # identifiers inside free text -> [PHONE], [AADHAAR], ...
+        return fn("mg_redact_text", _as_text(c))
     if action == "redact":  # typed NULL keeps avg()/sum() valid on Postgres
         return exp.Cast(this=exp.Null(), to=exp.DataType.build("double")) if num else exp.Literal.string("REDACTED")
     return exp.Cast(this=exp.Null(), to=exp.DataType.build("double" if num else "text"))  # deny / unknown action
