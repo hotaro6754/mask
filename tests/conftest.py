@@ -1,25 +1,51 @@
-import os, sqlite3, sys, pathlib, yaml, pytest
-ROOT = pathlib.Path(__file__).resolve().parents[1]
-sys.path[:0] = [str(ROOT / "src"), str(ROOT)]
-os.environ.setdefault("MASKGUARD_HMAC_KEY", "test-key-not-for-prod")
-from maskguard import masks
-from maskguard.scanner import scan_sqlite
-from maskguard.gateway import Authenticator, Gateway
-from seed.make_data import make_db
+import os
+import pytest
 
-@pytest.fixture()
-def env(tmp_path):
-    conn = sqlite3.connect(":memory:")
-    masks.register_sqlite(conn)
-    make_db(conn)
-    registry = {t: scan_sqlite(conn, t) for t in ("users", "accounts")}
-    policy = yaml.safe_load((ROOT / "policies" / "default.yaml").read_text())
-    auth = Authenticator({"ann": ("pw", "admin"), "sam": ("pw", "support"), "ali": ("pw", "analyst"),
-                          "eve": ("pw", "intern")})
-    gw = Gateway(conn, registry, policy, auth, str(tmp_path / "audit.jsonl"))
-    names = {r[0] for r in conn.execute("SELECT name FROM users")}
-    raw = set()
-    for t, cols in (("users", ["email", "phone", "aadhaar", "pan", "ssn"]), ("accounts", ["credit_card", "iban", "balance"])):
-        for c in cols:
-            raw |= {str(r[0]) for r in conn.execute(f"SELECT {c} FROM {t}")}
-    return type("Env", (), dict(conn=conn, gw=gw, auth=auth, raw=raw, names=names, registry=registry, policy=policy))
+os.environ.setdefault("MASKGUARD_HMAC_KEY", "test-key-not-for-prod")
+os.environ.setdefault("MASKGUARD_JWT_SECRET", "test-jwt-secret-not-for-prod-0123456789")
+
+from maskguard import config  # noqa: E402
+
+PG_URL = os.environ.get("MASKGUARD_TEST_PG")  # e.g. postgresql://postgres@127.0.0.1:5432/bank
+BACKENDS = ["sqlite", pytest.param("postgres", marks=pytest.mark.skipif(not PG_URL, reason="MASKGUARD_TEST_PG not set"))]
+
+
+def make_settings(tmp_path, backend):
+    return config.Settings(db=PG_URL if backend == "postgres" else f"sqlite:///{tmp_path}/bank.db",
+                           audit=str(tmp_path / "audit.jsonl"), registry_out=str(tmp_path / "registry.yaml"),
+                           seed_if_empty=True)
+
+
+class Env:
+    def __init__(self, app):
+        self.app, self.gw, self.auth, self.backend = app, app.gateway, app.auth, app.backend
+        q = lambda sql: self.backend.admin_query(sql)[1]
+        self.names = {str(r[0]) for r in q("SELECT name FROM users")}
+        self.raw = set()
+        for t, cols in (("users", ["email", "phone", "aadhaar", "pan", "ssn"]),
+                        ("accounts", ["credit_card", "iban", "balance"]),
+                        ("support_tickets", ["contact", "payment_ref"])):
+            for c in cols:
+                self.raw |= {str(r[0]) for r in q(f"SELECT {c} FROM {t}")}
+
+    def login(self, role):
+        return self.auth.login(*config.DEMO_ACCOUNTS[role])
+
+    def run(self, role, sql):
+        return self.gw.execute(self.login(role), sql)
+
+    def real(self, col, table="users"):
+        return self.backend.admin_query(f"SELECT {col} FROM {table} ORDER BY id LIMIT 1")[1][0][0]
+
+
+@pytest.fixture(params=BACKENDS)
+def env(request, tmp_path):
+    from maskguard.seed import make_db
+    app = config.build(make_settings(tmp_path, request.param))
+    make_db(app.backend)  # fresh, deterministic data for every test (also resets a shared Postgres DB)
+    return Env(app)
+
+
+@pytest.fixture
+def sqlite_env(tmp_path):
+    return Env(config.build(make_settings(tmp_path, "sqlite")))

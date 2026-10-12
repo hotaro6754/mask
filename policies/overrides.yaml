@@ -1,0 +1,4 @@
+# Manual tags that win over the scanner, e.g. to tag a column it missed or downgrade a false positive.
+# table:
+#   column: {tag: PII_HIGH, kind: phone}
+{}

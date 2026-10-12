@@ -1,0 +1,40 @@
+# docker compose up --build  ->  dashboard on :8501 and API on :8000, both on PostgreSQL 16.
+# Set real secrets in a .env file (MASKGUARD_HMAC_KEY, MASKGUARD_JWT_SECRET) before any non-demo use.
+x-maskguard: &maskguard
+  build: .
+  environment:
+    MASKGUARD_DB: postgresql://maskguard:maskguard@postgres:5432/bank
+    MASKGUARD_HMAC_KEY: ${MASKGUARD_HMAC_KEY:-dev-only-hmac-key-change-me}
+    MASKGUARD_JWT_SECRET: ${MASKGUARD_JWT_SECRET:-dev-only-jwt-secret-change-me-0123456789}
+    MASKGUARD_SCAN_INTERVAL: "300"
+  depends_on:
+    postgres:
+      condition: service_healthy
+  volumes:
+    - mgdata:/app/data
+
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: maskguard
+      POSTGRES_PASSWORD: maskguard
+      POSTGRES_DB: bank
+    ports: ["5432:5432"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U maskguard -d bank"]
+      interval: 2s
+      retries: 30
+
+  dashboard:
+    <<: *maskguard
+    command: ["maskguard", "dashboard", "--port", "8501"]
+    ports: ["8501:8501"]
+
+  api:
+    <<: *maskguard
+    command: ["maskguard", "serve", "--host", "0.0.0.0", "--port", "8000"]
+    ports: ["8000:8000"]
+
+volumes:
+  mgdata:

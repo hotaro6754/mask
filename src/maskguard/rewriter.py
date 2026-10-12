@@ -1,3 +1,10 @@
+"""Rewrite one SELECT so every base table is read through a masked derived table.
+
+    FROM users  ->  FROM (SELECT "id", mg_email(CAST("email" AS TEXT)) AS "email", ... FROM main.users) AS users
+
+Aliases, SELECT *, CTEs, subqueries, joins, predicates, ORDER BY and aggregates then only ever see masked
+values. Anything that isn't a single SELECT, or touches an unregistered table or function, is rejected.
+"""
 from dataclasses import dataclass, field
 import sqlglot
 from sqlglot import exp
@@ -9,7 +16,8 @@ class Rejected(Exception):
 
 
 ALLOWED_FUNCS = {"count", "sum", "avg", "min", "max", "lower", "upper", "length", "substring", "coalesce", "abs",
-                 "round", "trim", "concat", "cast", "trycast", "nullif", "if", "extract", "currentdate"}
+                 "round", "trim", "concat", "dpipe", "cast", "trycast", "nullif", "if", "case", "extract",
+                 "currentdate", "floor", "ceil"}
 ROOTS = (exp.Select, exp.SetOperation)
 FORBIDDEN = (exp.Into, exp.Lock, exp.Command, exp.Pragma, exp.Set)
 DEFAULT_SCHEMA = {"sqlite": "main", "postgres": "public"}
@@ -19,6 +27,10 @@ DEFAULT_SCHEMA = {"sqlite": "main", "postgres": "public"}
 class Result:
     sql: str
     masked: list = field(default_factory=list)
+
+
+def _as_text(c):
+    return exp.Cast(this=c, to=exp.DataType.build("text"))
 
 
 def _mask_expr(col, meta, action, policy):
@@ -31,14 +43,14 @@ def _mask_expr(col, meta, action, policy):
         if num:
             return fn("mg_bucket", c, exp.Literal.number(policy.get("bucket_size", 10000)))
         if kind == "email":
-            return fn("mg_email", c)
+            return fn("mg_email", _as_text(c))
         p = policy["partial"].get(kind, policy["partial"]["default"])
-        return fn("mg_partial", c, exp.Literal.number(p["prefix"]), exp.Literal.number(p["suffix"]))
+        return fn("mg_partial", _as_text(c), exp.Literal.number(p["prefix"]), exp.Literal.number(p["suffix"]))
     if action == "hmac":
-        return fn("mg_hmac", exp.Cast(this=c, to=exp.DataType.build("text")))
-    if action == "redact":
-        return exp.Null() if num else exp.Literal.string("REDACTED")
-    return exp.Null()  # deny / unknown
+        return fn("mg_hmac", _as_text(c))
+    if action == "redact":  # typed NULL keeps avg()/sum() valid on Postgres
+        return exp.Cast(this=exp.Null(), to=exp.DataType.build("double")) if num else exp.Literal.string("REDACTED")
+    return exp.Cast(this=exp.Null(), to=exp.DataType.build("double" if num else "text"))  # deny / unknown action
 
 
 def _validate(tree):
@@ -49,6 +61,25 @@ def _validate(tree):
             raise Rejected(f"{type(node).__name__} is not allowed")
         if isinstance(node, exp.Func) and node.key not in ALLOWED_FUNCS:
             raise Rejected(f"function not allowed: {node.name or node.key}")
+
+
+def _is_aggregate(select):
+    if select.args.get("group"):
+        return True
+    return any(agg.parent_select is select for e in select.expressions for agg in e.find_all(exp.AggFunc))
+
+
+def _apply_group_floor(select, k):
+    """Small-cell suppression: aggregate results built from fewer than k rows are dropped."""
+    floor = exp.GTE(this=exp.Count(this=exp.Star()), expression=exp.Literal.number(k))
+    having = select.args.get("having")
+    select.set("having", exp.Having(this=exp.and_(having.this, floor) if having else floor))
+
+
+def action_for(meta, role, policy):
+    if not meta.get("tag"):
+        return "allow"
+    return policy["roles"][role].get(meta["tag"], policy["default_action"])
 
 
 def rewrite(sql, role, registry, policy, dialect="sqlite"):
@@ -63,28 +94,34 @@ def rewrite(sql, role, registry, policy, dialect="sqlite"):
     tree = stmts[0]
     _validate(tree)
 
+    schema = DEFAULT_SCHEMA.get(dialect, "public")
+    k = (policy.get("min_group_size") or {}).get(role)
+    if k:
+        for select in list(tree.find_all(exp.Select)):
+            if _is_aggregate(select):
+                _apply_group_floor(select, k)
+
     registry = {t.lower(): cols for t, cols in registry.items()}
     masked, jobs = [], []
     for scope in traverse_scope(tree):
         for table in scope.tables:
             if isinstance(scope.sources.get(table.alias_or_name), exp.Table):  # base table, not CTE/subquery
+                if table.args.get("catalog") or (table.args.get("db") and table.text("db").lower() != schema):
+                    raise Rejected(f"only the {schema} schema is allowed")
                 if table.name.lower() not in registry:
                     raise Rejected(f"table not registered: {table.name}")
                 jobs.append(table)
     for table in jobs:
         projections = []
         for col, meta in registry[table.name.lower()].items():
-            action = "allow" if not meta.get("tag") else policy["roles"][role].get(meta["tag"], policy["default_action"])
+            action = action_for(meta, role, policy)
             if action != "allow":
                 masked.append(f"{table.name.lower()}.{col}:{action}")
             projections.append(_mask_expr(col, meta, action, policy).as_(col, quoted=True))
-        inner = table.copy()
-        inner.set("alias", None)
-        if not inner.args.get("db"):  # pin to the real schema so a CTE named like the table can't capture it
-            inner.set("db", exp.to_identifier(DEFAULT_SCHEMA.get(dialect, "public")))
+        inner = exp.Table(this=exp.to_identifier(table.name), db=exp.to_identifier(schema))  # pinned: a CTE can't capture it
         table.replace(exp.select(*projections).from_(inner).subquery(table.alias_or_name))
 
-    cap = policy.get("max_rows", {}).get(role)
+    cap = (policy.get("max_rows") or {}).get(role)
     if cap:
         if isinstance(tree, exp.Select):
             lim = tree.args.get("limit")
@@ -94,4 +131,4 @@ def rewrite(sql, role, registry, policy, dialect="sqlite"):
                 tree = tree.limit(cap)
         else:
             tree = exp.select("*").from_(tree.subquery("q")).limit(cap)
-    return Result(tree.sql(dialect=dialect), masked)
+    return Result(tree.sql(dialect=dialect), sorted(set(masked)))

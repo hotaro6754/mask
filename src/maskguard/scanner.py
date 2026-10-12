@@ -1,4 +1,5 @@
-import re
+import re, threading, time
+import yaml
 from stdnum import iban as _iban, luhn as _luhn
 from stdnum.in_ import aadhaar as _aadhaar, pan as _pan
 
@@ -57,10 +58,62 @@ def classify_column(column, values, hi=0.8, lo=0.3):
         return _out(hk, "medium", f"header token matched {hk}; no validator match")
     return None
 
-def scan_sqlite(conn, table):
+def scan_table(backend, table, sample_size=200):
+    from .backends import is_numeric
     entry = {}
-    for _, name, ctype, *_ in conn.execute(f'PRAGMA table_info("{table}")').fetchall():
-        vals = [r[0] for r in conn.execute(f'SELECT "{name}" FROM "{table}" LIMIT 200')]
-        numeric = (ctype or "").upper() in ("INTEGER", "REAL", "NUMERIC", "FLOAT", "DOUBLE", "DECIMAL")
-        entry[name] = {"type": "num" if numeric else "text", **(classify_column(name, vals) or {})}
+    for name, sql_type in backend.columns(table):
+        vals = backend.sample(table, name, sample_size)
+        entry[name] = {"type": "num" if is_numeric(sql_type) else "text", "sql_type": sql_type,
+                       **(classify_column(name, vals) or {})}
     return entry
+
+
+def scan(backend, tables=None, overrides=None, sample_size=200):
+    """Scan every table (or the given ones) and return {table: {column: meta}}. Overrides win over the scanner."""
+    registry = {t: scan_table(backend, t, sample_size) for t in (tables or backend.tables())}
+    for table, cols in (overrides or {}).items():
+        for col, meta in (cols or {}).items():
+            if table in registry and col in registry[table]:
+                registry[table][col].update(meta, confidence="override", evidence="manual override")
+    return registry
+
+
+def save_registry(registry, path):
+    with open(path, "w") as f:
+        yaml.safe_dump(registry, f, sort_keys=True)
+
+
+def load_registry(path):
+    with open(path) as f:
+        return yaml.safe_load(f) or {}
+
+
+def summary(registry):
+    """Flat list of tagged columns for display."""
+    return [{"table": t, "column": c, "tag": m.get("tag"), "kind": m.get("kind"), "confidence": m.get("confidence"),
+             "evidence": m.get("evidence")} for t, cols in registry.items() for c, m in cols.items() if m.get("tag")]
+
+
+class ScanWorker(threading.Thread):
+    """Background worker: rescans on an interval and hands the new registry to on_update (e.g. the gateway).
+    New tables become queryable only after they've been scanned, so unscanned data stays rejected (fail closed)."""
+
+    def __init__(self, backend, on_update, interval=300, overrides=None):
+        super().__init__(daemon=True, name="maskguard-scanner")
+        self.backend, self.on_update, self.interval, self.overrides = backend, on_update, interval, overrides
+        self.stop_event = threading.Event()
+        self.last_run, self.last_error = None, None
+
+    def run_once(self):
+        try:
+            self.on_update(scan(self.backend, overrides=self.overrides))
+            self.last_run, self.last_error = time.time(), None
+        except Exception as e:  # keep the old registry; a failed scan must not unmask anything
+            self.last_error = repr(e)
+
+    def run(self):
+        while not self.stop_event.wait(self.interval):  # the caller already ran the first scan
+            self.run_once()
+
+    def stop(self):
+        self.stop_event.set()
