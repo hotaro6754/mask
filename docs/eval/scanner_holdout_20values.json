@@ -1,0 +1,94 @@
+{
+  "columns": 3420,
+  "max_values": null,
+  "ms_per_column": {
+    "ml": 1.57,
+    "hybrid": 2.26
+  },
+  "results": {
+    "bpb regex_checksum": {
+      "truthful": 0.8438,
+      "obfuscated": 0.8438,
+      "misleading": 0.8438,
+      "hardneg_fp_rate": 0.2222,
+      "hardneg_fp_by_variant": {
+        "aadhaar": 60,
+        "otp": 60
+      }
+    },
+    "bpb regex_checksum+names": {
+      "truthful": 0.8438,
+      "obfuscated": 0.8438,
+      "misleading": 0.8438,
+      "hardneg_fp_rate": 0.2222,
+      "hardneg_fp_by_variant": {
+        "aadhaar": 60,
+        "otp": 60
+      }
+    },
+    "MaskGuard v1 rules": {
+      "truthful": 0.45,
+      "obfuscated": 0.2591,
+      "misleading": 0.2591,
+      "hardneg_fp_rate": 0.0,
+      "hardneg_fp_by_variant": {}
+    },
+    "MaskGuard ML only": {
+      "truthful": 0.9863,
+      "obfuscated": 0.9969,
+      "misleading": 0.9969,
+      "hardneg_fp_rate": 0.0148,
+      "hardneg_fp_by_variant": {
+        "otp": 8
+      }
+    },
+    "MaskGuard hybrid": {
+      "truthful": 0.999,
+      "obfuscated": 0.999,
+      "misleading": 0.999,
+      "hardneg_fp_rate": 0.0148,
+      "hardneg_fp_by_variant": {
+        "otp": 8
+      }
+    }
+  },
+  "hybrid_per_label_f1_obfuscated": {
+    "DATE_OF_BIRTH": 1.0,
+    "EMAIL": 1.0,
+    "IN_AADHAAR": 1.0,
+    "IN_BANK_ACCOUNT": 1.0,
+    "IN_GSTIN": 1.0,
+    "IN_IFSC": 1.0,
+    "IN_MOBILE": 1.0,
+    "IN_PAN": 1.0,
+    "IN_PASSPORT": 1.0,
+    "IN_PINCODE": 1.0,
+    "IN_UPI_ID": 1.0,
+    "IN_VEHICLE_REG": 1.0,
+    "IN_VOTER_ID": 1.0,
+    "PERSON_NAME": 1.0,
+    "POSTAL_ADDRESS": 0.992,
+    "NONE": 0.992
+  },
+  "bpb_per_label_f1_obfuscated": {
+    "DATE_OF_BIRTH": 1.0,
+    "EMAIL": 1.0,
+    "IN_AADHAAR": 1.0,
+    "IN_BANK_ACCOUNT": 1.0,
+    "IN_GSTIN": 1.0,
+    "IN_IFSC": 1.0,
+    "IN_MOBILE": 1.0,
+    "IN_PAN": 1.0,
+    "IN_PASSPORT": 1.0,
+    "IN_PINCODE": 1.0,
+    "IN_UPI_ID": 1.0,
+    "IN_VEHICLE_REG": 1.0,
+    "IN_VOTER_ID": 1.0,
+    "PERSON_NAME": 0.0,
+    "POSTAL_ADDRESS": 0.0,
+    "NONE": 0.5
+  },
+  "hybrid_confusions_obfuscated": [
+    "POSTAL_ADDRESS -> NONE: 1"
+  ]
+}

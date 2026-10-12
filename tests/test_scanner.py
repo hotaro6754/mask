@@ -1,5 +1,5 @@
 from maskguard import masks
-from maskguard.scanner import ScanWorker, classify_column, scan
+from maskguard.scanner import ScanWorker, classify_column_rules as classify_column, scan
 
 
 def test_card_partial_matches_problem_statement():
@@ -18,7 +18,7 @@ def test_tags_from_values_even_with_misleading_headers(env):
     assert "tag" not in reg["users"]["city"] and "tag" not in reg["accounts"]["status"]
 
 
-def test_scrambled_header_and_low_ratio_goes_to_review():
+def test_rules_scanner_scrambled_header_and_low_ratio_goes_to_review():
     cards = ["4111111111111111", "5500005555555559", "340000000000009"] * 10
     assert classify_column("col_7", cards)["kind"] == "card"
     mixed = cards[:4] + ["hello"] * 6

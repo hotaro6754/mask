@@ -1,21 +1,39 @@
-import re, threading, time
+"""PII discovery: hybrid LightGBM column classifier + checksum rules (see maskguard.ml.model.decide).
+
+classify_column() is the scanner used everywhere. classify_column_rules() is the v1 rules-only scanner, kept as a
+fallback when LightGBM is unavailable and as a baseline for bench/eval_scanner.py.
+"""
+import logging, re, threading, time
 import yaml
 from stdnum import iban as _iban, luhn as _luhn
 from stdnum.in_ import aadhaar as _aadhaar, pan as _pan
 
-KIND_TAG = {"email": "PII_HIGH", "phone": "PII_HIGH", "ssn": "PII_HIGH", "aadhaar": "PII_HIGH", "pan": "PII_HIGH",
-            "card": "FINANCIAL_CONFIDENTIAL", "iban": "FINANCIAL_CONFIDENTIAL", "balance": "FINANCIAL_CONFIDENTIAL",
-            "name": "PII_MEDIUM", "address": "PII_MEDIUM", "dob": "PII_MEDIUM"}
+log = logging.getLogger("maskguard.scanner")
+
+KIND_TAG = {
+    # direct identifiers
+    "aadhaar": "PII_HIGH", "pan": "PII_HIGH", "passport": "PII_HIGH", "voter_id": "PII_HIGH", "ssn": "PII_HIGH",
+    "phone": "PII_HIGH", "email": "PII_HIGH", "upi": "PII_HIGH",
+    # financial
+    "card": "FINANCIAL_CONFIDENTIAL", "iban": "FINANCIAL_CONFIDENTIAL", "bank_account": "FINANCIAL_CONFIDENTIAL",
+    "amount": "FINANCIAL_CONFIDENTIAL", "balance": "FINANCIAL_CONFIDENTIAL", "gstin": "FINANCIAL_CONFIDENTIAL",
+    # quasi-identifiers
+    "name": "PII_MEDIUM", "address": "PII_MEDIUM", "dob": "PII_MEDIUM", "pincode": "PII_MEDIUM",
+    "vehicle_reg": "PII_MEDIUM", "ifsc": "PII_MEDIUM",
+}
 HEADER_WORDS = {"email": "email", "mail": "email", "phone": "phone", "mobile": "phone", "msisdn": "phone",
                 "ssn": "ssn", "aadhaar": "aadhaar", "aadhar": "aadhaar", "pan": "pan", "card": "card", "cc": "card",
                 "iban": "iban", "balance": "balance", "name": "name", "address": "address", "dob": "dob", "birth": "dob"}
 
+
 def _digits(v):
     return re.sub(r"[\s-]", "", str(v))
+
 
 def _is_card(v):
     d = _digits(v)
     return d.isdigit() and 13 <= len(d) <= 19 and _luhn.is_valid(d)
+
 
 VALIDATORS = {
     "card": _is_card,
@@ -27,9 +45,11 @@ VALIDATORS = {
     "ssn": lambda v: re.fullmatch(r"\d{3}-?\d{2}-?\d{4}", str(v)) is not None,
 }
 
+
 def header_kind(column):
     tokens = re.split(r"[^a-z0-9]+", re.sub(r"([a-z])([A-Z])", r"\1_\2", column).lower())
     return next((HEADER_WORDS[t] for t in tokens if t in HEADER_WORDS), None)
+
 
 def _safe(fn, v):
     try:
@@ -37,10 +57,13 @@ def _safe(fn, v):
     except Exception:
         return False
 
-def _out(kind, conf, evidence):
-    return {"kind": kind, "tag": KIND_TAG[kind], "confidence": conf, "evidence": evidence}
 
-def classify_column(column, values, hi=0.8, lo=0.3):
+def _out(kind, conf, evidence, **extra):
+    return {"kind": kind, "tag": KIND_TAG[kind], "confidence": conf, "evidence": evidence, **extra}
+
+
+def classify_column_rules(column, values, hi=0.8, lo=0.3):
+    """v1 scanner: validators + header keywords."""
     sample = [v for v in values if v is not None][:200]
     hk = header_kind(column)
     best_kind, best_ratio = None, 0.0
@@ -51,12 +74,47 @@ def classify_column(column, values, hi=0.8, lo=0.3):
         if ratio > best_ratio:
             best_kind, best_ratio = kind, ratio
     if best_kind and best_ratio >= hi:
-        return _out(best_kind, "high", f"{best_ratio:.0%} pass {best_kind} validator; header={hk}")
+        return _out(best_kind, "high", f"{best_ratio:.0%} pass {best_kind} validator; header={hk}", source="rules")
     if best_kind and best_ratio >= lo:
-        return _out(best_kind, "review", f"only {best_ratio:.0%} pass {best_kind} validator; header={hk}")
+        return _out(best_kind, "review", f"only {best_ratio:.0%} pass {best_kind} validator; header={hk}", source="rules")
     if hk:  # header-only evidence: tag anyway (fail closed)
-        return _out(hk, "medium", f"header token matched {hk}; no validator match")
+        return _out(hk, "medium", f"header token matched {hk}; no validator match", source="rules")
     return None
+
+
+_ML = {"ok": None}
+
+
+def ml_available():
+    if _ML["ok"] is None:
+        try:
+            from .ml.model import Classifier
+            Classifier.get()
+            _ML["ok"] = True
+        except Exception as e:  # missing lightgbm or model file -> rules only
+            log.warning("ML scanner unavailable (%s); using rules only", e)
+            _ML["ok"] = False
+    return _ML["ok"]
+
+
+def classify_column(column, values):
+    """Hybrid scanner. Returns {kind, tag, confidence, evidence, source, probs} or None for non-PII columns."""
+    if not ml_available():
+        return classify_column_rules(column, values)
+    from .ml.model import decide
+    sample = [v for v in values if v is not None][:200]
+    d = decide(column, sample)
+    kind = d["kind"]
+    if kind in KIND_TAG:
+        return _out(kind, d["confidence"], d["evidence"], source=d["source"], probs=d["probs"])
+    if kind == "free_text":
+        return {"kind": "free_text", "confidence": d["confidence"], "evidence": d["evidence"], "source": d["source"],
+                "probs": d["probs"]}
+    hk = header_kind(column)  # ML says not PII; a PII header with a non-confident model still masks (fail closed)
+    if hk and d["confidence"] != "high":
+        return _out(hk, "review", f"header says {hk}; {d['evidence']}", source="header", probs=d["probs"])
+    return None
+
 
 def scan_table(backend, table, sample_size=200):
     from .backends import is_numeric

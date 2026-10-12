@@ -42,7 +42,7 @@ def _mask_expr(col, meta, action, policy):
     if action == "partial":
         if num:
             return fn("mg_bucket", c, exp.Literal.number(policy.get("bucket_size", 10000)))
-        if kind == "email":
+        if kind in ("email", "upi"):
             return fn("mg_email", _as_text(c))
         p = policy["partial"].get(kind, policy["partial"]["default"])
         return fn("mg_partial", _as_text(c), exp.Literal.number(p["prefix"]), exp.Literal.number(p["suffix"]))

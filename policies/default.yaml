@@ -13,5 +13,15 @@ partial:                        # characters kept at each end; separators are pr
   pan:     {prefix: 2, suffix: 1}
   phone:   {prefix: 0, suffix: 4}
   iban:    {prefix: 4, suffix: 4}
+  gstin:   {prefix: 2, suffix: 1}     # state code visible
+  passport: {prefix: 0, suffix: 3}
+  voter_id: {prefix: 0, suffix: 3}
+  bank_account: {prefix: 0, suffix: 4}
+  ifsc:    {prefix: 4, suffix: 0}     # bank code visible, branch hidden
+  pincode: {prefix: 3, suffix: 0}     # sorting district only
+  vehicle_reg: {prefix: 2, suffix: 0} # state only
+  dob:     {prefix: 0, suffix: 0}     # separators kept, digits hidden
+  name:    {prefix: 1, suffix: 0}
+  address: {prefix: 0, suffix: 0}
   default: {prefix: 0, suffix: 2}
 bucket_size: 10000              # partial masking of numbers = round down to this bucket

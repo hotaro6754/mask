@@ -1,0 +1,100 @@
+{
+  "columns": 3420,
+  "max_values": 5,
+  "ms_per_column": {
+    "ml": 0.89,
+    "hybrid": 1.09
+  },
+  "results": {
+    "bpb regex_checksum": {
+      "truthful": 0.8438,
+      "obfuscated": 0.8438,
+      "misleading": 0.8438,
+      "hardneg_fp_rate": 0.2222,
+      "hardneg_fp_by_variant": {
+        "aadhaar": 60,
+        "otp": 60
+      }
+    },
+    "bpb regex_checksum+names": {
+      "truthful": 0.8438,
+      "obfuscated": 0.8438,
+      "misleading": 0.8438,
+      "hardneg_fp_rate": 0.2222,
+      "hardneg_fp_by_variant": {
+        "aadhaar": 60,
+        "otp": 60
+      }
+    },
+    "MaskGuard v1 rules": {
+      "truthful": 0.4495,
+      "obfuscated": 0.2569,
+      "misleading": 0.2569,
+      "hardneg_fp_rate": 0.0093,
+      "hardneg_fp_by_variant": {
+        "pan_sku": 5
+      }
+    },
+    "MaskGuard ML only": {
+      "truthful": 0.9658,
+      "obfuscated": 0.968,
+      "misleading": 0.9662,
+      "hardneg_fp_rate": 0.063,
+      "hardneg_fp_by_variant": {
+        "otp": 34
+      }
+    },
+    "MaskGuard hybrid": {
+      "truthful": 0.9648,
+      "obfuscated": 0.9651,
+      "misleading": 0.9651,
+      "hardneg_fp_rate": 0.063,
+      "hardneg_fp_by_variant": {
+        "otp": 34
+      }
+    }
+  },
+  "hybrid_per_label_f1_obfuscated": {
+    "DATE_OF_BIRTH": 0.929,
+    "EMAIL": 1.0,
+    "IN_AADHAAR": 1.0,
+    "IN_BANK_ACCOUNT": 0.879,
+    "IN_GSTIN": 1.0,
+    "IN_IFSC": 1.0,
+    "IN_MOBILE": 0.976,
+    "IN_PAN": 1.0,
+    "IN_PASSPORT": 1.0,
+    "IN_PINCODE": 1.0,
+    "IN_UPI_ID": 1.0,
+    "IN_VEHICLE_REG": 1.0,
+    "IN_VOTER_ID": 1.0,
+    "PERSON_NAME": 0.992,
+    "POSTAL_ADDRESS": 0.879,
+    "NONE": 0.789
+  },
+  "bpb_per_label_f1_obfuscated": {
+    "DATE_OF_BIRTH": 1.0,
+    "EMAIL": 1.0,
+    "IN_AADHAAR": 1.0,
+    "IN_BANK_ACCOUNT": 1.0,
+    "IN_GSTIN": 1.0,
+    "IN_IFSC": 1.0,
+    "IN_MOBILE": 1.0,
+    "IN_PAN": 1.0,
+    "IN_PASSPORT": 1.0,
+    "IN_PINCODE": 1.0,
+    "IN_UPI_ID": 1.0,
+    "IN_VEHICLE_REG": 1.0,
+    "IN_VOTER_ID": 1.0,
+    "PERSON_NAME": 0.0,
+    "POSTAL_ADDRESS": 0.0,
+    "NONE": 0.5
+  },
+  "hybrid_confusions_obfuscated": [
+    "POSTAL_ADDRESS -> NONE: 13",
+    "IN_BANK_ACCOUNT -> NONE: 10",
+    "DATE_OF_BIRTH -> NONE: 8",
+    "IN_BANK_ACCOUNT -> IN_MOBILE: 3",
+    "PERSON_NAME -> NONE: 1"
+  ]
+}

@@ -10,6 +10,8 @@
   maskguard serve [--port 8000]          REST API
   maskguard dashboard [--port 8501]      Streamlit dashboard
   maskguard hash-password                hash a password for the users file
+  maskguard train-scanner                retrain the LightGBM PII column classifier (synthetic data only)
+  maskguard classify COLUMN V1 V2 ...    classify one column from sample values
 Settings come from MASKGUARD_* environment variables (see README).
 """
 import argparse, getpass, sys, time
@@ -47,6 +49,9 @@ def main(argv=None):
     s = sub.add_parser("serve"); s.add_argument("--host", default="127.0.0.1"); s.add_argument("--port", type=int, default=8000)
     sub.add_parser("hash-password")
     d = sub.add_parser("dashboard"); d.add_argument("--port", type=int, default=8501)
+    tr = sub.add_parser("train-scanner"); tr.add_argument("--per-kind", type=int, default=300)
+    tr.add_argument("--seed", type=int, default=7)
+    cl = sub.add_parser("classify"); cl.add_argument("column"); cl.add_argument("values", nargs="+")
     args = p.parse_args(argv)
 
     if args.cmd == "hash-password":
@@ -58,6 +63,14 @@ def main(argv=None):
         uvicorn.run("maskguard.api:app", host=args.host, port=args.port)
         return 0
 
+    if args.cmd == "train-scanner":
+        from .ml.model import train
+        train(n_per_kind=args.per_kind, seed=args.seed)
+        return 0
+    if args.cmd == "classify":
+        from .scanner import classify_column
+        print(classify_column(args.column, args.values))
+        return 0
     if args.cmd == "dashboard":
         import os, subprocess
         path = os.path.join(os.path.dirname(__file__), "dashboard.py")
