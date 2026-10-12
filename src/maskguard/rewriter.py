@@ -214,8 +214,10 @@ def rewrite(sql, role, registry, policy, dialect="sqlite", schema=None):
         raise Rejected(f"unknown role: {role}")
     try:
         stmts = sqlglot.parse(sql, dialect=dialect)
-    except Exception as e:
-        raise Rejected(f"unparseable SQL: {e}") from None
+    except Exception as e:  # sqlglot's message quotes the SQL, which can contain personal data: report position only
+        errs = getattr(e, "errors", None) or [{}]
+        where = f" (line {errs[0].get('line')}, col {errs[0].get('col')})" if errs[0].get("line") else ""
+        raise Rejected(f"unparseable SQL{where}") from None
     if len(stmts) != 1 or stmts[0] is None:
         raise Rejected("exactly one statement is required")
     tree = stmts[0]

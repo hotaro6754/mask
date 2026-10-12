@@ -9,7 +9,7 @@ from maskguard.rewriter import Rejected
 def test_explain_matches_what_the_gateway_returns(env):
     pol, reg = env.gw.policy, env.gw.registry
     ex = {c["column"]: c for c in P.explain("support", "users", reg, pol)["columns"]}
-    assert ex["ssn"]["action"] == "partial" and ex["ssn"]["rule"] == "roles.support.PII_HIGH"
+    assert ex["ssn"]["action_label"] == "Partial mask" and ex["ssn"]["rule"] == "roles.support.PII_HIGH"
     assert ex["ssn"]["example_out"] == "XXX-XX-6789" and ex["id"]["tag"] == "PUBLIC" and ex["id"]["action"] == "allow"
     cols, rows = env.run("support", "SELECT ssn FROM users ORDER BY id LIMIT 1")
     assert rows[0][0].startswith("XXX-XX-")

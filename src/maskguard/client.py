@@ -17,10 +17,33 @@ class MaskGuardError(Exception):
 
 
 class MaskGuardClient:
-    def __init__(self, base_url, username, password, timeout=30):
-        self.base_url, self.timeout = base_url.rstrip("/"), timeout
-        r = self._call("POST", "/auth/login", {"username": username, "password": password}, auth=False)
-        self.token, self.role = r["token"], r["role"]
+    def __init__(self, base_url, username=None, password=None, timeout=30, token=None):
+        self.base_url, self.timeout, self.token, self.role = base_url.rstrip("/"), timeout, token, None
+        if username is not None:
+            r = self._call("POST", "/auth/login", {"username": username, "password": password}, auth=False)
+            self.token, self.role = r["token"], r["role"]
+
+    @classmethod
+    def demo(cls, base_url, role, timeout=30):
+        """Sign in as the server's demo identity for `role` (only works when the server runs in demo mode)."""
+        c = cls(base_url, timeout=timeout)
+        r = c._call("POST", "/auth/demo", {"role": role}, auth=False)
+        c.token, c.role = r["token"], r["role"]
+        return c
+
+    def health(self):
+        return self._call("GET", "/health", auth=False)
+
+    def ready(self):
+        try:
+            return self._call("GET", "/ready", auth=False)
+        except MaskGuardError as e:
+            if e.status == 503:
+                return {"ready": False, "detail": e.detail}
+            raise
+
+    def meta(self):
+        return self._call("GET", "/meta", auth=False)
 
     def _call(self, method, path, body=None, auth=True):
         data = json.dumps(body).encode() if body is not None else None
@@ -54,6 +77,34 @@ class MaskGuardClient:
     def me(self):
         return self._call("GET", "/me")
 
+    def tables(self):
+        return self._call("GET", "/tables")["tables"]
+
+    def query_table(self, table, columns=None, limit=10, order_by=None):
+        return self._call("POST", "/query/table", {"table": table, "columns": columns, "limit": limit, "order_by": order_by})
+
+    def policy(self):
+        return self._call("GET", "/policy")
+
+    def roles(self):
+        return self._call("GET", "/roles")["roles"]
+
+    def explain(self, table, role=None):
+        from urllib.parse import urlencode
+        return self._call("GET", "/policy/explain?" + urlencode({"table": table, **({"role": role} if role else {})}))
+
+    def matrix(self):
+        return self._call("GET", "/policy/matrix")
+
+    def compare(self, sql, roles=None):
+        return self._call("POST", "/demo/compare", {"sql": sql, "roles": roles})["results"]
+
+    def verify_integrity(self):
+        return self._call("POST", "/integrity/verify")
+
+    def integrity_proof(self, sql=None):
+        return self._call("POST", "/integrity/proof", {"sql": sql} if sql else None)
+
     def attacks(self):
         return self._call("GET", "/attacks")
 
@@ -67,8 +118,9 @@ class MaskGuardClient:
     def integrity(self):
         return self._call("GET", "/integrity")
 
-    def audit(self, n=20):
-        return self._call("GET", f"/audit?n={int(n)}")
+    def audit(self, n=20, **filters):
+        from urllib.parse import urlencode
+        return self._call("GET", "/audit?" + urlencode({"n": int(n), **{k: v for k, v in filters.items() if v}}))
 
     def threats(self):
         return self._call("GET", "/threats")["users"]

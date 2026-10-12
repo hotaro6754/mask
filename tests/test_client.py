@@ -30,7 +30,7 @@ def test_sdk_roles_and_admin(server):
     sup = MaskGuardClient(server, "support.sam", "support123")
     row = sup.query("SELECT ssn, email FROM users ORDER BY id LIMIT 1")[0]
     assert row["ssn"].startswith("XXX-XX-") and "***@" in row["email"]
-    assert sup.me() == {"user": "support.sam", "role": "support"}
+    assert {k: sup.me()[k] for k in ("user", "role")} == {"user": "support.sam", "role": "support"}
     ana = MaskGuardClient(server, "analyst.ali", "analyst123")
     r = ana.query_raw("SELECT status, avg(balance) FROM accounts GROUP BY status")
     assert r["dp"]["epsilon"] > 0 and r["dp"]["remaining"] < 10

@@ -137,7 +137,7 @@ def explain(role, table, registry, policy):
     for col, meta in reg[table.lower()].items():
         action = action_for(meta, role, policy)
         ex_in, ex_out = preview(meta, action, policy)
-        name, _, detail = ACTIONS.get(action, ACTIONS["deny"])
+        _, name, detail = ACTIONS.get(action, ACTIONS["deny"])
         cols.append({"column": col, "sql_type": meta.get("sql_type"), "tag": meta.get("tag") or "PUBLIC",
                      "kind": meta.get("kind"), "confidence": meta.get("confidence"), "source": meta.get("source"),
                      "evidence": meta.get("evidence"), "action": action, "action_label": name,
