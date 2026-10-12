@@ -44,12 +44,23 @@ def _env(name, default):
     return os.environ.get(name, default)
 
 
+ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+
+
+def _cfg(name, default):
+    """Config file path: env var, else ./default, else the copy shipped next to the source tree."""
+    v = os.environ.get(name)
+    if v:
+        return v
+    return default if os.path.exists(default) or not os.path.exists(os.path.join(ROOT, default)) else os.path.join(ROOT, default)
+
+
 @dataclass
 class Settings:
     db: str = field(default_factory=lambda: _env("MASKGUARD_DB", "sqlite:///data/bank.db"))
-    policy: str = field(default_factory=lambda: _env("MASKGUARD_POLICY", "policies/default.yaml"))
-    users: str = field(default_factory=lambda: _env("MASKGUARD_USERS", "policies/users.demo.yaml"))
-    overrides: str = field(default_factory=lambda: _env("MASKGUARD_OVERRIDES", "policies/overrides.yaml"))
+    policy: str = field(default_factory=lambda: _cfg("MASKGUARD_POLICY", "policies/default.yaml"))
+    users: str = field(default_factory=lambda: _cfg("MASKGUARD_USERS", "policies/users.demo.yaml"))
+    overrides: str = field(default_factory=lambda: _cfg("MASKGUARD_OVERRIDES", "policies/overrides.yaml"))
     registry_out: str = field(default_factory=lambda: _env("MASKGUARD_REGISTRY", "data/registry.yaml"))
     audit: str = field(default_factory=lambda: _env("MASKGUARD_AUDIT", "data/audit.jsonl"))
     scan_interval: int = field(default_factory=lambda: int(_env("MASKGUARD_SCAN_INTERVAL", "300")))

@@ -90,10 +90,10 @@ def known_tags(policy, registry=None):
 def _rule_source(meta, role, policy):
     tag = meta.get("tag")
     if not tag:
-        return "untagged column (scanner found no personal data)"
+        return "untagged: no PII found"
     if tag in policy["roles"][role]:
         return f"roles.{role}.{tag}"
-    return f"default_action ({policy.get('default_action', 'deny')}): no rule for {tag}"
+    return f"default_action={policy.get('default_action', 'deny')} (no rule for {tag})"
 
 
 def preview(meta, action, policy):

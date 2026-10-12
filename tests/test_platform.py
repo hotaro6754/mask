@@ -83,7 +83,7 @@ def test_cli_roles_and_attack(sqlite_env, capsys, monkeypatch, tmp_path):
     monkeypatch.setenv("MASKGUARD_REGISTRY", str(tmp_path / "cli-reg.yaml"))
     assert cli.main(["roles", "SELECT ssn FROM users ORDER BY id LIMIT 1"]) == 0
     out = capsys.readouterr().out
-    assert "XXX-XX-" in out and "REDACTED" not in out.split("=== ANALYST")[0]
+    assert "XXX-XX-" in out and "REDACTED" not in out.split("ANALYST ·")[0]
     assert cli.main(["attack", "-u", "support.sam", "-p", "support123"]) == 0
     assert "MaskGuard 0/" in capsys.readouterr().out
     assert cli.main(["audit", "--verify"]) == 0
