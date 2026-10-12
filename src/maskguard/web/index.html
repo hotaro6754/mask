@@ -1,1 +1,47 @@
-<!doctype html><title>MaskGuard</title>
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>MaskGuard Control Room</title>
+  <meta name="description" content="Role-based PII masking: discovery, policy, playground, audit and integrity.">
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="app.css">
+</head>
+<body>
+  <a class="skip" href="#main">Skip to content</a>
+  <div class="shell">
+    <aside class="side" aria-label="Primary">
+      <div class="brand">
+        <svg class="mark" viewBox="0 0 32 32" aria-hidden="true"><path d="M16 2 4 7v8c0 7.2 5.1 13.4 12 15 6.9-1.6 12-7.8 12-15V7L16 2Z" fill="none" stroke="currentColor" stroke-width="2"/><path d="M9 14h14M9 18h4m3 0h7" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+        <div><div class="wordmark">MASK<span>GUARD</span></div><div class="sub">control room</div></div>
+      </div>
+      <nav id="nav">
+        <a href="#/overview" data-page="overview"><span class="ico">◧</span>Overview</a>
+        <a href="#/playground" data-page="playground"><span class="ico">▶</span>Masking playground</a>
+        <a href="#/discovery" data-page="discovery"><span class="ico">⌕</span>PII discovery</a>
+        <a href="#/policy" data-page="policy"><span class="ico">▦</span>Policy studio</a>
+        <a href="#/roles" data-page="roles"><span class="ico">◎</span>Role explorer</a>
+        <a href="#/audit" data-page="audit"><span class="ico">≡</span>Audit explorer</a>
+        <a href="#/integrity" data-page="integrity"><span class="ico">◆</span>Data integrity</a>
+        <a href="#/api" data-page="api"><span class="ico">⇄</span>API lab</a>
+        <a href="#/cli" data-page="cli"><span class="ico">›_</span>CLI guide</a>
+        <a href="#/settings" data-page="settings"><span class="ico">⚙</span>Diagnostics</a>
+      </nav>
+      <div class="side-foot" id="side-foot"></div>
+    </aside>
+    <div class="main-col">
+      <header class="top">
+        <button class="menu-btn" id="menu-btn" aria-label="Open navigation" aria-expanded="false">☰</button>
+        <div class="crumbs" id="crumbs" aria-live="polite"></div>
+        <div class="identity" id="identity"></div>
+      </header>
+      <main id="main" tabindex="-1"></main>
+    </div>
+  </div>
+  <div class="toasts" id="toasts" role="status" aria-live="polite"></div>
+  <dialog id="dialog"></dialog>
+  <div class="tooltip" id="tooltip" role="tooltip" hidden></div>
+  <script src="app.js"></script>
+</body>
+</html>
