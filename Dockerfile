@@ -7,6 +7,7 @@ COPY src ./src
 RUN uv sync --frozen --no-dev
 COPY policies ./policies
 COPY bench ./bench
+COPY postman ./postman
 ENV PATH="/app/.venv/bin:$PATH" PYTHONUNBUFFERED=1
 EXPOSE 8000 8501
-CMD ["maskguard", "dashboard"]
+CMD ["maskguard", "serve", "--host", "0.0.0.0", "--port", "8000"]

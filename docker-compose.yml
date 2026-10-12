@@ -1,4 +1,4 @@
-# docker compose up --build  ->  dashboard :8501, API :8000, PostgreSQL proxy :6543, all on PostgreSQL 16.
+# docker compose up --build  ->  API + Control Room dashboard :8000 (/ui/), classic Streamlit dashboard :8501, PostgreSQL proxy :6543, on PostgreSQL 16.
 # MySQL instead: docker compose --profile mysql up --build, with MASKGUARD_DB=mysql://maskguard:maskguard@mysql:3306/bank
 # Set real secrets in a .env file (MASKGUARD_HMAC_KEY, MASKGUARD_JWT_SECRET) before any non-demo use.
 x-maskguard: &maskguard
@@ -29,7 +29,7 @@ services:
 
   dashboard:
     <<: *maskguard
-    command: ["maskguard", "dashboard", "--port", "8501"]
+    command: ["maskguard", "dashboard", "--classic", "--port", "8501"]
     ports: ["8501:8501"]
 
   proxy:                        # psql "host=localhost port=6543 user=support.sam dbname=bank"

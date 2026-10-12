@@ -1,0 +1,2428 @@
+{
+  "info": {
+    "name": "MaskGuard · Smart Data Masking",
+    "description": "Role-based masking, end to end: same query as four roles, policy explanations, 25 negative and security regressions, audit evidence, and an integrity check before and after. Run the whole collection in order (Collection Runner or `newman run`). Uses synthetic demo identities only.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "sameQuery",
+      "value": "SELECT id, name, ssn, email FROM users ORDER BY id LIMIT 3"
+    }
+  ],
+  "item": [
+    {
+      "name": "00 · Service health",
+      "item": [
+        {
+          "name": "Health",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/health",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "health"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "pm.test('status ok', () => pm.expect(pm.response.json().status).to.eql('ok'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Readiness: database, scanner, policy, audit, integrity",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/ready",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "ready"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "const c = pm.response.json().checks;",
+                  "pm.test('every dependency ready', () => Object.keys(c).forEach(k => pm.expect(c[k].ok, k).to.be.true));",
+                  "pm.test('default action is deny', () => pm.expect(c.policy.default_action).to.eql('deny'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Meta: demo identities listed without passwords",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/meta",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "meta"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "pm.test('demo mode on', () => pm.expect(pm.response.json().demo_mode).to.be.true);",
+                  "pm.test('no secrets', () => pm.expect(pm.response.text()).to.not.match(/password|123/i));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "01 · Authentication",
+      "item": [
+        {
+          "name": "Demo identity: admin",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/auth/demo",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "demo"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"role\": \"admin\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 and a signed token', () => { pm.response.to.have.status(200); pm.expect(pm.response.json().token.split('.').length).to.eql(3); });",
+                  "pm.test('role comes from the server: admin', () => pm.expect(pm.response.json().role).to.eql('admin'));",
+                  "pm.collectionVariables.set('adminToken', pm.response.json().token);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Demo identity: support",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/auth/demo",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "demo"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"role\": \"support\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 and a signed token', () => { pm.response.to.have.status(200); pm.expect(pm.response.json().token.split('.').length).to.eql(3); });",
+                  "pm.test('role comes from the server: support', () => pm.expect(pm.response.json().role).to.eql('support'));",
+                  "pm.collectionVariables.set('supportToken', pm.response.json().token);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Demo identity: analyst",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/auth/demo",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "demo"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"role\": \"analyst\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 and a signed token', () => { pm.response.to.have.status(200); pm.expect(pm.response.json().token.split('.').length).to.eql(3); });",
+                  "pm.test('role comes from the server: analyst', () => pm.expect(pm.response.json().role).to.eql('analyst'));",
+                  "pm.collectionVariables.set('analystToken', pm.response.json().token);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Demo identity: auditor",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/auth/demo",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "demo"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"role\": \"auditor\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 and a signed token', () => { pm.response.to.have.status(200); pm.expect(pm.response.json().token.split('.').length).to.eql(3); });",
+                  "pm.test('role comes from the server: auditor', () => pm.expect(pm.response.json().role).to.eql('auditor'));",
+                  "pm.collectionVariables.set('auditorToken', pm.response.json().token);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Password login (synthetic support account)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "login"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"{{supportUser}}\",\n  \"password\": \"{{supportPassword}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "pm.test('role support', () => pm.expect(pm.response.json().role).to.eql('support'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Wrong password → 401",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "login"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"{{supportUser}}\",\n  \"password\": \"wrong\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 401', () => pm.response.to.have.status(401));",
+                  "pm.test('no token', () => pm.expect(pm.response.json().token).to.be.undefined);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Unknown demo role → 404",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/auth/demo",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "demo"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"role\": \"superuser\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 404', () => pm.response.to.have.status(404));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "02 · Integrity baseline",
+      "item": [
+        {
+          "name": "Verify source tables before the experiment (auditor)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{auditorToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/integrity/verify",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "integrity",
+                "verify"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "pm.test('MATCH', () => pm.expect(pm.response.json().status).to.eql('MATCH'));",
+                  "pm.collectionVariables.set('digestBefore', pm.response.json().combined_after);"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "03 · Same query, four roles",
+      "item": [
+        {
+          "name": "Admin: real values",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/query",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "query"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"sql\": \"{{sameQuery}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "const r = pm.response.json();",
+                  "pm.test('role admin, nothing masked', () => { pm.expect(r.role).to.eql('admin'); pm.expect(r.masked).to.eql([]); });",
+                  "pm.test('real SSN format', () => pm.expect(r.rows[0][2]).to.match(/^\\d{3}-\\d{2}-\\d{4}$/));",
+                  "pm.test('request id issued', () => pm.expect(r.request_id).to.match(/^req-/));",
+                  "pm.collectionVariables.set('adminSsn', r.rows[0][2]); pm.collectionVariables.set('adminEmail', r.rows[0][3]);",
+                  "pm.collectionVariables.set('adminName', r.rows[0][1]); pm.collectionVariables.set('policyVersion', r.policy_version);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Support: partial masks",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{supportToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/query",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "query"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"sql\": \"{{sameQuery}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "const r = pm.response.json(); const ssn = pm.collectionVariables.get('adminSsn');",
+                  "pm.test('SSN keeps only the last 4', () => pm.expect(r.rows[0][2]).to.eql('XXX-XX-' + ssn.slice(-4)));",
+                  "pm.test('email partially masked', () => pm.expect(r.rows[0][3]).to.match(/^.\\*\\*\\*@/));",
+                  "pm.test('names are allowed for support', () => pm.expect(r.rows[0][1]).to.eql(pm.collectionVariables.get('adminName')));",
+                  "pm.test('masking reported', () => pm.expect(r.masked).to.include('users.ssn:partial'));",
+                  "pm.collectionVariables.set('supportRequestId', r.request_id);",
+                  "pm.test('no raw SSN in the body', () => pm.expect(pm.response.text()).to.not.include(pm.collectionVariables.get('adminSsn')));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Analyst: tokens and redaction",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{analystToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/query",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "query"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"sql\": \"{{sameQuery}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "const r = pm.response.json();",
+                  "pm.test('SSN is a 16-hex HMAC token', () => pm.expect(r.rows[0][2]).to.match(/^[0-9a-f]{16}$/));",
+                  "pm.test('name redacted', () => pm.expect(r.rows[0][1]).to.eql('REDACTED'));",
+                  "pm.test('no raw SSN in the body', () => pm.expect(pm.response.text()).to.not.include(pm.collectionVariables.get('adminSsn')));",
+                  "pm.test('email not present', () => pm.expect(pm.response.text()).to.not.include(pm.collectionVariables.get('adminEmail')));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Auditor: no raw PII at all",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{auditorToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/query",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "query"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"sql\": \"{{sameQuery}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "const r = pm.response.json();",
+                  "pm.test('every PII cell REDACTED', () => r.rows.forEach(row => pm.expect(row.slice(1)).to.eql(['REDACTED','REDACTED','REDACTED'])));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Cross-role comparison (demo identities, one audited query each)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{supportToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/demo/compare",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "demo",
+                "compare"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"sql\": \"{{sameQuery}}\",\n  \"roles\": [\n    \"admin\",\n    \"support\",\n    \"analyst\"\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "const r = pm.response.json().results;",
+                  "pm.test('admin real, support partial, analyst token', () => { pm.expect(r.admin.rows[0][2]).to.eql(pm.collectionVariables.get('adminSsn')); pm.expect(r.support.rows[0][2]).to.match(/^XXX-XX-/); pm.expect(r.analyst.rows[0][2]).to.match(/^[0-9a-f]{16}$/); });",
+                  "pm.test('three distinct request ids', () => pm.expect(new Set([r.admin.request_id, r.support.request_id, r.analyst.request_id]).size).to.eql(3));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Query builder: support sees card masks and only active accounts",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{supportToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/query/table",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "query",
+                "table"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"table\": \"accounts\",\n  \"columns\": [\n    \"credit_card\",\n    \"status\"\n  ],\n  \"limit\": 50\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "const r = pm.response.json();",
+                  "pm.test('cards masked with X', () => r.rows.forEach(x => pm.expect(x[0]).to.include('X')));",
+                  "pm.test('row filter: no frozen accounts', () => r.rows.forEach(x => pm.expect(x[1]).to.eql('active')));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Analyst aggregate: noisy AVG with privacy budget",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{analystToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/query",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "query"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"sql\": \"SELECT status, avg(balance) AS avg_balance FROM accounts GROUP BY status\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "const r = pm.response.json();",
+                  "pm.test('ε charged and budget reported', () => { pm.expect(r.dp.epsilon).to.be.above(0); pm.expect(r.dp.remaining).to.be.below(10); });"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "04 · Policy inspection",
+      "item": [
+        {
+          "name": "My effective policy (support)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{supportToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/policy",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "policy"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "const r = pm.response.json();",
+                  "pm.test('support rules', () => pm.expect(r.rules.PII_HIGH).to.eql('partial'));",
+                  "pm.test('row filter exposed', () => pm.expect(r.row_filters.accounts).to.include('frozen'));",
+                  "pm.test('same version as the queries', () => pm.expect(r.policy_version).to.eql(pm.collectionVariables.get('policyVersion')));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Explain support on accounts (synthetic examples only)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{supportToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/policy/explain?table=accounts",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "policy",
+                "explain"
+              ],
+              "query": [
+                {
+                  "key": "table",
+                  "value": "accounts"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "const c = Object.fromEntries(pm.response.json().columns.map(x => [x.column, x]));",
+                  "pm.test('card partial by rule', () => { pm.expect(c.credit_card.action).to.eql('partial'); pm.expect(c.credit_card.rule).to.eql('roles.support.FINANCIAL_CONFIDENTIAL'); });",
+                  "pm.test('example is synthetic', () => pm.expect(c.credit_card.example_out).to.eql('4111-XXXX-XXXX-1111'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Support explaining another role → 403",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{supportToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/policy/explain?table=users&role=admin",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "policy",
+                "explain"
+              ],
+              "query": [
+                {
+                  "key": "table",
+                  "value": "users"
+                },
+                {
+                  "key": "role",
+                  "value": "admin"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 403', () => pm.response.to.have.status(403));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Role × column matrix (auditor)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{auditorToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/policy/matrix",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "policy",
+                "matrix"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "pm.test('four roles', () => pm.expect(pm.response.json().roles).to.have.members(['admin','support','analyst','auditor']));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Roles visible to support (own rules only)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{supportToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/roles",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "roles"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "const a = pm.response.json().roles.find(r => r.role === 'admin');",
+                  "pm.test('other roles show description only', () => pm.expect(a.rules).to.be.undefined);"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "05 · Negative and security regressions",
+      "item": [
+        {
+          "name": "No token → 401",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/query",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "query"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"sql\": \"SELECT 1\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 401', () => pm.response.to.have.status(401));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Tampered token → 401",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{supportToken}}x"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/me",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "me"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 401', () => pm.response.to.have.status(401));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Unsigned alg:none token claiming admin → 401",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{noneToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/me",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "me"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 401', () => pm.response.to.have.status(401));"
+                ]
+              }
+            },
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const b64 = s => btoa(s).replace(/=+$/, '').replace(/\\+/g, '-').replace(/\\//g, '_');",
+                  "pm.collectionVariables.set('noneToken', b64(JSON.stringify({alg:'none',typ:'JWT'})) + '.' + b64(JSON.stringify({sub:'admin.ann',role:'admin',exp:9999999999})) + '.');"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Role in request body is ignored (support asks for admin)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{supportToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/query",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "query"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"sql\": \"SELECT ssn FROM users ORDER BY id LIMIT 1\",\n  \"role\": \"admin\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "pm.test('still support', () => pm.expect(pm.response.json().role).to.eql('support'));",
+                  "pm.test('still masked', () => pm.expect(pm.response.json().rows[0][0]).to.match(/^XXX-XX-/));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Stacked statement injection",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{supportToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/query",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "query"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"sql\": \"SELECT 1; DROP TABLE users\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 400', () => pm.response.to.have.status(400));",
+                  "pm.test('rejected by the firewall', () => pm.expect(pm.response.json().detail).to.match(/^rejected/));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "UPDATE through the gateway",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/query",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "query"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"sql\": \"UPDATE accounts SET balance = 0\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 400', () => pm.response.to.have.status(400));",
+                  "pm.test('rejected by the firewall', () => pm.expect(pm.response.json().detail).to.match(/^rejected/));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Catalog read",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{supportToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/query",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "query"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"sql\": \"SELECT * FROM information_schema.tables\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 400', () => pm.response.to.have.status(400));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Dangerous function",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{supportToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/query",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "query"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"sql\": \"SELECT load_extension('x')\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 400', () => pm.response.to.have.status(400));",
+                  "pm.test('rejected by the firewall', () => pm.expect(pm.response.json().detail).to.match(/^rejected/));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Masking function called directly",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{analystToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/query",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "query"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"sql\": \"SELECT mg_hmac(ssn) FROM users\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 400', () => pm.response.to.have.status(400));",
+                  "pm.test('rejected by the firewall', () => pm.expect(pm.response.json().detail).to.match(/^rejected/));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "CTE named like the table cannot unmask",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{supportToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/query",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "query"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"sql\": \"WITH users AS (SELECT * FROM users) SELECT ssn FROM users ORDER BY id LIMIT 1\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "pm.test('masked', () => pm.expect(pm.response.json().rows[0][0]).to.match(/^XXX-XX-/));",
+                  "pm.test('no raw SSN in the body', () => pm.expect(pm.response.text()).to.not.include(pm.collectionVariables.get('adminSsn')));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Expression bypass: lower(ssn)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{analystToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/query",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "query"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"sql\": \"SELECT lower(ssn) AS s, ssn || '' AS t FROM users\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "pm.test('no raw SSN in the body', () => pm.expect(pm.response.text()).to.not.include(pm.collectionVariables.get('adminSsn')));",
+                  "pm.test('no SSN pattern anywhere', () => pm.expect(pm.response.text()).to.not.match(/\\d{3}-\\d{2}-\\d{4}/));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Equality oracle on a masked column finds nothing",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{supportToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/query",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "query"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"sql\": \"SELECT count(*) AS n FROM users WHERE ssn = '{{adminSsn}}'\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "pm.test('predicate sees masked values only', () => pm.expect((pm.response.json().rows[0] || [0])[0]).to.eql(0));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Frozen accounts unreachable for support via subquery",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{supportToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/query",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "query"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"sql\": \"SELECT count(*) AS n FROM (SELECT * FROM accounts) a WHERE a.status = 'frozen'\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "pm.test('zero rows', () => pm.expect((pm.response.json().rows[0] || [0])[0]).to.eql(0));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Error message does not echo values",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{supportToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/query",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "query"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"sql\": \"SELECT * FROM users WHERE ssn = '{{adminSsn}}' AND\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 400', () => pm.response.to.have.status(400));",
+                  "pm.test('no raw SSN in the body', () => pm.expect(pm.response.text()).to.not.include(pm.collectionVariables.get('adminSsn')));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Malformed JSON → 422",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{supportToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/query",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "query"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\"sql\": ",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 422', () => pm.response.to.have.status(422));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Missing sql field → 422",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{supportToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/query",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "query"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"query\": \"SELECT 1\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 422', () => pm.response.to.have.status(422));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Query builder: injected table name → 404",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{supportToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/query/table",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "query",
+                "table"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"table\": \"users; DROP TABLE users\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 404', () => pm.response.to.have.status(404));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Query builder: unknown column → 400",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{supportToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/query/table",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "query",
+                "table"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"table\": \"users\",\n  \"columns\": [\n    \"ssn) --\"\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 400', () => pm.response.to.have.status(400));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Support reading the audit log → 403",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{supportToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/audit",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "audit"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 403', () => pm.response.to.have.status(403));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Support reading scanner evidence → 403",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{supportToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/registry",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "registry"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 403', () => pm.response.to.have.status(403));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Analyst running integrity checks → 403",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{analystToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/integrity/verify",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "integrity",
+                "verify"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 403', () => pm.response.to.have.status(403));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Auditor changing policy → 403",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{auditorToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/policy/rules",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "policy",
+                "rules"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"role\": \"support\",\n  \"tag\": \"PII_HIGH\",\n  \"action\": \"allow\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 403', () => pm.response.to.have.status(403));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Admin weakening a rule without confirmation → 409",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/policy/rules",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "policy",
+                "rules"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"role\": \"support\",\n  \"tag\": \"PII_HIGH\",\n  \"action\": \"allow\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 409', () => pm.response.to.have.status(409));",
+                  "pm.test('explains why', () => pm.expect(pm.response.json().detail).to.include('confirm'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Unknown masking action → 400",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/policy/rules",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "policy",
+                "rules"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"role\": \"support\",\n  \"tag\": \"PII_HIGH\",\n  \"action\": \"show_all\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 400', () => pm.response.to.have.status(400));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Policy unchanged after rejected edits",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{supportToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/policy",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "policy"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "pm.test('same version', () => pm.expect(pm.response.json().policy_version).to.eql(pm.collectionVariables.get('policyVersion')));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "06 · Audit trail",
+      "item": [
+        {
+          "name": "Audit chain intact (auditor)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{auditorToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/audit?n=200",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "audit"
+              ],
+              "query": [
+                {
+                  "key": "n",
+                  "value": "200"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "pm.test('hash chain valid', () => pm.expect(pm.response.json().chain_valid).to.be.true);",
+                  "pm.test('literals stripped: no SSN in the log', () => pm.expect(pm.response.text()).to.not.include(pm.collectionVariables.get('adminSsn')));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Find the support query by request id",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{auditorToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/audit?request_id={{supportRequestId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "audit"
+              ],
+              "query": [
+                {
+                  "key": "request_id",
+                  "value": "{{supportRequestId}}"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "const e = pm.response.json().entries;",
+                  "pm.test('exactly one entry', () => pm.expect(e.length).to.eql(1));",
+                  "pm.test('who, how, which policy', () => { pm.expect(e[0].user).to.eql('support.sam'); pm.expect(e[0].channel).to.eql('rest'); pm.expect(e[0].policy_version).to.eql(pm.collectionVariables.get('policyVersion')); });",
+                  "pm.test('masking recorded', () => pm.expect(e[0].masked).to.include('users.ssn:partial'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Rejections are recorded",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{auditorToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/audit?decision=reject&n=50",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "audit"
+              ],
+              "query": [
+                {
+                  "key": "decision",
+                  "value": "reject"
+                },
+                {
+                  "key": "n",
+                  "value": "50"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "pm.test('firewall rejections logged', () => pm.expect(pm.response.json().entries.length).to.be.at.least(4));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Capability denials are recorded",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{auditorToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/audit?decision=denied&n=50",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "audit"
+              ],
+              "query": [
+                {
+                  "key": "decision",
+                  "value": "denied"
+                },
+                {
+                  "key": "n",
+                  "value": "50"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "const u = pm.response.json().entries.map(e => e.user);",
+                  "pm.test('support and analyst denials logged', () => pm.expect(u).to.include.members(['support.sam', 'analyst.ali']));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "07 · Integrity after the experiment",
+      "item": [
+        {
+          "name": "Source tables unchanged",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{auditorToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/integrity/verify",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "integrity",
+                "verify"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "const r = pm.response.json();",
+                  "pm.test('MATCH', () => pm.expect(r.status).to.eql('MATCH'));",
+                  "pm.test('digest identical to before', () => pm.expect(r.combined_after).to.eql(pm.collectionVariables.get('digestBefore')));",
+                  "pm.test('every table MATCH', () => r.tables.forEach(t => pm.expect(t.status, t.table).to.eql('MATCH')));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Full immutability proof",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{auditorToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/integrity/proof",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "integrity",
+                "proof"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"sql\": \"{{sameQuery}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "const r = pm.response.json();",
+                  "pm.test('PASS', () => pm.expect(r.status).to.eql('PASS'));",
+                  "pm.test('all write attempts rejected', () => r.unauthorized_attempts.forEach(a => pm.expect(a.status, a.attempt).to.eql('REJECTED')));",
+                  "pm.test('before == after', () => pm.expect(r.before).to.eql(r.after));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

@@ -31,3 +31,14 @@ jobs:
         run: uv run pytest -q
       - name: Attack suite must report zero leaks
         run: uv run maskguard attack -u analyst.ali -p analyst123
+      - name: Security regression (attack suite per role + integrity proof)
+        run: uv run maskguard test
+      - uses: actions/setup-node@v4
+        with: {node-version: 20}
+      - name: Postman collection against a live API (Newman)
+        run: |
+          MASKGUARD_DB=sqlite:///$RUNNER_TEMP/newman.db MASKGUARD_AUDIT=$RUNNER_TEMP/a.jsonl MASKGUARD_REGISTRY=$RUNNER_TEMP/r.yaml \
+            uv run maskguard serve --port 8000 > $RUNNER_TEMP/api.log 2>&1 &
+          for i in $(seq 1 60); do curl -sf http://127.0.0.1:8000/health && break; sleep 1; done
+          npx -y newman@6 run postman/Smart-Data-Masking.postman_collection.json -e postman/Local.postman_environment.json \
+            --reporters cli,junit --reporter-junit-export newman.xml
