@@ -9,6 +9,7 @@
   maskguard audit [--verify]             tail / verify the hash-chained audit log
   maskguard serve [--port 8000]          REST API
   maskguard dashboard [--port 8501]      Streamlit dashboard
+  maskguard proxy [--port 6543]          PostgreSQL wire protocol: point psql / drivers at MaskGuard
   maskguard hash-password                hash a password for the users file
   maskguard train-scanner                retrain the LightGBM PII column classifier (synthetic data only)
   maskguard classify COLUMN V1 V2 ...    classify one column from sample values
@@ -49,6 +50,7 @@ def main(argv=None):
     au = sub.add_parser("audit"); au.add_argument("--verify", action="store_true"); au.add_argument("-n", type=int, default=10)
     s = sub.add_parser("serve"); s.add_argument("--host", default="127.0.0.1"); s.add_argument("--port", type=int, default=8000)
     sub.add_parser("hash-password")
+    px = sub.add_parser("proxy"); px.add_argument("--host", default="127.0.0.1"); px.add_argument("--port", type=int, default=6543)
     d = sub.add_parser("dashboard"); d.add_argument("--port", type=int, default=8501)
     tr = sub.add_parser("train-scanner"); tr.add_argument("--per-kind", type=int, default=300)
     tr.add_argument("--seed", type=int, default=7)
@@ -66,6 +68,13 @@ def main(argv=None):
         uvicorn.run("maskguard.api:app", host=args.host, port=args.port)
         return 0
 
+    if args.cmd == "proxy":
+        import asyncio
+        from .pgwire import serve
+        app = config.build(start_worker=True)
+        print(f"MaskGuard PostgreSQL proxy on {args.host}:{args.port} (backend: {app.backend.dialect})")
+        asyncio.run(serve(app, args.host, args.port))
+        return 0
     if args.cmd == "train-scanner":
         from .ml.model import train
         train(n_per_kind=args.per_kind, seed=args.seed)

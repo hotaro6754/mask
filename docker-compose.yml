@@ -31,6 +31,11 @@ services:
     command: ["maskguard", "dashboard", "--port", "8501"]
     ports: ["8501:8501"]
 
+  proxy:                        # psql "host=localhost port=6543 user=support.sam dbname=bank"
+    <<: *maskguard
+    command: ["maskguard", "proxy", "--host", "0.0.0.0", "--port", "6543"]
+    ports: ["6543:6543"]
+
   api:
     <<: *maskguard
     command: ["maskguard", "serve", "--host", "0.0.0.0", "--port", "8000"]
