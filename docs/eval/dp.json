@@ -1,0 +1,55 @@
+{
+  "utility": {
+    "0.1": {
+      "25": 1.0,
+      "50": 0.9088,
+      "150": 0.3135,
+      "300": 0.12
+    },
+    "0.5": {
+      "25": 0.3628,
+      "50": 0.1724,
+      "150": 0.0539,
+      "300": 0.0273
+    },
+    "1.0": {
+      "25": 0.1693,
+      "50": 0.0941,
+      "150": 0.0242,
+      "300": 0.0103
+    },
+    "2.0": {
+      "25": 0.0883,
+      "50": 0.0412,
+      "150": 0.013,
+      "300": 0.006
+    }
+  },
+  "differencing_attack": {
+    "0.1": {
+      "median_abs_error": 11360097,
+      "within_10pct": 0.0,
+      "pairs_per_day": 49,
+      "median_abs_error_averaging_a_days_budget": 1622871
+    },
+    "0.5": {
+      "median_abs_error": 2207751,
+      "within_10pct": 0.005,
+      "pairs_per_day": 10,
+      "median_abs_error_averaging_a_days_budget": 698152
+    },
+    "1.0": {
+      "median_abs_error": 1272258,
+      "within_10pct": 0.02,
+      "pairs_per_day": 5,
+      "median_abs_error_averaging_a_days_budget": 568971
+    },
+    "2.0": {
+      "median_abs_error": 655567,
+      "within_10pct": 0.04,
+      "pairs_per_day": 2,
+      "median_abs_error_averaging_a_days_budget": 463556
+    }
+  },
+  "mean_balance": 445078
+}

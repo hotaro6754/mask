@@ -1,0 +1,134 @@
+{
+  "rules only": {
+    "benign": {
+      "sessions": 200,
+      "alerted": 0.0,
+      "blocked": 0.0,
+      "median_queries_to_alert": null
+    },
+    "enumeration": {
+      "sessions": 40,
+      "alerted": 1.0,
+      "blocked": 1.0,
+      "median_queries_to_alert": 18.0
+    },
+    "binary_search": {
+      "sessions": 40,
+      "alerted": 1.0,
+      "blocked": 1.0,
+      "median_queries_to_alert": 18.0
+    },
+    "order_probe": {
+      "sessions": 40,
+      "alerted": 1.0,
+      "blocked": 1.0,
+      "median_queries_to_alert": 13.0
+    },
+    "bulk_paging": {
+      "sessions": 40,
+      "alerted": 1.0,
+      "blocked": 1.0,
+      "median_queries_to_alert": 13.0
+    },
+    "firewall_probe": {
+      "sessions": 40,
+      "alerted": 0.975,
+      "blocked": 0.75,
+      "median_queries_to_alert": 16
+    },
+    "slow_and_low": {
+      "sessions": 40,
+      "alerted": 0.95,
+      "blocked": 0.45,
+      "median_queries_to_alert": 48.5
+    }
+  },
+  "ML only": {
+    "benign": {
+      "sessions": 200,
+      "alerted": 0.02,
+      "blocked": 0.0,
+      "median_queries_to_alert": 19.5
+    },
+    "enumeration": {
+      "sessions": 40,
+      "alerted": 0.775,
+      "blocked": 0.0,
+      "median_queries_to_alert": 8
+    },
+    "binary_search": {
+      "sessions": 40,
+      "alerted": 0.25,
+      "blocked": 0.0,
+      "median_queries_to_alert": 9.0
+    },
+    "order_probe": {
+      "sessions": 40,
+      "alerted": 0.975,
+      "blocked": 0.0,
+      "median_queries_to_alert": 8
+    },
+    "bulk_paging": {
+      "sessions": 40,
+      "alerted": 1.0,
+      "blocked": 0.0,
+      "median_queries_to_alert": 8.0
+    },
+    "firewall_probe": {
+      "sessions": 40,
+      "alerted": 0.625,
+      "blocked": 0.0,
+      "median_queries_to_alert": 9
+    },
+    "slow_and_low": {
+      "sessions": 40,
+      "alerted": 0.4,
+      "blocked": 0.0,
+      "median_queries_to_alert": 23.5
+    }
+  },
+  "rules + ML": {
+    "benign": {
+      "sessions": 200,
+      "alerted": 0.02,
+      "blocked": 0.0,
+      "median_queries_to_alert": 19.5
+    },
+    "enumeration": {
+      "sessions": 40,
+      "alerted": 1.0,
+      "blocked": 1.0,
+      "median_queries_to_alert": 8.0
+    },
+    "binary_search": {
+      "sessions": 40,
+      "alerted": 1.0,
+      "blocked": 1.0,
+      "median_queries_to_alert": 18.0
+    },
+    "order_probe": {
+      "sessions": 40,
+      "alerted": 1.0,
+      "blocked": 1.0,
+      "median_queries_to_alert": 8.0
+    },
+    "bulk_paging": {
+      "sessions": 40,
+      "alerted": 1.0,
+      "blocked": 1.0,
+      "median_queries_to_alert": 8.0
+    },
+    "firewall_probe": {
+      "sessions": 40,
+      "alerted": 0.975,
+      "blocked": 0.775,
+      "median_queries_to_alert": 12
+    },
+    "slow_and_low": {
+      "sessions": 40,
+      "alerted": 0.95,
+      "blocked": 0.45,
+      "median_queries_to_alert": 44.0
+    }
+  }
+}

@@ -29,6 +29,73 @@ class Result:
     sql: str
     masked: list = field(default_factory=list)
     shape: dict = field(default_factory=dict)  # what the query does, for the threat engine (no literal values)
+    dp: dict = None                            # differential-privacy plan when protected aggregates are used
+
+
+DP_FUNCS = (exp.Sum, exp.Avg, exp.Count)
+
+
+def _dp_bounds(policy, table, col):
+    b = (policy.get("dp") or {}).get("bounds") or {}
+    lo, hi = b.get(f"{table}.{col}") or b.get(col) or b.get("default") or [0, 1_000_000]
+    return float(lo), float(hi)
+
+
+def _dp_columns(jobs, registry, role, policy):
+    """Numeric columns this role may only see through DP aggregates: {name: (table, lo, hi)}."""
+    out = {}
+    for t in jobs:
+        for c, m in registry[t.name.lower()].items():
+            if m.get("type") == "num" and action_for(m, role, policy) == "aggregate":
+                out[c.lower()] = (t.name.lower(), *_dp_bounds(policy, t.name.lower(), c.lower()))
+    return out
+
+
+def _dp_eligible(tree, dp_cols):
+    """True only if every reference to a DP column is SUM/AVG/COUNT(col) directly in the top-level SELECT list."""
+    if not isinstance(tree, exp.Select) or tree.args.get("with") or len(list(tree.find_all(exp.Select))) != 1:
+        return False
+    if any(isinstance(e, exp.Star) or (isinstance(e, exp.Column) and isinstance(e.this, exp.Star))
+           for e in tree.expressions):
+        return False
+    for c in tree.find_all(exp.Column):
+        if c.name.lower() not in dp_cols:
+            continue
+        agg = c.parent
+        if not isinstance(agg, DP_FUNCS) or agg.args.get("this") is not c:
+            return False
+        holder = agg.parent
+        if holder is tree:
+            continue
+        if not (isinstance(holder, exp.Alias) and holder.parent is tree):
+            return False
+    return True
+
+
+def _dp_plan(tree, dp_cols, policy):
+    """Rewrite AVG(col) -> SUM(col) + hidden COUNT(col), and describe the noise to add per output column."""
+    eps = float((policy.get("dp") or {}).get("epsilon_per_query", 0.5))
+    ops, extra = [], []
+    n_visible = len(tree.expressions)
+    for i, proj in enumerate(list(tree.expressions)):
+        node = proj.this if isinstance(proj, exp.Alias) else proj
+        if not isinstance(node, DP_FUNCS) or not isinstance(node.this, exp.Column) or node.this.name.lower() not in dp_cols:
+            continue
+        _, lo, hi = dp_cols[node.this.name.lower()]
+        sens = max(abs(lo), abs(hi))
+        if isinstance(node, exp.Count):
+            ops.append({"index": i, "type": "count", "epsilon": eps})
+        elif isinstance(node, exp.Sum):
+            ops.append({"index": i, "type": "sum", "epsilon": eps, "sensitivity": sens})
+        else:
+            col = node.this.copy()
+            node.replace(exp.Sum(this=node.this.copy()))
+            extra.append(exp.Count(this=col).as_(f"__mg_cnt_{i}"))
+            ops.append({"index": i, "type": "avg", "epsilon": eps, "sensitivity": sens, "lo": lo, "hi": hi,
+                        "count_index": n_visible + len(extra) - 1})
+    for e in extra:
+        tree.append("expressions", e)
+    return {"ops": ops, "n_visible": n_visible, "epsilon": eps, "cost": round(eps * len(ops), 4)}
 
 
 def _shape(tree, jobs, registry, role, policy):
@@ -53,7 +120,7 @@ def _as_text(c):
     return exp.Cast(this=c, to=exp.DataType.build("text"))
 
 
-def _mask_expr(col, meta, action, policy):
+def _mask_expr(col, meta, action, policy, dp_bounds=None):
     c = exp.column(col, quoted=True)
     kind, num = meta.get("kind"), meta.get("type") == "num"
     fn = lambda name, *args: exp.Anonymous(this=name, expressions=list(args))
@@ -70,6 +137,12 @@ def _mask_expr(col, meta, action, policy):
         return fn("mg_hmac", _as_text(c))
     if action == "redact_text":  # identifiers inside free text -> [PHONE], [AADHAAR], ...
         return fn("mg_redact_text", _as_text(c))
+    if action == "aggregate":
+        if num and dp_bounds:  # usable only through noisy SUM/AVG/COUNT: clip to bound each person's influence
+            lo, hi = dp_bounds
+            return exp.Least(this=exp.Greatest(this=c, expressions=[exp.Literal.number(lo)]),
+                             expressions=[exp.Literal.number(hi)])
+        action = "redact"  # any other use of the column: fail closed
     if action == "redact":  # typed NULL keeps avg()/sum() valid on Postgres
         return exp.Cast(this=exp.Null(), to=exp.DataType.build("double")) if num else exp.Literal.string("REDACTED")
     return exp.Cast(this=exp.Null(), to=exp.DataType.build("double" if num else "text"))  # deny / unknown action
@@ -134,13 +207,20 @@ def rewrite(sql, role, registry, policy, dialect="sqlite"):
                     raise Rejected(f"table not registered: {table.name}")
                 jobs.append(table)
     shape = _shape(tree, jobs, registry, role, policy)
+    dp_cols = _dp_columns(jobs, registry, role, policy)
+    used = {c.name.lower() for c in tree.find_all(exp.Column)} & set(dp_cols)
+    dp_plan = None
+    if used and _dp_eligible(tree, dp_cols):
+        dp_plan = _dp_plan(tree, dp_cols, policy)
+        dp_plan["columns"] = sorted(used)
     for table in jobs:
         projections = []
         for col, meta in registry[table.name.lower()].items():
             action = action_for(meta, role, policy)
             if action != "allow":
                 masked.append(f"{table.name.lower()}.{col}:{action}")
-            projections.append(_mask_expr(col, meta, action, policy).as_(col, quoted=True))
+            bounds = dp_cols.get(col.lower())[1:] if dp_plan and col.lower() in dp_cols else None
+            projections.append(_mask_expr(col, meta, action, policy, bounds).as_(col, quoted=True))
         inner = exp.Table(this=exp.to_identifier(table.name), db=exp.to_identifier(schema))  # pinned: a CTE can't capture it
         table.replace(exp.select(*projections).from_(inner).subquery(table.alias_or_name))
 
@@ -154,4 +234,4 @@ def rewrite(sql, role, registry, policy, dialect="sqlite"):
                 tree = tree.limit(cap)
         else:
             tree = exp.select("*").from_(tree.subquery("q")).limit(cap)
-    return Result(tree.sql(dialect=dialect), sorted(set(masked)), shape)
+    return Result(tree.sql(dialect=dialect), sorted(set(masked)), shape, dp_plan)

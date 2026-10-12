@@ -4,6 +4,7 @@ from dataclasses import dataclass, field
 from .audit import AuditLog, fingerprint
 from .rewriter import Rejected, rewrite
 from .threat import Event, ThreatEngine
+from .dp import BudgetExceeded, PrivacyLedger, apply_noise
 
 
 @dataclass
@@ -14,6 +15,7 @@ class QueryResult:
     masked: list = field(default_factory=list)
     ms: float = 0.0
     risk: int = 0
+    dp: dict = None  # {"epsilon": spent, "remaining": budget left today} when noise was added
 
 
 class Gateway:
@@ -24,6 +26,7 @@ class Gateway:
         self.audit = AuditLog(audit_path)
         self._registry, self._lock = registry, threading.Lock()
         self.threat = ThreatEngine.from_policy(policy)
+        self.dp_ledger = PrivacyLedger.from_policy(policy)
 
     @property
     def registry(self):
@@ -54,8 +57,18 @@ class Gateway:
             a = self._assess(session, "reject", fp, now=now, observe=observe)
             self.audit.append(**base, decision="reject", reason=str(e)[:160], **self._risk_fields(a))
             raise
+        dp_info = None
+        if res.dp:
+            try:  # charge the budget before touching the data
+                remaining = self.dp_ledger.spend(session.user, res.dp["cost"], now)
+            except BudgetExceeded as e:
+                self.audit.append(**base, decision="reject", reason=str(e)[:160])
+                raise Rejected(str(e)) from None
+            dp_info = {"epsilon": res.dp["cost"], "remaining": remaining, "columns": res.dp["columns"]}
         try:
             cols, rows = self.backend.execute(res.sql)
+            if res.dp:
+                cols, rows = apply_noise(cols, rows, res.dp)
         except Exception as e:
             a = self._assess(session, "reject", fp, shape=res.shape, now=now, observe=observe)
             self.audit.append(**base, decision="error", reason=type(e).__name__, **self._risk_fields(a))
@@ -63,10 +76,11 @@ class Gateway:
         a = self._assess(session, "allow", fp, len(rows), res.shape, now=now, observe=observe)
         ms = (time.perf_counter() - t0) * 1000
         self.audit.append(**base, rewritten=fingerprint(res.sql, dialect), masked=res.masked, decision="allow",
-                          rows=len(rows), ms=round(ms, 2), **self._risk_fields(a))
+                          rows=len(rows), ms=round(ms, 2), **self._risk_fields(a),
+                          **({"dp_epsilon": dp_info["epsilon"], "dp_remaining": dp_info["remaining"]} if dp_info else {}))
         if a is not None and a.action == "block":  # withhold this result too: the session is now blocked
             raise Rejected("session blocked by the threat engine: " + "; ".join(a.reasons)[:200])
-        return QueryResult(cols, rows, res.sql, res.masked, ms, a.risk if a else 0)
+        return QueryResult(cols, rows, res.sql, res.masked, ms, a.risk if a else 0, dp_info)
 
     @staticmethod
     def _risk_fields(a):

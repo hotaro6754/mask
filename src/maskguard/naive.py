@@ -22,7 +22,7 @@ def _mask_value(v, meta, action, policy):
     if action == "redact_text":
         from .textpii import redact
         return redact(v)
-    if action == "redact":
+    if action in ("redact", "aggregate"):
         return None if meta.get("type") == "num" else "REDACTED"
     return None
 
