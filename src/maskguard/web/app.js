@@ -933,6 +933,7 @@ async function route() {
   $("#crumbs").replaceChildren(TITLES[fn], h("small", {}, S.me ? `as ${S.me.user}` : ""));
   document.title = `${TITLES[fn]} · MaskGuard`;
   $(".side").classList.remove("open"); $("#menu-btn").setAttribute("aria-expanded", "false");
+  tipHide();  // a chart tooltip must not outlive its page
   const main = $("#main");
   const seq = ++routeSeq;
   const frag = h("div", {});
