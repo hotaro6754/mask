@@ -8,6 +8,9 @@ x-maskguard: &maskguard
     MASKGUARD_HMAC_KEY: ${MASKGUARD_HMAC_KEY:-dev-only-hmac-key-change-me}
     MASKGUARD_JWT_SECRET: ${MASKGUARD_JWT_SECRET:-dev-only-jwt-secret-change-me-0123456789}
     MASKGUARD_SCAN_INTERVAL: "300"
+    # Demo identities from outside the container (browser on the host is not loopback to the API). Synthetic data
+    # only: anyone who can reach these ports can act as any demo role, including admin. Set to 0 for real data.
+    MASKGUARD_DEMO: ${MASKGUARD_DEMO:-1}
   depends_on:
     postgres:
       condition: service_healthy

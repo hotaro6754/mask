@@ -150,7 +150,8 @@ class LocalService:
         except Rejected as e:
             raise Denied(f"rejected: {e} [{getattr(e, 'request_id', '')}]") from None
         except Exception as e:  # never echo database errors (they can quote values)
-            raise Denied(f"query failed: {type(e).__name__}") from None
+            from .gateway import safe_error
+            raise Denied(safe_error(e)) from None
         return {"role": s.role, "user": s.user, "columns": r.columns,
                 "rows": [[_jsonable(v) for v in row] for row in r.rows], "row_count": len(r.rows), "masked": r.masked,
                 "rewritten_sql": r.rewritten_sql, "ms": round(r.ms, 2), "risk": r.risk, "dp": r.dp,

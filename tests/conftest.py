@@ -3,6 +3,7 @@ import pytest
 
 os.environ.setdefault("MASKGUARD_HMAC_KEY", "test-key-not-for-prod")
 os.environ.setdefault("MASKGUARD_JWT_SECRET", "test-jwt-secret-not-for-prod-0123456789")
+os.environ.setdefault("MASKGUARD_DEMO", "1")  # TestClient is not a loopback address; tests opt in explicitly
 
 from maskguard import config  # noqa: E402
 

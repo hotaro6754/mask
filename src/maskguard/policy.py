@@ -80,6 +80,20 @@ def roles(policy):
     return out
 
 
+def view_within(role, caller, policy):
+    """True if `role` never sees more than `caller`: every classification is at least as strictly masked, and every
+    row filter the caller has, `role` has too. Used to stop a low role from borrowing a stronger role's view."""
+    if role == caller:
+        return True
+    rules = policy["roles"]
+    default = policy.get("default_action", "deny")
+    for tag in known_tags(policy):
+        if strictness(rules[role].get(tag, default)) < strictness(rules[caller].get(tag, default)):
+            return False
+    rf = policy.get("row_filters") or {}
+    return all((rf.get(role) or {}).get(t) == f for t, f in (rf.get(caller) or {}).items())
+
+
 def known_tags(policy, registry=None):
     tags = {t for rules in policy["roles"].values() for t in rules}
     for cols in (registry or {}).values():

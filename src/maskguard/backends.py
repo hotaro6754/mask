@@ -3,7 +3,7 @@
 Gateway queries always run read-only: SQLite through an authorizer that only allows reads, PostgreSQL inside
 a READ ONLY transaction with a statement timeout. Seeding and scanning use the admin paths.
 """
-import hashlib, sqlite3, threading
+import hashlib, sqlite3, threading, time
 from urllib.parse import urlparse
 
 from . import masks
@@ -89,14 +89,19 @@ class SQLiteBackend(Backend):
     def _readonly(action, *_):
         return sqlite3.SQLITE_OK if action in SQLiteBackend._READ_ACTIONS else sqlite3.SQLITE_DENY
 
+    timeout_s = 5.0  # same budget as PostgreSQL's statement_timeout and MySQL's max_execution_time
+
     def execute(self, sql):
         with self.lock:
+            deadline = time.monotonic() + self.timeout_s
             self.conn.set_authorizer(self._readonly)
+            self.conn.set_progress_handler(lambda: 1 if time.monotonic() > deadline else 0, 20000)  # 1 = interrupt
             try:
                 cur = self.conn.execute(sql)
                 return [d[0] for d in cur.description or []], cur.fetchall()
             finally:
                 self.conn.set_authorizer(None)
+                self.conn.set_progress_handler(None, 0)
 
     def admin_query(self, sql, params=()):
         with self.lock:

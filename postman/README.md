@@ -2,7 +2,7 @@
 
 | File | What it is |
 |---|---|
-| `Smart-Data-Masking.postman_collection.json` | 54 requests, 119 assertions, run in order |
+| `Smart-Data-Masking.postman_collection.json` | 55 requests, 121 assertions, run in order |
 | `Local.postman_environment.json` | `baseUrl` plus the synthetic `support.sam` demo account (never put real credentials here) |
 | `build_collection.py` | Generates the collection; edit this, not the JSON |
 
@@ -15,7 +15,7 @@ The suite checks response **bodies**, not only status codes. It runs these stage
 | 02 Integrity baseline | Records the source-table digest before anything runs |
 | 03 Same query, four roles | Admin gets real values. Support gets exactly `XXX-XX-` plus the last four digits. Analyst gets 16-hex HMAC tokens and redacted names. Auditor gets `REDACTED` everywhere. Also covers cross-role compare, the query builder (no frozen accounts for Support) and DP aggregates that charge ε |
 | 04 Policy inspection | Effective policy, a per-field explanation, Support explaining Admin → 403, the role matrix, and roles redacted for non-auditors |
-| 05 Negative and security | No token, a tampered token, unsigned `alg:none`, a role sent in the body, stacked statements, UPDATE, catalog reads, `load_extension`, direct `mg_hmac`, CTE shadowing, `lower(ssn)`, an equality oracle, a subquery around the row filter, error-message echo, malformed JSON, query-builder injection, capability denials (403), weakening a rule without confirmation (409), an unknown action (400), and a check that the policy version did not change |
+| 05 Negative and security | No token, a tampered token, unsigned `alg:none`, a role sent in the body, stacked statements, UPDATE, catalog reads, `load_extension`, direct `mg_hmac`, CTE shadowing, `lower(ssn)`, an equality oracle, borrowing the admin view through `/demo/compare` (403), a subquery around the row filter, error-message echo, malformed JSON, query-builder injection, capability denials (403), weakening a rule without confirmation (409), an unknown action (400), and a check that the policy version did not change |
 | 06 Audit trail | Hash chain valid, no SSN anywhere in the log; the Support query is found by request id with user, channel, policy version and masked columns; rejections and denials are logged |
 | 07 Integrity after | Digest identical to the baseline, every table MATCH, and the full immutability proof PASS |
 
@@ -44,7 +44,8 @@ assertion. See `.github/workflows/ci.yml`.
 the Collection Runner. The running API also serves the collection at `GET /postman`.
 
 **Notes**
-- The suite needs **demo mode**: the default when `MASKGUARD_ENV` isn't `production`. With demo mode off,
+- The suite needs **demo mode** and must run on the same machine as the API (demo logins are refused from other
+  hosts unless `MASKGUARD_DEMO=1` is set explicitly): the default when `MASKGUARD_ENV` isn't `production`. With demo mode off,
   `/auth/demo` returns 404 by design. Log in with real accounts instead.
 - Run it against a **fresh** server. The threat engine watches each user's query stream, so re-running the
   negative folder many times in quick succession can eventually alert on `support.sam`. That is the detector

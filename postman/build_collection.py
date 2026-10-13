@@ -91,8 +91,8 @@ folders = [
         req("Auditor: no raw PII at all", "POST", "/query", q("{{sameQuery}}"), "auditorToken", tests=[
             STATUS(200), "const r = pm.response.json();",
             "pm.test('every PII cell REDACTED', () => r.rows.forEach(row => pm.expect(row.slice(1)).to.eql(['REDACTED','REDACTED','REDACTED'])));"]),
-        req("Cross-role comparison (demo identities, one audited query each)", "POST", "/demo/compare",
-            {"sql": "{{sameQuery}}", "roles": ["admin", "support", "analyst"]}, "supportToken", tests=[
+        req("Cross-role comparison as admin (demo identities, one audited query each)", "POST", "/demo/compare",
+            {"sql": "{{sameQuery}}", "roles": ["admin", "support", "analyst"]}, "adminToken", tests=[
             STATUS(200), "const r = pm.response.json().results;",
             "pm.test('admin real, support partial, analyst token', () => { pm.expect(r.admin.rows[0][2]).to.eql(pm.collectionVariables.get('adminSsn')); pm.expect(r.support.rows[0][2]).to.match(/^XXX-XX-/); pm.expect(r.analyst.rows[0][2]).to.match(/^[0-9a-f]{16}$/); });",
             "pm.test('three distinct request ids', () => pm.expect(new Set([r.admin.request_id, r.support.request_id, r.analyst.request_id]).size).to.eql(3));"]),
@@ -135,6 +135,8 @@ folders = [
             {"sql": "SELECT ssn FROM users ORDER BY id LIMIT 1", "role": "admin"}, "supportToken", tests=[
             STATUS(200), "pm.test('still support', () => pm.expect(pm.response.json().role).to.eql('support'));",
             "pm.test('still masked', () => pm.expect(pm.response.json().rows[0][0]).to.match(/^XXX-XX-/));"]),
+        req("Support cannot borrow the admin view through demo/compare → 403", "POST", "/demo/compare",
+            {"sql": "{{sameQuery}}", "roles": ["admin"]}, "supportToken", tests=[STATUS(403), NO_RAW_SSN]),
         req("Stacked statement injection", "POST", "/query", q("SELECT 1; DROP TABLE users"), "supportToken", tests=REJECTED),
         req("UPDATE through the gateway", "POST", "/query", q("UPDATE accounts SET balance = 0"), "adminToken", tests=REJECTED),
         req("Catalog read", "POST", "/query", q("SELECT * FROM information_schema.tables"), "supportToken", tests=[STATUS(400)]),
@@ -201,7 +203,7 @@ folders = [
 
 collection = {
     "info": {"name": "MaskGuard · Smart Data Masking",
-             "description": "Role-based masking, end to end: same query as four roles, policy explanations, 25 negative and "
+             "description": "Role-based masking, end to end: same query as four roles, policy explanations, 26 negative and "
                             "security regressions, audit evidence, and an integrity check before and after. Run the whole "
                             "collection in order (Collection Runner or `newman run`). Uses synthetic demo identities only.",
              "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"},

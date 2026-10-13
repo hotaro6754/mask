@@ -63,7 +63,7 @@ exact commands and expected output.
 | **CLI** `maskguard` | Interactive console, plus `doctor`, `status`, `db inspect`, `scan --dry-run`, `pii list`, `roles show`, `policy explain`, `query --role/--table`, `compare`, `audit list`, `integrity proof`, `test` and more. `--json` output, stable exit codes, and `--api URL` to run through the REST API |
 | **Control Room** `/ui/` | Overview, live role playground (one real request per role, side by side, with per-field explanations and an integrity check), PII discovery, policy studio (validated, audited edits), role explorer, audit explorer, integrity proofs, API lab, CLI guide |
 | **REST API** `/docs` | Health and readiness, demo identities, query and query builder, policy explain, matrix and edits, scan, audit search, integrity baseline, verify and proof. Capability-checked |
-| **Postman** `postman/` | 54 requests and 119 body assertions, including 25 negative and security cases and integrity before and after. `npx newman run …` |
+| **Postman** `postman/` | 55 requests and 121 body assertions, including 26 negative and security cases and integrity before and after. `npx newman run …` |
 | **PostgreSQL proxy** :6543 | `psql "host=localhost port=6543 user=support.sam dbname=bank"`: any PostgreSQL client, masked |
 | **Python SDK** | `MaskGuardClient.demo(url, "analyst").query_df("SELECT status, avg(balance) FROM accounts GROUP BY status")` |
 

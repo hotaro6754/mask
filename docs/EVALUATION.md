@@ -118,7 +118,7 @@ DP fail-closed cases, budget enforcement, threat blocking/unblocking, the Postgr
 `psycopg` clients, the REST API (including forged/unsigned tokens, capability denials and error-message leakage),
 the Python SDK, the CLI (exit codes, JSON output, local and remote mode), row-level filters, policy edits,
 integrity proofs, and both dashboards (the Control Room through a Playwright browser walkthrough). The Postman
-collection (`postman/`, 54 requests, 119 body assertions, 25 of them negative/security cases) passes under Newman
+collection (`postman/`, 55 requests, 121 body assertions, 26 of them negative/security cases) passes under Newman
 against the API on SQLite, PostgreSQL 16 and MySQL 8.4.
 
 ## Known limits

@@ -29,6 +29,7 @@ from sqlglot import exp
 
 from . import config, policy as P
 from .attacks import run_suite, score
+from .gateway import safe_error
 from .rewriter import Rejected
 from .scanner import scan, summary
 
@@ -48,6 +49,12 @@ def get_app():
 @asynccontextmanager
 async def lifespan(_):
     get_app()
+    if config.demo_enabled():
+        import logging
+        logging.getLogger("uvicorn.error").warning(
+            "DEMO MODE: demo identities (including admin) can be used without a password from this machine%s. "
+            "Synthetic data only; set MASKGUARD_DEMO=0 or MASKGUARD_ENV=production for anything else.",
+            " and from any client (MASKGUARD_DEMO=1)" if os.environ.get("MASKGUARD_DEMO") == "1" else "")
     yield
     if state.get("app") and state["app"].worker:
         state["app"].worker.stop()
@@ -175,10 +182,22 @@ def _run(s, sql, channel="rest"):
     except PermissionError:
         raise HTTPException(401, "not authenticated")
     except Exception as e:  # never echo database errors: they can contain values
-        raise HTTPException(400, f"query failed: {type(e).__name__}")
+        raise HTTPException(400, safe_error(e))
     return {"role": s.role, "user": s.user, "columns": r.columns, "rows": [[_json(v) for v in row] for row in r.rows],
             "row_count": len(r.rows), "masked": r.masked, "rewritten_sql": r.rewritten_sql, "ms": round(r.ms, 2),
             "risk": r.risk, "dp": r.dp, "request_id": r.request_id, "policy_version": r.policy_version}
+
+
+LOOPBACK = {"127.0.0.1", "::1", "localhost"}
+
+
+def _demo_allowed(request):
+    """Demo identities need demo mode, and either a client on this machine or an explicit MASKGUARD_DEMO=1."""
+    if not config.demo_enabled():
+        raise HTTPException(404, "demo mode is disabled")
+    host = request.client.host if request.client else ""
+    if host not in LOOPBACK and os.environ.get("MASKGUARD_DEMO") != "1":
+        raise HTTPException(403, "demo identities are only available from this machine; set MASKGUARD_DEMO=1 to allow remote demo logins")
 
 
 def _demo_session(role):
@@ -235,10 +254,9 @@ def login(body: Login):
 
 
 @app.post("/auth/demo", tags=["auth"])
-def demo_login(body: DemoLogin):
+def demo_login(body: DemoLogin, request: Request):
     """Demo mode only: sign in as the synthetic demo identity for a role (a normal user with a normal token)."""
-    if not config.demo_enabled():
-        raise HTTPException(404, "demo mode is disabled")
+    _demo_allowed(request)
     s = _demo_session(body.role)
     return {"token": get_app().auth.issue_token(s), "role": s.role, "user": s.user, "demo": True}
 
@@ -474,13 +492,19 @@ def integrity_history(n: int = 20, _=Depends(require("integrity.verify"))):
 # ---------- demo ----------
 
 @app.post("/demo/compare", tags=["demo"])
-def demo_compare(body: Compare, s=Depends(session)):
+def demo_compare(body: Compare, request: Request, s=Depends(session)):
     """Demo mode only: run the same SQL as each demo identity. Each run is a separate, audited gateway query under
-    that identity's own session; nothing is computed client-side."""
-    if not config.demo_enabled():
-        raise HTTPException(404, "demo mode is disabled")
+    that identity's own session; nothing is computed client-side. A caller may only include roles whose view is no
+    more revealing than its own (an admin may compare all), so compare can't be used to borrow a stronger role."""
+    _demo_allowed(request)
+    pol = get_app().gateway.policy
+    roles = body.roles or [r for r in config.demo_accounts() if r in pol["roles"] and P.view_within(r, s.role, pol)]
+    stronger = [r for r in roles if r in pol["roles"] and not P.view_within(r, s.role, pol)]
+    if stronger:
+        _audit(s, "denied", target="demo/compare:" + ",".join(stronger), reason="role sees more than the caller")
+        raise HTTPException(403, f"your role ({s.role}) may not view data as {', '.join(stronger)}: those roles see more than you")
     out = {}
-    for role in body.roles or list(config.demo_accounts()):
+    for role in roles:
         try:
             out[role] = _run(_demo_session(role), body.sql, channel="rest-demo")
         except HTTPException as e:

@@ -45,6 +45,12 @@ the gateway.
   - It is on by default only when `MASKGUARD_ENV` isn't `production`.
   - With `MASKGUARD_ENV=production` it is off by default.
   - `MASKGUARD_DEMO=1` together with `production` stops startup with an error.
+  - Demo logins are accepted only from the same machine (loopback) unless `MASKGUARD_DEMO=1` is set explicitly, and
+    the server logs a DEMO MODE warning at startup. Anyone who can use demo mode can act as any demo role,
+    including admin, so it is for synthetic data only.
+  - `POST /demo/compare` only runs roles whose view is no more revealing than the caller's: every classification
+    at least as strictly masked and the same row filters. A Support or Auditor token therefore can't borrow the
+    Admin view; an Admin may compare every role.
 - **Capabilities** (`role_info.<role>.capabilities` in the policy) gate everything except querying. Denials
   return 403 and are audited.
 

@@ -1,4 +1,4 @@
-import secrets, threading, time
+import re, secrets, threading, time
 from dataclasses import dataclass, field
 
 from .audit import AuditLog, fingerprint
@@ -6,6 +6,18 @@ from .rewriter import Rejected, rewrite
 from .threat import Event, ThreatEngine
 from .dp import BudgetExceeded, PrivacyLedger, apply_noise
 from .policy import version as policy_version
+
+
+def safe_error(e):
+    """A database error message that is safe to show: only well-known messages that name identifiers, never values."""
+    msg = str(e).lower()
+    if "ambiguous" in msg:
+        return "query failed: ambiguous column name; qualify it with a table alias (e.g. u.id)"
+    if re.search(r"no such column|unknown column|column .* does not exist", msg):
+        return "query failed: unknown column"
+    if "interrupted" in msg or "statement timeout" in msg or "canceling statement" in msg or "max_execution_time" in msg:
+        return "query failed: time limit exceeded"
+    return f"query failed: {type(e).__name__}"
 
 
 @dataclass

@@ -1,7 +1,7 @@
 {
   "info": {
     "name": "MaskGuard · Smart Data Masking",
-    "description": "Role-based masking, end to end: same query as four roles, policy explanations, 25 negative and security regressions, audit evidence, and an integrity check before and after. Run the whole collection in order (Collection Runner or `newman run`). Uses synthetic demo identities only.",
+    "description": "Role-based masking, end to end: same query as four roles, policy explanations, 26 negative and security regressions, audit evidence, and an integrity check before and after. Run the whole collection in order (Collection Runner or `newman run`). Uses synthetic demo identities only.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
@@ -675,7 +675,7 @@
           ]
         },
         {
-          "name": "Cross-role comparison (demo identities, one audited query each)",
+          "name": "Cross-role comparison as admin (demo identities, one audited query each)",
           "request": {
             "method": "POST",
             "header": [
@@ -685,7 +685,7 @@
               },
               {
                 "key": "Authorization",
-                "value": "Bearer {{supportToken}}"
+                "value": "Bearer {{adminToken}}"
               }
             ],
             "url": {
@@ -1203,6 +1203,53 @@
                   "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
                   "pm.test('still support', () => pm.expect(pm.response.json().role).to.eql('support'));",
                   "pm.test('still masked', () => pm.expect(pm.response.json().rows[0][0]).to.match(/^XXX-XX-/));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Support cannot borrow the admin view through demo/compare → 403",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{supportToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/demo/compare",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "demo",
+                "compare"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"sql\": \"{{sameQuery}}\",\n  \"roles\": [\n    \"admin\"\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 403', () => pm.response.to.have.status(403));",
+                  "pm.test('no raw SSN in the body', () => pm.expect(pm.response.text()).to.not.include(pm.collectionVariables.get('adminSsn')));"
                 ]
               }
             }

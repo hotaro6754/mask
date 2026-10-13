@@ -66,7 +66,7 @@ are listed with their status in the report.
 | CLI | Typer + Rich, branded banner (falls back on narrow or non-UTF-8 terminals), interactive console with playground | TESTED | `tests/test_cli.py` (12 tests); console driven through a pseudo-terminal during development |
 | | `doctor`, `status`, `db list/test/inspect`, `scan --dry-run --sample-limit --table --out`, `pii list/show`, `roles list/show`, `policy list/explain/set/history`, `query --role/--user/--table/--columns/--csv/--explain`, `compare`, `audit list/verify`, `integrity verify/baseline/proof/history`, `test`, plus every earlier command | TESTED | Same; exit codes 0/2/3/4/5/6 asserted; JSON on stdout, diagnostics on stderr |
 | | Remote mode through the REST API (`--api`) | TESTED | `test_remote_mode_uses_the_api` |
-| Postman | 54 requests and 119 body assertions: 4 roles, 25 negative and security cases, audit evidence, integrity before and after | VALIDATED | Newman: 54/54 requests and 119/119 assertions passed against the API on **SQLite, PostgreSQL 16 and MySQL 8.4**; added to CI |
+| Postman | 55 requests and 121 body assertions: 4 roles, 26 negative and security cases, audit evidence, integrity before and after | VALIDATED | Newman: 55/55 requests and 121/121 assertions passed against the API on **SQLite, PostgreSQL 16 and MySQL 8.4**; added to CI |
 | Dashboard | Control Room: overview (real readiness, audit stats chart, events), playground (builder or SQL, multi-role, per-field explanations, integrity strip), PII discovery (dry-run and apply scans), policy studio (matrix, validated edit dialog, history, reset), role explorer, audit explorer (filters, expandable rows, chain status), integrity (baseline, verify, proof, history), API lab (OpenAPI-driven, cURL without tokens), CLI guide, diagnostics | TESTED | `tests/test_dashboard_ui.py`: Playwright walkthrough of every page with no JS errors and no horizontal overflow at 390 px; screenshots in `docs/img/control-room-*.png` |
 | | Accessibility: text labels on every status, keyboard focus styles, skip link, ARIA roles on tabs, chips and live regions, table view for the chart, reduced-motion support | IMPLEMENTED | Checked manually in screenshots; no automated a11y audit was run |
 | Docs | `ARCHITECTURE.md` (trust boundary), `DEMO_RUNBOOK.md` (exact commands, expected output, PowerShell), `REFERENCE_RESEARCH.md`, `postman/README.md`, `.env.example` | IMPLEMENTED | — |
@@ -76,14 +76,51 @@ are listed with their status in the report.
 
 | Check | Result |
 |---|---|
-| `pytest` on SQLite + PostgreSQL 16 + MySQL 8.4 (`MASKGUARD_TEST_PG`, `MASKGUARD_TEST_MYSQL` set) | **412 passed, 0 failed, 0 skipped** (11 min 43 s) |
+| `pytest` on SQLite + PostgreSQL 16 + MySQL 8.4 (`MASKGUARD_TEST_PG`, `MASKGUARD_TEST_MYSQL` set) | **416 passed, 0 failed, 0 skipped** (8 min 31 s; rerun after the audit fixes on 13 Oct) |
 | Baseline before this iteration (SQLite + PostgreSQL) | 272 passed, 93 skipped |
-| New test files | `test_policy_integrity.py` (11 tests × backends), `test_api_v1.py` (12), `test_cli.py` (12), `test_dashboard_ui.py` (2, incl. Playwright) |
-| Newman, `postman/` collection | 54/54 requests, 119/119 assertions, against the API on **SQLite, PostgreSQL and MySQL** |
+| New test files | `test_policy_integrity.py` (11 tests × backends), `test_api_v1.py` (16), `test_cli.py` (12), `test_dashboard_ui.py` (2, incl. Playwright) |
+| Newman, `postman/` collection | 55/55 requests, 121/121 assertions, against the API on **SQLite, PostgreSQL and MySQL** |
 | `maskguard test` (attack suite as support, analyst, auditor + audit chain + integrity proof) | all PASS; 0/17 leaks per role (naive masking: 14/17) |
 
 A pre-existing warning remains: asyncio prints "Task was destroyed but it is pending" when the PG-proxy test
 fixture shuts its server down at the end of the session. It does not affect results.
+
+## 5b. Adversarial security audit (13 Oct 2026)
+
+An independent pass tried to break a running API as Support, Analyst and Auditor. It checked every recovered value
+against the raw SQLite file.
+
+**Confirmed and fixed**
+
+| Severity | Finding | Fix | Regression test |
+|---|---|---|---|
+| Medium (High if exposed) | **Demo mode let a low role borrow the Admin view.** `POST /demo/compare {"roles": ["admin"]}` with an Auditor token returned raw SSN, PAN and email. `/auth/demo` also issued admin tokens to any client that could reach the API | `/demo/compare` only runs roles whose view is no more revealing than the caller's (`policy.view_within`: every classification at least as strict, same row filters), and audits refusals. Demo logins are accepted only from the same machine unless `MASKGUARD_DEMO=1` is set explicitly. A DEMO MODE warning is logged at startup | `test_demo_compare_cannot_borrow_a_stronger_role`, `test_demo_login_only_from_this_machine_unless_explicit`; Postman "Support cannot borrow the admin view" |
+| Low (availability) | SQLite had no statement time limit, and recursive CTEs were allowed (possible runaway query) | Recursive queries are refused by the firewall. SQLite now has a 5 s limit through a progress handler (PostgreSQL and MySQL already had one) | `test_recursive_queries_and_runaway_sqlite_queries_are_stopped` |
+| Usability | An ambiguous column (`SELECT id … JOIN …`) gave a bare "query failed: OperationalError" | `gateway.safe_error` maps only identifier-only messages (ambiguous or unknown column, time limit) to a helpful text; everything else still reports the exception type only | `test_ambiguous_column_gets_a_helpful_safe_message` |
+
+The audit also found a stuck chart tooltip in the dashboard while recording the demo; it is fixed.
+
+**Held up:**
+- Support's row filter, including a hex-literal trick.
+- Writes, stacked statements and `SELECT … INTO`.
+- Catalog access, `pragma_*`, `load_extension`, and direct calls to `mg_*` functions.
+- UNION, CTE, subquery, comment+UNION and self-join shapes.
+- LIKE, substring and CASE oracles: they only see masked values.
+- Analyst balance via MIN/MAX/GROUP BY: returns NULL.
+- Small-group floor: a user HAVING clause can't override it.
+- DP budget: exhausted after 20 queries, with noise far larger than any single balance.
+- Forged JWT; role sent in the request body.
+- Every capability gate.
+- Policy weakening without confirmation and a reason.
+- Error-message and audit-log leakage.
+- Scanner evidence: contains no values.
+- Integrity proof.
+- CLI.
+- Dashboard XSS: no `innerHTML` anywhere, plus a strict CSP.
+
+**Not changed (judged acceptable, documented):**
+- Identifiers inside free text that the 21 patterns don't recognise are shown to Support as written.
+- A patient analyst could average DP answers across days: about 800 days to pin down one balance.
 
 ## 6. Evidence that masking left the database unchanged
 

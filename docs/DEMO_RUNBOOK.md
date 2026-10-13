@@ -116,7 +116,7 @@ uv run maskguard serve --port 8000          # API + dashboard; keep it running (
 npx -y newman@6 run postman/Smart-Data-Masking.postman_collection.json -e postman/Local.postman_environment.json
 ```
 
-Expected: `requests 54 · failed 0`, `assertions 119 · failed 0`. In the Postman app: import both files, pick the
+Expected: `requests 55 · failed 0`, `assertions 121 · failed 0`. In the Postman app: import both files, pick the
 *MaskGuard · Local* environment, Run collection. Folder 03 shows the same query as four roles; folder 05 the 25
 negative/security cases.
 
@@ -170,5 +170,6 @@ psql "host=localhost port=6543 user=support.sam dbname=bank"     # via the wire 
 | Analyst queries fail with an HMAC error | set `MASKGUARD_HMAC_KEY` (≥ 16 bytes) |
 | Tokens stop working after a restart | set `MASKGUARD_JWT_SECRET` |
 | `/auth/demo` returns 404 | demo mode is off (`MASKGUARD_DEMO=0` or `MASKGUARD_ENV=production`); sign in with a user |
+| `/auth/demo` returns 403 "only available from this machine" | the browser is on another host (or in Docker): set `MASKGUARD_DEMO=1` explicitly, synthetic data only (docker compose already does) |
 | A demo user is suddenly refused with "blocked by the threat engine" | expected after bursts of refused queries: as admin, send `POST /threats/support.sam/unblock` (API lab), or restart the server (blocks are kept in memory) |
 | Windows terminal shows boxes instead of the banner | the CLI falls back to a one-line banner when the terminal can't encode it; use Windows Terminal for the full one |

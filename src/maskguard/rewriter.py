@@ -153,6 +153,8 @@ def _validate(tree):
     if not isinstance(tree, ROOTS):
         raise Rejected("only a single SELECT is allowed")
     for node in tree.walk():
+        if isinstance(node, exp.With) and node.args.get("recursive"):
+            raise Rejected("recursive queries are not allowed")
         if isinstance(node, FORBIDDEN):
             raise Rejected(f"{type(node).__name__} is not allowed")
         if isinstance(node, exp.Func) and node.key not in ALLOWED_FUNCS:

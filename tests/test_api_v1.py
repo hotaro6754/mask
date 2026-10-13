@@ -37,7 +37,7 @@ def test_same_query_different_roles(client):
     assert rows["support"][1].startswith("XXX-XX-") and rows["support"][1][-4:] == real[1][-4:]
     assert rows["analyst"][0] == "REDACTED" and len(rows["analyst"][1]) == 16 and rows["analyst"][1] != real[1]
     assert rows["auditor"] == ["REDACTED"] * 3
-    c = client.post("/demo/compare", json=sql, headers=demo(client, "support")).json()["results"]
+    c = client.post("/demo/compare", json=sql, headers=demo(client, "admin")).json()["results"]
     assert c["support"]["rows"][0] == rows["support"] and c["admin"]["rows"][0] == real
 
 
@@ -162,3 +162,44 @@ def test_ui_is_served_with_csp(client):
     r = client.get("/ui/")
     assert r.status_code == 200 and "default-src 'self'" in r.headers["content-security-policy"]
     assert r.headers["x-frame-options"] == "DENY"
+
+
+def test_demo_compare_cannot_borrow_a_stronger_role(client, sqlite_env):
+    sql = {"sql": "SELECT ssn FROM users ORDER BY id LIMIT 1"}
+    for low in ("auditor", "analyst", "support"):
+        r = client.post("/demo/compare", json={**sql, "roles": ["admin"]}, headers=demo(client, low))
+        assert r.status_code == 403 and sqlite_env.real("ssn") not in r.text, low
+    # support may not borrow analyst/auditor either: they have no row filter, so they would see frozen accounts
+    assert client.post("/demo/compare", json={**sql, "roles": ["analyst"]}, headers=demo(client, "support")).status_code == 403
+    # defaults to the roles the caller may see as; admin may compare every role
+    r = client.post("/demo/compare", json=sql, headers=demo(client, "auditor")).json()["results"]
+    assert set(r) == {"auditor"}
+    r = client.post("/demo/compare", json=sql, headers=demo(client, "admin")).json()["results"]
+    assert set(r) == {"admin", "support", "analyst", "auditor"}
+    assert any(e["target"].startswith("demo/compare") for e in sqlite_env.gw.audit.search(decision="denied"))
+
+
+def test_demo_login_only_from_this_machine_unless_explicit(client, monkeypatch):
+    monkeypatch.delenv("MASKGUARD_DEMO")       # demo on by default in development, but TestClient is not loopback
+    r = client.post("/auth/demo", json={"role": "admin"})
+    assert r.status_code == 403 and "this machine" in r.json()["detail"]
+    monkeypatch.setenv("MASKGUARD_DEMO", "1")  # explicit opt-in allows remote demo logins
+    assert client.post("/auth/demo", json={"role": "admin"}).status_code == 200
+
+
+def test_recursive_queries_and_runaway_sqlite_queries_are_stopped(client, sqlite_env):
+    h = demo(client, "analyst")
+    r = client.post("/query", json={"sql": "WITH RECURSIVE c(x) AS (SELECT 1 UNION ALL SELECT x + 1 FROM c) SELECT count(*) FROM c"}, headers=h)
+    assert r.status_code == 400 and "recursive" in r.json()["detail"]
+    b = sqlite_env.backend
+    b.timeout_s = 0.2
+    import time
+    t0 = time.time()
+    with pytest.raises(Exception) as e:  # a cross join big enough to run for minutes is interrupted
+        b.execute("SELECT count(*) FROM users a, users b, users c, users d")
+    assert time.time() - t0 < 3 and "interrupt" in str(e.value).lower()
+
+
+def test_ambiguous_column_gets_a_helpful_safe_message(client):
+    r = client.post("/query", json={"sql": "SELECT id FROM users u JOIN accounts a ON a.user_id = u.id LIMIT 1"}, headers=demo(client, "support"))
+    assert r.status_code == 400 and "ambiguous column" in r.json()["detail"]
