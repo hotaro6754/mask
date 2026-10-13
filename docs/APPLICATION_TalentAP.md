@@ -32,9 +32,10 @@ MaskGuard is a privacy gateway in front of SQLite, PostgreSQL and MySQL.
 ## Innovation / Differentiation
 - **Leak-proof masking:** masking is applied inside the SQL, not on the output. 0 of 17 bypass and inference
   attacks leak, against 15 of 17 for column-level masking.
-- **AI discovery that beats a public benchmark:** 0.999 macro-F1 on bharat-pii-bench with misleading column names
-  (benchmark baseline 0.844), and false alarms cut from 22.2% to 1.5%. It is built for Indian identifiers: Aadhaar,
-  PAN, GSTIN, UPI and IFSC.
+- **AI discovery that beats a public benchmark:** 0.965 macro-F1 on bharat-pii-bench with misleading column names,
+  from only 5 sample values per column (benchmark baseline 0.844). False alarms are cut from 22.2% to 6.3%; with 20
+  values per column the scores are 0.999 and 1.5%. It is built for Indian identifiers: Aadhaar, PAN, GSTIN, UPI and
+  IFSC.
 - **Provable integrity:** a one-click proof hashes the tables, runs the same query as every role, attempts six
   kinds of write, then hashes again.
 - **Beyond masking:**
