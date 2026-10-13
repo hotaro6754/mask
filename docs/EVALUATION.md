@@ -55,11 +55,12 @@ firewall cases (stacked statements, writes, catalog reads, dangerous functions).
 
 | Role, database | Naive masking: PII leaks | MaskGuard: PII leaks | Unsafe statements rejected |
 |---|---|---|---|
-| Support / Analyst, PostgreSQL | 15 / 17 | **0 / 17** | 4 / 4 |
-| Support / Analyst, SQLite | 13 / 17 | **0 / 17** | 4 / 4 |
-| Support / Analyst, MySQL | 14 / 17 | **0 / 17** | 4 / 4 |
+| Support / Analyst / Auditor, PostgreSQL | 15 / 17 | **0 / 17** | 4 / 4 |
+| Support / Analyst / Auditor, SQLite | 14 / 17 | **0 / 17** | 4 / 4 |
+| Support / Analyst / Auditor, MySQL | 14 / 17 | **0 / 17** | 4 / 4 |
 
-Run on every CI build (`.github/workflows/ci.yml`); tests assert zero leaks on all three databases.
+Run on every CI build (`.github/workflows/ci.yml`); tests assert zero leaks on all three databases. Re-measured on
+13 Oct 2026 with the current policy (SQLite naive count rose from 13 to 14 after the Auditor role and row filters were added).
 
 ## 4. Insider-threat engine — simulated sessions
 
