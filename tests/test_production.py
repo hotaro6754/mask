@@ -8,6 +8,7 @@ import pytest
 import yaml
 
 from maskguard import cli, config
+from maskguard.attacks import SELF_TEST_REFUSAL, SelfTestDisabled, run_suite, self_test_allowed
 from maskguard.auth import Authenticator, hash_password
 from maskguard.rewriter import Rejected
 from tests.conftest import MYSQL_URL, PG_URL
@@ -118,6 +119,133 @@ def test_production_refuses_noisy_aggregates_but_keeps_masking(sqlite_env):
     assert gw.query(admin, "SELECT SUM(balance) FROM accounts", observe=False).rows[0][0] > 0  # admins unaffected
     from maskguard.pia import build, to_markdown
     assert "Noisy aggregates: disabled in production" in to_markdown(build(sqlite_env.app))
+
+
+# ---------------------------------------------------------------- self-tests off in production
+
+def _db_calls(monkeypatch, gw):
+    """Records every way a self-test could reach the data: direct backend calls and gateway queries."""
+    calls = []
+
+    def spy(obj, name):
+        orig = getattr(obj, name)
+        monkeypatch.setattr(obj, name, lambda *a, **k: (calls.append(name), orig(*a, **k))[1])
+    for name in ("execute", "admin_query", "admin_script", "checksum"):
+        spy(gw.backend, name)
+    spy(gw, "query")
+    return calls
+
+
+def _self_test_refusals(gw, n):
+    entries = gw.audit.tail(n)
+    assert len(entries) == n and all(e["decision"] == "reject" and SELF_TEST_REFUSAL in e["reason"] for e in entries)
+    assert not any("sql" in e or "rewritten" in e for e in entries)  # who asked and how, never what would have run
+    return entries
+
+
+REFUSING_ENVIRONMENTS = {"production": {"MASKGUARD_ENV": "production"},
+                         "production, demo mode on": {"MASKGUARD_ENV": "production", "MASKGUARD_DEMO": "1"},
+                         "unrecognised environment": {"MASKGUARD_ENV": "prod"},
+                         "gateway built for production": {}}
+
+
+@pytest.mark.parametrize("case", REFUSING_ENVIRONMENTS)
+def test_self_tests_refuse_outside_development_before_touching_the_database(sqlite_env, monkeypatch, case):
+    from maskguard import threat_sim
+    gw = sqlite_env.gw
+    sessions = {r: sqlite_env.login(r) for r in ("support", "admin")}
+    for k, v in REFUSING_ENVIRONMENTS[case].items():
+        monkeypatch.setenv(k, v)
+    if case == "gateway built for production":  # what config.build does in production, whatever the env says now
+        monkeypatch.setattr(gw, "allow_self_test", False)
+    assert not self_test_allowed(gw)
+    calls = _db_calls(monkeypatch, gw)
+    for s in sessions.values():
+        with pytest.raises(SelfTestDisabled, match=f"^{SELF_TEST_REFUSAL}$"):
+            run_suite(gw, s)
+        with pytest.raises(SelfTestDisabled):
+            threat_sim.live_attack(gw, s)
+    with pytest.raises(SelfTestDisabled):
+        threat_sim.sessions(sqlite_env.app, seed=0)
+    assert calls == []
+    _self_test_refusals(gw, 5)
+
+
+def test_a_failing_audit_log_still_refuses_the_self_test(sqlite_env, monkeypatch):
+    gw = sqlite_env.gw
+    monkeypatch.setenv("MASKGUARD_ENV", "production")
+    monkeypatch.setattr(gw.audit, "append", lambda **_: (_ for _ in ()).throw(OSError("disk full")))
+    calls = _db_calls(monkeypatch, gw)
+    with pytest.raises(SelfTestDisabled):
+        run_suite(gw, sqlite_env.login("admin"))
+    assert calls == []
+
+
+def test_attacks_endpoint_is_refused_in_production_for_every_role(sqlite_env, monkeypatch):
+    from fastapi.testclient import TestClient
+
+    from maskguard import api
+    monkeypatch.setitem(api.state, "app", sqlite_env.app)
+    c = TestClient(api.app)
+    auth = {r: {"Authorization": "Bearer " + c.post("/auth/login", json={"username": u, "password": p}).json()["token"]}
+            for r, (u, p) in config.DEMO_ACCOUNTS.items() if r in ("support", "admin")}
+    r = c.get("/attacks", headers=auth["support"])
+    assert r.status_code == 200 and r.json()["score"]["maskguard_leaks"] == 0  # development: unchanged
+    calls = _db_calls(monkeypatch, sqlite_env.gw)
+    for env in REFUSING_ENVIRONMENTS["production"], REFUSING_ENVIRONMENTS["production, demo mode on"]:
+        for k, v in env.items():
+            monkeypatch.setenv(k, v)
+        for role, h in auth.items():
+            for query in ("", "?role=admin", "?demo=1&env=development"):  # no parameter reopens it
+                r = c.get("/attacks" + query, headers=h)
+                assert r.status_code == 403 and r.json() == {"detail": SELF_TEST_REFUSAL}, (role, query)
+    assert calls == []
+    assert {e["channel"] for e in _self_test_refusals(sqlite_env.gw, 12)} == {"rest"}
+
+
+def test_cli_and_dashboard_self_tests_are_refused_in_production(sqlite_env, monkeypatch, run):
+    from streamlit.testing.v1 import AppTest
+    import streamlit as st
+
+    from maskguard.service import LocalService
+    gw = sqlite_env.gw
+    monkeypatch.setitem(cli.state, "service", LocalService(sqlite_env.app))
+    monkeypatch.setattr(config, "build", lambda *a, **k: sqlite_env.app)  # simulate-attack and the dashboard build their own
+    monkeypatch.setenv("MASKGUARD_ENV", "production")
+    calls = _db_calls(monkeypatch, gw)
+    for user, pw in (config.DEMO_ACCOUNTS["support"], config.DEMO_ACCOUNTS["admin"]):
+        rc, text = run("attack", "--user", user, "--password", pw)
+        assert rc == cli.DENIED and SELF_TEST_REFUSAL in text
+    rc, text = run("simulate-attack")  # refused before it logs in as the demo intruder
+    assert rc == cli.DENIED and SELF_TEST_REFUSAL in text
+    rc, text = run("test")  # the security regression command runs the attack suite: refused too
+    assert rc == cli.DENIED and SELF_TEST_REFUSAL in text
+    assert calls == []
+    _self_test_refusals(gw, 4)
+
+    monkeypatch.setenv("MASKGUARD_DEMO", "0")  # as in any real production deployment (1 is refused there)
+    from maskguard import attacks, threat_sim
+    runner = []  # the self-test internals: full-column reads, the naive baseline, the attack query generator
+    for mod, name in ((attacks, "_facts"), (attacks, "_secrets"), (attacks, "naive_query"), (threat_sim, "_attack_query")):
+        orig = getattr(mod, name)
+        monkeypatch.setattr(mod, name, lambda *a, _o=orig, _n=name, **k: (runner.append(_n), _o(*a, **k))[1])
+    calls.clear()
+    st.cache_resource.clear()  # the dashboard caches its engine; make it pick up this one
+    try:
+        at = AppTest.from_file("../src/maskguard/dashboard.py", default_timeout=60).run()
+        assert not at.exception and not any(r.key == "role_toggle" for r in at.radio)  # no demo role switch
+        user, pw = config.DEMO_ACCOUNTS["admin"]
+        at.text_input[0].set_value(user)
+        at.text_input[1].set_value(pw)
+        next(b for b in at.button if b.label == "Log in").click().run()
+        assert not at.exception
+        labels = {b.label for b in at.button}
+        assert "Run query" in labels  # signed in; masking works as usual
+        assert not labels & {"Run attack suite", "Run simulated attack", "Measure"}
+        assert sum(SELF_TEST_REFUSAL in i.value for i in at.info) == 3
+        assert runner == [] and "execute" not in calls and "query" not in calls  # no self-test, no benchmark baseline
+    finally:
+        st.cache_resource.clear()
 
 
 # ---------------------------------------------------------------- network exposure
@@ -284,6 +412,52 @@ def test_production_build_end_to_end_on_postgres(pg_prod_db, prod, monkeypatch):
     monkeypatch.setenv("MASKGUARD_DB", pg_prod_db["admin"])  # the owner/superuser account is refused outright
     with pytest.raises(config.UnsafeConfiguration, match="SUPERUSER"):
         config.build()
+
+
+def test_production_build_refuses_every_self_test_entry_point(pg_prod_db, prod, monkeypatch, run):
+    """The attack suite's schema is loaded by the owner, so nothing but the environment stops it."""
+    from fastapi.testclient import TestClient
+    from streamlit.testing.v1 import AppTest
+    import streamlit as st
+
+    from maskguard import api
+    from maskguard.backends import connect, install_functions
+    from maskguard.seed import make_db
+    install_functions(pg_prod_db["admin"])
+    make_db(connect(pg_prod_db["admin"], install=False), n=20)
+    import psycopg
+    with psycopg.connect(pg_prod_db["admin"], autocommit=True) as c:
+        c.execute(f'GRANT SELECT ON ALL TABLES IN SCHEMA public TO "{pg_prod_db["role"]}"')
+    monkeypatch.setenv("MASKGUARD_DB", pg_prod_db["gateway"])
+    app = config.build()
+    assert app.gateway.allow_self_test is False and not self_test_allowed(app.gateway)
+    calls = _db_calls(monkeypatch, app.gateway)
+
+    monkeypatch.setitem(api.state, "app", app)
+    c = TestClient(api.app)
+    for user, (role, pw) in PROD_USERS.items():  # ops.lead is admin, desk.agent is support
+        tok = c.post("/auth/login", json={"username": user, "password": pw}).json()["token"]
+        r = c.get("/attacks", headers={"Authorization": f"Bearer {tok}"})
+        assert r.status_code == 403 and r.json() == {"detail": SELF_TEST_REFUSAL}, role
+    monkeypatch.setitem(cli.state, "service", None)  # the CLI builds its own production engine
+    rc, text = run("attack", "--user", "ops.lead", "--password", PROD_USERS["ops.lead"][1])
+    assert rc == cli.DENIED and SELF_TEST_REFUSAL in text
+    rc, text = run("simulate-attack")
+    assert rc == cli.DENIED and SELF_TEST_REFUSAL in text
+    assert calls == []
+    _self_test_refusals(app.gateway, 2)
+
+    st.cache_resource.clear()
+    try:
+        at = AppTest.from_file("../src/maskguard/dashboard.py", default_timeout=60).run()
+        at.text_input[0].set_value("desk.agent")
+        at.text_input[1].set_value(PROD_USERS["desk.agent"][1])
+        next(b for b in at.button if b.label == "Log in").click().run()
+        labels = {b.label for b in at.button}
+        assert not at.exception and "Run query" in labels
+        assert not labels & {"Run attack suite", "Run simulated attack", "Measure"}
+    finally:
+        st.cache_resource.clear()
 
 
 def _free_port():

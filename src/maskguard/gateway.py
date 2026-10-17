@@ -36,11 +36,13 @@ class QueryResult:
 class Gateway:
     """The only path to the data: authenticate -> rewrite -> execute read-only -> audit."""
 
-    def __init__(self, backend, registry, policy, auth, audit_path, allow_dp=True):
+    def __init__(self, backend, registry, policy, auth, audit_path, allow_dp=True, allow_self_test=True):
         self.backend, self.policy, self.auth = backend, policy, auth
         # Noisy aggregates (policy action `aggregate`) are refused in production until the privacy-accounting
         # design is implemented and reviewed (docs/design/PRIVACY_ACCOUNTING.md, decision D11).
         self.allow_dp = allow_dp
+        # Self-tests (attack suite, simulated attack, benchmark) bypass this gateway; never in production (attacks.py).
+        self.allow_self_test = allow_self_test
         self.audit = AuditLog(audit_path)
         self._registry, self._lock = registry, threading.Lock()
         self.threat = ThreatEngine.from_policy(policy)

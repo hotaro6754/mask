@@ -6,10 +6,41 @@ Leak checks:
   order  - ordering by a protected column reproduces the true order of rows
   reject - statement firewall; MaskGuard must reject it (not counted as a PII leak)
 """
+import logging
 from dataclasses import dataclass
 
+from .config import environment
 from .naive import naive_query
 from .rewriter import Rejected, action_for
+
+# Same text on every channel: it names no SQL, table, column, error or result.
+SELF_TEST_REFUSAL = "self-tests are disabled in production"
+
+
+class SelfTestDisabled(Exception):
+    """A self-test was refused before it touched the database."""
+
+
+def self_test_allowed(gateway):
+    """Self-tests run crafted SQL straight against the database (the naive baseline, the benchmark) and read protected
+    columns in full, so they run only where the environment is positively development: now, and when the gateway was
+    built. An environment that can't be determined counts as production."""
+    try:
+        return environment() == "development" and getattr(gateway, "allow_self_test", False) is True
+    except Exception:
+        return False
+
+
+def require_self_test(gateway, session=None, channel="engine", what="attack suite"):
+    """Refuse, and audit who asked through which channel (never SQL, schema or results), unless self_test_allowed."""
+    if self_test_allowed(gateway):
+        return
+    try:
+        gateway.audit.append(user=getattr(session, "user", None), role=getattr(session, "role", None),
+                             channel=channel, decision="reject", reason=f"{what}: {SELF_TEST_REFUSAL}")
+    except Exception as e:  # an audit failure must not turn a refusal into a run
+        logging.getLogger("maskguard").warning("self-test refused; audit write failed (%s)", type(e).__name__)
+    raise SelfTestDisabled(SELF_TEST_REFUSAL)
 
 
 @dataclass
@@ -127,8 +158,9 @@ def _outcome(run, attack, facts, order, secrets, allowed=False):
     raise ValueError(attack.check)
 
 
-def run_suite(gateway, session, attacks=None):
-    """Returns one dict per attack with the naive and MaskGuard outcomes for this session's role."""
+def run_suite(gateway, session, attacks=None, channel="engine"):
+    """Returns one dict per attack with the naive and MaskGuard outcomes for this session's role. Development only."""
+    require_self_test(gateway, session, channel)  # before the first read: the naive half bypasses the gateway
     backend, registry, policy, role = gateway.backend, gateway.registry, gateway.policy, session.role
     facts, order = _facts(backend)
     secrets = _secrets(backend, registry, role, policy)

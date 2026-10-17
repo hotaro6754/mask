@@ -20,6 +20,7 @@ from rich.table import Table
 from rich.text import Text
 
 from . import config
+from .attacks import SelfTestDisabled, require_self_test
 from .service import Denied, Unavailable, connect
 
 OK, ERROR, USAGE, DENIED, UNAVAILABLE, INTEGRITY_FAILED, SECURITY_FAILED = 0, 1, 2, 3, 4, 5, 6
@@ -141,7 +142,7 @@ def guarded(fn):
             raise
         except typer.BadParameter as e:
             fail(f"invalid usage: {e}", USAGE)
-        except Denied as e:
+        except (Denied, SelfTestDisabled) as e:
             fail(str(e), DENIED)
         except Unavailable as e:
             fail(str(e), UNAVAILABLE)
@@ -937,11 +938,13 @@ def pia(out_path: str = typer.Option("data/pia.md", "--out"), days: int = 30):
 
 
 @app.command("simulate-attack")
+@guarded
 def simulate_attack(kind: str = typer.Option("enumeration", "--kind",
                     help="enumeration | binary_search | order_probe | bulk_paging | firewall_probe")):
     """Run an insider attack as intruder.ian and watch the threat engine block it."""
     from .threat_sim import live_attack
     a = config.build()
+    require_self_test(a.gateway, channel="cli", what="simulated attack")  # before the demo login
     sess = a.auth.login("intruder.ian", "intruder123")
     a.gateway.threat.unblock(sess.user)
     for n, sql, risk, action, reasons, outcome in live_attack(a.gateway, sess, kind):

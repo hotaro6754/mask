@@ -5,7 +5,8 @@ import pandas as pd
 import streamlit as st
 
 from maskguard import config
-from maskguard.attacks import run_suite, score
+from maskguard.attacks import (SELF_TEST_REFUSAL, SelfTestDisabled, require_self_test, run_suite, score,
+                               self_test_allowed)
 from maskguard.rewriter import Rejected
 from maskguard.scanner import scan, summary
 
@@ -43,6 +44,7 @@ def frame(cols, rows):
 app = get_app()
 gw, backend = app.gateway, app.backend
 DEMO = config.demo_enabled()  # after build(): production has already refused demo mode there
+SELF_TESTS = self_test_allowed(gw)  # hides the buttons; the runners refuse on their own in production anyway
 if "baseline" not in st.session_state:
     st.session_state.baseline = {t: backend.checksum(t) for t in backend.tables()}
 
@@ -76,6 +78,18 @@ with st.sidebar:
 if not s:
     st.info("Log in to run queries.")
     st.stop()
+
+
+
+def self_test(what):
+    """Server-side check at click time (the environment may have changed since the page rendered)."""
+    try:
+        require_self_test(gw, s, "dashboard", what)
+        return True
+    except SelfTestDisabled:
+        st.error(SELF_TEST_REFUSAL)
+        return False
+
 
 t_query, t_scan, t_attack, t_threat, t_integrity, t_audit, t_perf = st.tabs(
     ["Query console", "PII scanner", "Attack suite", "Threat monitor", "Data integrity", "Audit log", "Performance"])
@@ -128,8 +142,10 @@ with t_scan:
 with t_attack:
     st.write(f"Runs every attack as **{s.role}**, once through naive output-column masking and once through "
              "MaskGuard, and checks whether real values (or inference signals) come back.")
-    if st.button("Run attack suite", type="primary"):
-        results = run_suite(gw, s)
+    if not SELF_TESTS:
+        st.info(f"The attack suite runs crafted SQL straight against the database, so {SELF_TEST_REFUSAL}.")
+    elif st.button("Run attack suite", type="primary") and self_test("attack suite"):
+        results = run_suite(gw, s, channel="dashboard")
         sc = score(results)
         a, b, c = st.columns(3)
         a.metric("Naive masking: PII leaks", f"{sc['naive_leaks']} / {sc['pii_attacks']}")
@@ -148,10 +164,12 @@ with t_threat:
              "the ML score alone can alert but never block.")
     if gw.threat is None:
         st.info("Threat engine disabled in policy.")
+    elif not SELF_TESTS:
+        st.info(f"Simulated attacks run as a demo identity, so {SELF_TEST_REFUSAL}.")
     else:
         kind = st.selectbox("Simulated insider attack (runs as intruder.ian, role support)",
                             ["enumeration", "binary_search", "order_probe", "bulk_paging", "firewall_probe"])
-        if st.button("Run simulated attack", type="primary"):
+        if st.button("Run simulated attack", type="primary") and self_test("simulated attack"):  # before the demo login
             from maskguard.threat_sim import live_attack
             intruder = app.auth.login("intruder.ian", "intruder123")
             gw.threat.unblock(intruder.user)
@@ -209,7 +227,9 @@ with t_audit:
 with t_perf:
     n = st.slider("Runs", 20, 300, 100, step=20)
     q = st.selectbox("Query (presets only: the direct baseline bypasses masking)", PERF_QUERIES)
-    if st.button("Measure"):
+    if not SELF_TESTS:
+        st.info(f"The benchmark's baseline runs the presets straight against the database, so {SELF_TEST_REFUSAL}.")
+    elif st.button("Measure") and self_test("performance benchmark"):
         direct, gated = [], []
         for _ in range(n):
             t0 = time.perf_counter(); backend.execute(q); direct.append((time.perf_counter() - t0) * 1000)

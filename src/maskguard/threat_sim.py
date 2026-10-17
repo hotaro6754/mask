@@ -8,6 +8,7 @@ Every query runs through the real rewriter and database, so event features match
 import random, time
 from dataclasses import dataclass
 
+from .attacks import require_self_test
 from .audit import fingerprint
 from .rewriter import Rejected, rewrite
 from .threat import Event
@@ -126,6 +127,7 @@ def attack_session(app, r, kind, n_users=300):
 
 
 def sessions(app, seed, n_benign=200, n_per_attack=40):
+    require_self_test(app.gateway, channel="engine", what="threat simulation")  # runs SQL without the gateway
     r = random.Random(seed)
     out = [benign_session(app, r) for _ in range(n_benign)]
     out += [attack_session(app, r, a) for a in ATTACKS for _ in range(n_per_attack)]
@@ -135,6 +137,7 @@ def sessions(app, seed, n_benign=200, n_per_attack=40):
 def live_attack(gateway, session, kind="enumeration", n=30, start=None, step=4.0, seed=0):
     """Run an attack through the real gateway as `session`, one query every `step` simulated seconds.
     Returns [(query_no, sql, risk, action, reasons, outcome)] and stops at the block (dashboard / CLI demo)."""
+    require_self_test(gateway, session, "engine", "simulated attack")
     r = random.Random(seed)
     t = start or time.time()
     out = []

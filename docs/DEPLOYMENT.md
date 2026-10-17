@@ -64,6 +64,42 @@ query that would release a noisy SUM/AVG/COUNT is rejected before any budget is 
 rejection is audited. Analysts keep every other masked view (HMAC tokens, redactions), and other uses of protected
 numbers stay redacted. `maskguard status` shows "Noisy aggregates: disabled in production".
 
+**Self-tests are refused in production.** The attack suite compares MaskGuard with naive output masking. To do
+that it reads every protected column in full and sends crafted SQL straight to the database, bypassing the gateway.
+The simulated insider attack signs in as a demo identity, and the dashboard benchmark runs its presets straight
+against the database for a baseline. In production these are refused for every role:
+
+| Entry point | Production result |
+|---|---|
+| `GET /attacks` (API, SDK, Control Room, `maskguard --api … attack`) | `403 {"detail": "self-tests are disabled in production"}` |
+| `maskguard attack`, `maskguard test`, `maskguard simulate-attack` | `DENIED`, exit code 3, same message |
+| Classic dashboard: attack suite, simulated attack, performance benchmark | Buttons replaced by a notice |
+
+What the refusal guarantees:
+
+- **The server enforces it**, inside the runners themselves (`attacks.require_self_test`), before the first query.
+  The API, CLI and dashboard checks sit on top of that.
+- **Nothing in the request can reopen it:** not the role, query parameters, or `MASKGUARD_DEMO`.
+- **It fails closed.** Self-tests run only when `MASKGUARD_ENV` resolves to `development` now *and* the engine was
+  built in development. An unrecognised value counts as production.
+- **The refusal is audited.** The audit log records user, role (API and dashboard; the CLI refuses before it
+  resolves an identity), channel and the reason. It never records SQL, schema or results.
+
+Live check on PostgreSQL 16 under this profile: support and admin users each got 403 on every request, and the
+tables' scan counters (`pg_stat_user_tables`) did not move, while an ordinary masked query moved them.
+
+**Running the self-tests safely.** Use a development engine on synthetic or disposable data, never the production
+database:
+
+```bash
+MASKGUARD_ENV=development MASKGUARD_DB=sqlite:///scratch/bank.db maskguard seed   # synthetic data
+MASKGUARD_ENV=development MASKGUARD_DB=sqlite:///scratch/bank.db maskguard attack --role support
+docker compose up        # or the demo stack: GET /attacks, dashboard tabs
+```
+
+To test a production policy, copy it into such an environment (`MASKGUARD_POLICY`) together with a synthetic
+dataset that has the same schema.
+
 `maskguard seed` is refused in production. Nothing in production writes to your database. The gateway's own state
 (audit log, registry, integrity baseline) lives in `/app/data`.
 

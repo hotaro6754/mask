@@ -5,7 +5,8 @@ The role always comes from the signed token, never from the request body. Non-qu
 capabilities from the policy (role_info.<role>.capabilities), not by role names.
 
 Public       GET  /health   GET /ready   GET /meta   POST /auth/login   POST /auth/demo (demo mode only)
-Any role     GET  /me   GET /tables   POST /query   POST /query/table   GET /policy   GET /roles   GET /attacks
+Any role     GET  /me   GET /tables   POST /query   POST /query/table   GET /policy   GET /roles
+             GET  /attacks                           (development only: 403 in production for every role)
              GET  /policy/explain?table=T            (own role; other roles need policy.read)
 policy.read  GET  /policy/matrix   GET /policy/history   GET /diagnostics
 policy.write POST /policy/check   PUT /policy/rules   POST /policy/reset
@@ -28,7 +29,7 @@ from pydantic import BaseModel, Field
 from sqlglot import exp
 
 from . import config, policy as P
-from .attacks import run_suite, score
+from .attacks import SELF_TEST_REFUSAL, SelfTestDisabled, run_suite, score
 from .gateway import safe_error
 from .rewriter import Rejected
 from .scanner import scan, summary
@@ -545,7 +546,10 @@ def pia(days: int = 30, fmt: str = "json", _=Depends(require("pia.read"))):
 
 @app.get("/attacks", tags=["security"])
 def attacks(s=Depends(session)):
-    results = run_suite(get_app().gateway, s)
+    try:  # the suite's naive baseline sends SQL straight to the database: development only, whatever the role
+        results = run_suite(get_app().gateway, s, channel="rest")
+    except SelfTestDisabled:
+        raise HTTPException(403, SELF_TEST_REFUSAL)
     return {"role": s.role, "score": score(results), "results": results}
 
 

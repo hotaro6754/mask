@@ -215,9 +215,13 @@ class LocalService:
         return self.app.integrity.history()
 
     def attacks(self, role=None, user=None, password=None):
-        from .attacks import run_suite, score
-        s = self.session(role, user, password)
-        results = run_suite(self.gw, s)
+        from .attacks import SelfTestDisabled, require_self_test, run_suite, score
+        try:
+            require_self_test(self.gw, channel="cli")  # before resolving identities (production has no demo ones)
+            s = self.session(role, user, password)
+            results = run_suite(self.gw, s, channel="cli")
+        except SelfTestDisabled as e:
+            raise Denied(str(e)) from None
         return {"role": s.role, "score": score(results), "results": results}
 
 
