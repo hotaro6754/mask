@@ -18,13 +18,20 @@ The reviewer reviews exactly this text, and the verdict names it:
 | Git blob | `41c52f6640f46413dfdc3798a92dbe388e5b593e` |
 | SHA-256 | `ddd6b7955132185a49bdf8e83bc4bec4f248646b53ba6d6a78504da0d5bbe98a` |
 
-Check it with:
+Compute these from Git yourself. Don't copy them from this file or from the handoff message:
 
 ```bash
-git rev-parse a6891fd:docs/design/PRIVACY_ACCOUNTING.md   # 41c52f66…
-git diff --quiet a6891fd -- docs/design/PRIVACY_ACCOUNTING.md && echo unchanged
-sha256sum docs/design/PRIVACY_ACCOUNTING.md                # ddd6b795…
+F=docs/design/PRIVACY_ACCOUNTING.md
+FROZEN=a6891fd0a52252d7b65454bab9c912b9c559ddb2
+git cat-file -t "$FROZEN"                         # commit
+git rev-parse "$FROZEN:$F"                        # blob of the frozen text
+git show "$FROZEN:$F" | sha256sum                 # SHA-256 of the frozen text
+git diff --stat "$FROZEN" <brief commit> -- "$F"  # empty: the protocol is unchanged
+git diff --stat "$FROZEN" <brief commit>          # only this file changed
 ```
+
+`<brief commit>` is the commit that holds the revision of this file you received. The handoff names it in full; a
+file cannot contain its own commit id.
 
 The protocol document is not edited while the review is open. If the review finds defects, the fix is a new
 revision, and that revision needs its own review. A verdict on `a6891fd` does not carry over to it.
@@ -32,6 +39,19 @@ revision, and that revision needs its own review. A verdict on `a6891fd` does no
 Where this file and §9.8 differ, this file sets **what is reviewed**. The design document still sets **what the
 protocol is**. If the reviewer finds that a clarification below asks about behaviour the protocol doesn't specify,
 report that as a finding against `a6891fd`. Do not fill the gap with an assumption.
+
+### 1.1 The reviewer's authority
+
+The reviewer is not asked to validate the author's design. Any of these is a valid outcome:
+
+- the protocol is rejected;
+- an invariant, obligation or trust assumption is missing or wrong;
+- the selected store, or any practical store, cannot provide S1–S3, so a serialised alternative is needed (§9.7);
+- the DP mechanism can't support the claims, and noisy aggregates should stay disabled.
+
+Where the design states a preference, the reviewer can disagree and give reasons. Examples are Design 2 (§12),
+the candidate mechanism for D13, ε = 0.5, and the recovery mechanism of §9.7. Nothing in this file or the design
+limits which questions the reviewer may raise.
 
 ## 2. Clarifications
 
@@ -71,10 +91,12 @@ uncounted.
 Obligation O3 names the API, CLI, PostgreSQL proxy, dashboards, caches and error handlers. The **SDK** (the Python
 client, `MaskGuardClient`) is a disclosure path too, and the review covers it alongside the others.
 
-Every path that can return gateway results today funnels through `Gateway.query` / `Gateway._query`. That includes
-the path where D11 refuses noisy aggregates in production. The table below gives the call sites at `a6891fd`. It
-is a starting point found by searching the source, not a proof that the list is complete. Completeness is part of
-question 1.
+Most paths go through `Gateway.query` / `Gateway._query`, which is where D11 refuses noisy aggregates in
+production. **Some do not.** They call the database directly and skip the gateway's firewall decision, audit
+record, threat engine and D11 check; they are listed in the second table.
+
+Both tables give the call sites at `a6891fd`, found by searching the source (`src/` is unchanged since then). They
+are a starting point, not a proof that the list is complete. Completeness is part of question 1.
 
 | Path | Call site at `a6891fd` | What to check |
 |---|---|---|
@@ -82,10 +104,35 @@ question 1.
 | **SDK** | `src/maskguard/client.py` `MaskGuardClient.query` / `query_raw` / `query_df` / `query_table` (HTTP to the API) | It must not retry a request in a way that re-sends a release outside a step-8 check. It must not keep results. `MaskGuardError.detail` must carry only what the API's error handler sent |
 | CLI | `src/maskguard/service.py` `LocalService.query` → `gw.query(channel="cli")`; remote mode goes through the SDK (`RemoteService`, whose `_cache` holds signed-in clients, not results) | Printed output and error messages |
 | PostgreSQL proxy | `src/maskguard/pgwire.py` → `gateway.query` | Wire-protocol rows, `ErrorResponse` and notice text |
-| Dashboards | `src/maskguard/dashboard.py` playground (`gw.query`) and its performance tab (runs `gw.query` on presets, shows timing only); Control Room `/ui/` uses the API | Displayed results; the performance tab computes releases without showing them, so it spends budget and exposes timing |
+| Dashboards | `src/maskguard/dashboard.py` playground (`gw.query`); the performance tab (below); Control Room `/ui/` uses the API | Displayed results |
 | Caches | No result cache found at `a6891fd`. `RemoteService._cache` caches clients. | Confirm. Any cache that is added later is a path in its own right |
-| Error handlers | `api.py` `_run` (`Rejected` text, `safe_error`), `gateway.safe_error`, CLI and proxy error rendering | Messages must not depend on protected values or on unreleased results |
-| Internal callers | `integrity.py` probes (`observe=False`), `attacks.py`, `threat_sim.py` | Confirm none returns a noisy result to a user. If one can, it is a disclosure path |
+| Error handlers | `api.py` `_run` (`Rejected` text, `safe_error`), `gateway.safe_error`; simple-protocol errors in `pgwire.py` give the exception type only, **extended-protocol errors echo up to 200 characters of the exception text** (`pgwire.py`, `extended`) | Messages must not depend on protected values or on releases before noise |
+| Internal callers | `integrity.py` probes (`observe=False`); `threat_sim.live_attack` (`simulate-attack`, dashboard) | Confirm none returns a noisy result to a user. If one can, it is a disclosure path |
+
+**The dashboard performance tab needs specific attention.** It runs each preset `n` times (20–300) through
+`gw.query` and shows only latency percentiles. One preset is a noisy aggregate
+(`SELECT status, count(*), avg(balance) FROM accounts GROUP BY status`, noisy for the analyst role). When results aren't displayed:
+
+- Under an accountant, each run is a charged release that nobody sees. With 300 runs a click, this tab can
+  spend the budget quickly. This bears on composition (C3) and per-analyst quotas (§4).
+- Run time, and whether a run is refused, can still depend on the data or the budget. That is a disclosure through
+  a side channel.
+
+The tab also runs the same presets straight against the database for its baseline (next table). D11 makes the
+gateway half refuse aggregates in production. The direct half is unaffected, but only its timing is shown.
+
+**Paths that bypass the gateway** at `a6891fd`:
+
+| Path | Call site | Reachable in production | What it returns |
+|---|---|---|---|
+| Attack self-test: `GET /attacks` (any authenticated role), `maskguard attack`, dashboard attack tab | `attacks.run_suite`: `_facts` and `_secrets` read every protected column in full with `backend.admin_query`; the "naive" half runs 21 crafted statements through `naive.naive_query` → `backend.execute` | **Yes.** Probed on 2026-10-17 against PostgreSQL 16 with `MASKGUARD_ENV=production`, demo mode off, a read-only gateway account and a production user store. A `support` user got 200 and the full report | Leak counts per attack, and oracle results computed from real rows (for example `true guess -> [(1,)], false guess -> [(0,)]`). No raw values were in the response. The naive statements are not checked by the gateway's firewall and are not audited by it |
+| Proxy `Describe` | `pgwire.describe`: `rewrite()` then `backend.execute("SELECT * FROM (…) LIMIT 0")` | Yes (proxy is loopback-only in production) | Column names only, no rows. Skips the audit, the threat engine and D11. Rewriter errors still apply |
+| Dashboard performance baseline | `dashboard.py`: `backend.execute(q)` on the presets | Wherever the classic dashboard runs (loopback-only in production) | Latency only |
+| Threat-model training simulation | `threat_sim._run`: `rewrite()` then `backend.execute` | No. Called from `threat_sim.sessions`, used only by `bench/eval_threat.py` and tests | Row counts into training events |
+
+The attack self-test is a gap in the production profile, outside this protocol, and is reported to the owner
+separately. It is listed here because O3 asks for every path, and this one returns results derived from real
+data to any role without passing the gateway.
 
 ### C3. Differential-privacy review scope
 
@@ -142,6 +189,15 @@ The report records the following. §13 item 14 lists only some of them.
    - "holds within the stated bounds and assumptions";
    - "fails", with the counterexample attached;
    - "not assessed".
+9. **A written verdict in five separate parts.** A finding in one part does not decide another.
+   1. **Protocol and recovery safety:** I1, I2, G1–G8, O1–O3, and the disclosure-path inventory (C2).
+   2. **Storage guarantees and trust assumptions:** S1–S3 on the store D13 would select, and T1–T7 and R1–R7, with
+      the residual risks the data owner would accept.
+   3. **Differential-privacy mathematics:** every area in C3.
+   4. **Implementation gaps and required remediation:** what today's code (`dp.py`, `rewriter.py`, the paths in
+      C2) would have to change, and what an implementation must demonstrate.
+   5. **The exact conditions for reopening production aggregates:** stated so they can be checked, including what
+      must be re-reviewed after implementation.
 
 A check that finds no counterexample is reported as **no counterexample within the stated bounds**. It is not
 reported as "proven" or "secure" (§9.8).
@@ -174,5 +230,19 @@ date above, all of these are open:
 - **D13:** selecting the recovery evidence mechanism and its trust assumptions (§9.6, T1–T7).
 - **D14:** selecting the global recovery and fencing mechanism (§9.7), or a serialised alternative.
 - The recovery tests in §13 items 11–13. These cannot run until an accountant exists.
+
+The release gate does not depend on how far the review has got. These are different things, and none of them
+alone establishes that an implementation provides the intended guarantee:
+
+- a completed review;
+- a model check that finds no counterexample within its bounds;
+- a passing test suite.
+
+Noisy aggregates stay disabled in production until every one of these is complete:
+
+- the decisions above;
+- the accountant's implementation;
+- the recovery and restore tests;
+- the independent approvals of both the design and the implementation (§15).
 
 None of these is changed by this file.
