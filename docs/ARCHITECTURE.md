@@ -26,7 +26,7 @@ it and use the same policy dictionary the rewriter enforces.
 
 | Inside the boundary (MaskGuard enforces) | Outside (needs its own controls) |
 |---|---|
-| Every query through the REST API, the PG wire proxy, the CLI, the dashboards and the SDK | Anyone holding database credentials directly (DBAs, other applications). Give MaskGuard a least-privilege read-only DB role, and don't give apps direct credentials |
+| Every query through the REST API, the PG wire proxy, the CLI, the dashboards and the SDK | Anyone holding database credentials directly (DBAs, other applications). In production MaskGuard refuses to start unless its own DB account is read-only (no write, DDL or ownership); masking functions are installed separately by `maskguard db-install` with the owner account. Don't give apps direct credentials |
 | Masking happens **inside the SQL that reaches the database**: the database returns already-masked values, and predicates, joins and aggregates only see masked values | Database backups, replicas and logs (the stored data is real) |
 | Source records are never modified: execution is read-only (SQLite authorizer, `READ ONLY` transactions on PostgreSQL and MySQL), and integrity proofs verify it | MaskGuard's own state files (`data/`): protect with filesystem permissions |
 | Role comes from the user store and is carried in a signed token; the request body can't change it | Token theft (TLS and short TTLs are deployment concerns; the default TTL is 8 h) |

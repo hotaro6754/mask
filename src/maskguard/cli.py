@@ -145,6 +145,8 @@ def guarded(fn):
             fail(str(e), DENIED)
         except Unavailable as e:
             fail(str(e), UNAVAILABLE)
+        except config.UnsafeConfiguration as e:  # the whole list: the operator needs every problem, not the first
+            fail(str(e), UNAVAILABLE)
         except RuntimeError as e:
             fail(str(e)[:300], UNAVAILABLE)
         except KeyboardInterrupt:
@@ -810,9 +812,11 @@ def integrity_history(json_out: bool = typer.Option(False, "--json")):
 @app.command()
 @guarded
 def seed():
-    """(Re)create the synthetic demo tables and record a fresh integrity baseline."""
+    """(Re)create the synthetic demo tables and record a fresh integrity baseline. Never in production."""
     from .seed import make_db
     from .service import LocalService
+    if config.environment() == "production":
+        fail("seeding is disabled in production: it writes synthetic demo data into the database", DENIED)
     s = svc()
     if not isinstance(s, LocalService):
         fail("seed runs locally only", USAGE)
@@ -821,13 +825,41 @@ def seed():
     out.print("seeded users, accounts, support_tickets (synthetic) · baseline recorded")
 
 
-@app.command()
-def serve(host: str = "127.0.0.1", port: int = 8000):
-    """REST API + Control Room dashboard (http://HOST:PORT/ui/, OpenAPI at /docs)."""
+def _listen_or_fail(service, host, tls=False):
+    try:
+        problems = config.listen_problems(service, host, tls)
+    except config.UnsafeConfiguration as e:
+        fail(str(e), UNAVAILABLE)
+    if problems:
+        fail(str(config.UnsafeConfiguration(problems)), UNAVAILABLE)
+
+
+def _serve(host, port, ssl_certfile=None, ssl_keyfile=None):
     import uvicorn
+    if bool(ssl_certfile) != bool(ssl_keyfile):
+        fail("TLS needs both --ssl-certfile and --ssl-keyfile", USAGE)
+    _listen_or_fail("api", host, tls=bool(ssl_certfile))
+    from . import api
+    try:  # build before uvicorn so an unsafe configuration exits with a clean message and code 4, not a traceback
+        api.state["app"] = config.build(start_worker=True)
+    except config.UnsafeConfiguration as e:
+        fail(str(e), UNAVAILABLE)
+    except Exception as e:
+        fail(f"cannot start the engine: {type(e).__name__}: {str(e)[:160]}", UNAVAILABLE)
     banner()
-    err.print(Text(f"API on http://{host}:{port}  ·  dashboard http://{host}:{port}/ui/  ·  docs http://{host}:{port}/docs", style=C["info"]))
-    uvicorn.run("maskguard.api:app", host=host, port=port)
+    url = f"{'https' if ssl_certfile else 'http'}://{host}:{port}"
+    err.print(Text(f"API on {url}  ·  dashboard {url}/ui/  ·  docs {url}/docs", style=C["info"]))
+    uvicorn.run("maskguard.api:app", host=host, port=port, ssl_certfile=ssl_certfile, ssl_keyfile=ssl_keyfile)
+
+
+@app.command()
+def serve(host: str = "127.0.0.1", port: int = 8000,
+          ssl_certfile: Optional[str] = typer.Option(None, "--ssl-certfile", envvar="MASKGUARD_TLS_CERT",
+                                                     help="PEM certificate (chain): serve HTTPS."),
+          ssl_keyfile: Optional[str] = typer.Option(None, "--ssl-keyfile", envvar="MASKGUARD_TLS_KEY",
+                                                    help="PEM private key for --ssl-certfile.")):
+    """REST API + Control Room dashboard (http://HOST:PORT/ui/, OpenAPI at /docs). Production: TLS off loopback."""
+    _serve(host, port, ssl_certfile, ssl_keyfile)
 
 
 @app.command()
@@ -835,20 +867,35 @@ def dashboard(port: int = 8000, host: str = "127.0.0.1", classic: bool = typer.O
     """Open the Control Room web dashboard (or the classic Streamlit one)."""
     if classic:
         import subprocess
+        _listen_or_fail("classic dashboard", host)
         path = os.path.join(os.path.dirname(__file__), "dashboard.py")
         raise typer.Exit(subprocess.call([sys.executable, "-m", "streamlit", "run", path, "--server.port", str(port),
-                                          "--server.headless", "true", "--client.toolbarMode", "minimal"]))
-    serve(host, port)
+                                          "--server.address", host, "--server.headless", "true",
+                                          "--client.toolbarMode", "minimal"]))
+    _serve(host, port, os.environ.get("MASKGUARD_TLS_CERT"), os.environ.get("MASKGUARD_TLS_KEY"))
 
 
 @app.command()
 def proxy(host: str = "127.0.0.1", port: int = 6543):
-    """PostgreSQL wire-protocol proxy: point psql or any driver at MaskGuard."""
+    """PostgreSQL wire-protocol proxy: point psql or any driver at MaskGuard. Production: loopback only (no TLS)."""
     import asyncio
     from .pgwire import serve as pgserve
+    _listen_or_fail("proxy", host)
     a = config.build(start_worker=True)
     err.print(f"MaskGuard PostgreSQL proxy on {host}:{port} (backend: {a.backend.dialect})")
     asyncio.run(pgserve(a, host, port))
+
+
+@app.command("db-install")
+@guarded
+def db_install(db: str = typer.Option(..., "--db", envvar="MASKGUARD_DB_ADMIN",
+                                      help="Owner/admin URL, not the gateway's runtime account.")):
+    """Install or update the masking functions in the database. Run once per database (and after upgrades) with an
+    owner account; the gateway itself then only needs read access."""
+    from .backends import install_functions
+    dialect = install_functions(db)
+    out.print(f"masking functions installed ({dialect}). The gateway's runtime account needs only SELECT"
+              f"{' and EXECUTE on these functions' if dialect == 'mysql' else ''}: see docs/DEPLOYMENT.md.")
 
 
 @app.command("hash-password")

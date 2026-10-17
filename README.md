@@ -56,8 +56,10 @@ uv run maskguard serve                                     # REST API + Control 
 ```
 
 Or `docker compose up --build`: PostgreSQL 16, API + dashboard on :8000, classic Streamlit dashboard on :8501, and the
-PostgreSQL wire proxy on :6543. The Compose file is a **demo profile**: it publishes the database ports with demo
-passwords and turns demo identities on, so don't use it for real data. **[docs/DEMO_RUNBOOK.md](docs/DEMO_RUNBOOK.md)** walks through the whole demo with
+PostgreSQL wire proxy on :6543. That Compose file is a **demo profile** (synthetic data only): it publishes the
+database ports with demo passwords and turns demo identities on. For real data use **`docker-compose.prod.yml`**
+(read-only database account on an internal network, HTTPS API, required secrets, no demo identities, no seeding);
+see **[docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)**. **[docs/DEMO_RUNBOOK.md](docs/DEMO_RUNBOOK.md)** walks through the whole demo with
 exact commands and expected output.
 
 | Interface | What it gives you |
@@ -76,9 +78,11 @@ Demo identities (`policies/users.demo.yaml`, synthetic):
 - `intruder.ian` for the threat demo.
 
 Demo mode (one-click identities) is off when `MASKGUARD_ENV=production`, and refused if forced on there. Production
-also refuses to start if the user store contains any demo identity (so `admin.ann` can't log in through
-`/auth/login`) or if `MASKGUARD_JWT_SECRET` is unset. Create real users with `maskguard hash-password` and point
-`MASKGUARD_USERS` at them. All settings are in `.env.example`.
+refuses to start on any unsafe setting: demo identities in the user store, missing or example secrets, SQLite,
+seeding, a database account that can write, or an API off loopback without TLS. Every problem is listed at once
+([docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)). Create real users with `maskguard hash-password` and point
+`MASKGUARD_USERS` at them. Development settings are in `.env.example`, production ones in
+`deploy/production.env.example`.
 
 ## Architecture
 

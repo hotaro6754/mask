@@ -1,0 +1,83 @@
+# PRODUCTION profile. For the synthetic-data demo use docker-compose.yml instead.
+#
+#   cp deploy/production.env.example deploy/production.env      # fill in every value; never commit it
+#   docker compose -f docker-compose.prod.yml --env-file deploy/production.env up -d --build
+#
+# What makes this different from the demo:
+#   - every secret is required: Compose refuses to render without it, and MaskGuard refuses to start without it;
+#   - no demo identities, no /auth/demo, no seeding; the user store is your own file;
+#   - the database has no published port and sits on an internal network only the gateway can reach;
+#   - the gateway connects with a read-only account; the masking functions are installed by a one-shot job that
+#     uses the owner account, which the gateway never sees;
+#   - the API is served over TLS (uvicorn's own TLS) and published on 127.0.0.1 unless MASKGUARD_PUBLISH_ADDR says
+#     otherwise.
+# Not included on purpose: the PostgreSQL wire proxy (it has no TLS yet) and the classic Streamlit dashboard.
+# Full guide: docs/DEPLOYMENT.md
+name: maskguard-prod
+
+services:
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: maskguard_owner      # owns the tables; used by db-install and your own data loads only
+      POSTGRES_PASSWORD: ${MASKGUARD_DB_OWNER_PASSWORD:?set MASKGUARD_DB_OWNER_PASSWORD}
+      POSTGRES_DB: bank
+      MASKGUARD_GATEWAY_DB_PASSWORD: ${MASKGUARD_GATEWAY_DB_PASSWORD:?set MASKGUARD_GATEWAY_DB_PASSWORD}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./deploy/postgres-init:/docker-entrypoint-initdb.d:ro   # creates the read-only maskguard_gateway login
+    networks: [data]                      # no "ports": nothing outside this Compose project can reach it
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U maskguard_owner -d bank"]
+      interval: 2s
+      retries: 30
+
+  db-install:                             # one-shot: installs/updates the masking functions, then exits
+    build: .
+    image: maskguard:local
+    command: ["maskguard", "db-install"]
+    environment:
+      MASKGUARD_ENV: production
+      MASKGUARD_DB_ADMIN: postgresql://maskguard_owner:${MASKGUARD_DB_OWNER_PASSWORD:?set MASKGUARD_DB_OWNER_PASSWORD}@db:5432/bank
+    networks: [data]
+    restart: "no"
+    depends_on:
+      db:
+        condition: service_healthy
+
+  api:
+    build: .
+    image: maskguard:local
+    command: ["maskguard", "serve", "--host", "0.0.0.0", "--port", "8443"]   # TLS from MASKGUARD_TLS_CERT/KEY
+    environment:
+      MASKGUARD_ENV: production
+      MASKGUARD_DEMO: "0"
+      MASKGUARD_SEED_IF_EMPTY: "0"
+      MASKGUARD_DB: postgresql://maskguard_gateway:${MASKGUARD_GATEWAY_DB_PASSWORD:?set MASKGUARD_GATEWAY_DB_PASSWORD}@db:5432/bank
+      MASKGUARD_USERS: /run/maskguard/users.yaml
+      MASKGUARD_HMAC_KEY: ${MASKGUARD_HMAC_KEY:?set MASKGUARD_HMAC_KEY}
+      MASKGUARD_JWT_SECRET: ${MASKGUARD_JWT_SECRET:?set MASKGUARD_JWT_SECRET}
+      MASKGUARD_TLS_CERT: /run/maskguard/tls.crt
+      MASKGUARD_TLS_KEY: /run/maskguard/tls.key
+    volumes:
+      - mgstate:/app/data                 # audit log, registry, integrity baseline
+      - ${MASKGUARD_USERS_FILE:?set MASKGUARD_USERS_FILE}:/run/maskguard/users.yaml:ro
+      - ${MASKGUARD_TLS_CERT_FILE:?set MASKGUARD_TLS_CERT_FILE}:/run/maskguard/tls.crt:ro
+      - ${MASKGUARD_TLS_KEY_FILE:?set MASKGUARD_TLS_KEY_FILE}:/run/maskguard/tls.key:ro
+    ports:
+      - "${MASKGUARD_PUBLISH_ADDR:-127.0.0.1}:8443:8443"   # HTTPS only
+    networks: [data, edge]
+    depends_on:
+      db:
+        condition: service_healthy
+      db-install:
+        condition: service_completed_successfully
+
+networks:
+  data:
+    internal: true                        # no route in or out except between these containers
+  edge: {}
+
+volumes:
+  pgdata:
+  mgstate:

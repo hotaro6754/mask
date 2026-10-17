@@ -42,6 +42,7 @@ def frame(cols, rows):
 
 app = get_app()
 gw, backend = app.gateway, app.backend
+DEMO = config.demo_enabled()  # after build(): production has already refused demo mode there
 if "baseline" not in st.session_state:
     st.session_state.baseline = {t: backend.checksum(t) for t in backend.tables()}
 
@@ -49,7 +50,7 @@ if "baseline" not in st.session_state:
 with st.sidebar:
     st.title("🛡️ MaskGuard")
     st.caption(f"Backend: **{backend.dialect}** · tables: {', '.join(backend.tables())}")
-    if config.DEMO_ENABLED and not st.session_state.get("manual"):
+    if DEMO and not st.session_state.get("manual"):
         role = st.radio("Role (demo accounts)", list(config.DEMO_ACCOUNTS), horizontal=True, key="role_toggle",
                         format_func=str.title)
         user, pw = config.DEMO_ACCOUNTS[role]
@@ -83,9 +84,9 @@ t_query, t_scan, t_attack, t_threat, t_integrity, t_audit, t_perf = st.tabs(
 with t_query:
     pick = st.selectbox("Example", list(EXAMPLES))
     sql = st.text_area("SQL", EXAMPLES[pick], height=130)
-    compare = st.checkbox("Compare all roles side by side", value=True, disabled=not config.DEMO_ENABLED)
+    compare = st.checkbox("Compare all roles side by side", value=True, disabled=not DEMO)
     if st.button("Run query", type="primary"):
-        if compare and config.DEMO_ENABLED:
+        if compare and DEMO:
             cols = st.columns(len(config.DEMO_ACCOUNTS))
             for col, (role, (user, pw)) in zip(cols, config.DEMO_ACCOUNTS.items()):
                 with col:

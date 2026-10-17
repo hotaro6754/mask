@@ -48,7 +48,12 @@ def get_app():
 
 @asynccontextmanager
 async def lifespan(_):
-    get_app()
+    try:
+        get_app()  # build at startup: an unsafe production configuration stops the server instead of failing requests
+    except config.UnsafeConfiguration as e:
+        import logging
+        logging.getLogger("uvicorn.error").error("%s", e)
+        raise
     if config.demo_enabled():
         import logging
         logging.getLogger("uvicorn.error").warning(

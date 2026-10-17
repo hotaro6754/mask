@@ -39,6 +39,8 @@ class LocalService:
     def __init__(self, app=None):
         try:
             self.app = app or config.build()
+        except config.UnsafeConfiguration as e:  # lists configuration problems only, never data: show all of them
+            raise Unavailable(f"cannot start the engine: {e}") from None
         except Exception as e:
             raise Unavailable(f"cannot start the engine: {type(e).__name__}: {str(e)[:160]}") from None
         self.gw = self.app.gateway

@@ -1,0 +1,11 @@
+# Production user store format. Copy outside the repository, replace every entry, and point MASKGUARD_USERS (or
+# MASKGUARD_USERS_FILE for docker-compose.prod.yml) at the copy. Hashes come from `maskguard hash-password`.
+# Production refuses to start if this file contains a demo identity (admin.ann, support.sam, analyst.ali,
+# auditor.aud) or no users. Roles must exist in the policy (policies/default.yaml: admin, support, analyst, auditor).
+users:
+  ops.lead:
+    role: admin
+    password_hash: "REPLACE-WITH-OUTPUT-OF-maskguard-hash-password"
+  desk.agent:
+    role: support
+    password_hash: "REPLACE-WITH-OUTPUT-OF-maskguard-hash-password"

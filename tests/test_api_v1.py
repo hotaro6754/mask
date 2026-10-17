@@ -160,9 +160,8 @@ def test_production_refuses_the_demo_user_store(sqlite_env, monkeypatch, tmp_pat
         config.check_production_identity(demo_store)
     prod = Authenticator({"ops.lead": {"role": "admin", "password_hash": hash_password("a-long-production-pass")}})
     config.check_production_identity(prod)  # a real user store is accepted
-    monkeypatch.delenv("MASKGUARD_JWT_SECRET")
-    with pytest.raises(RuntimeError, match="MASKGUARD_JWT_SECRET"):
-        config.check_production_identity(prod)
+    with pytest.raises(RuntimeError, match="no users"):
+        config.check_production_identity(Authenticator({}))
 
 
 def test_scan_dry_run_does_not_change_registry(client, sqlite_env):

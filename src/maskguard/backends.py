@@ -2,8 +2,12 @@
 
 Gateway queries always run read-only: SQLite through an authorizer that only allows reads, PostgreSQL inside
 a READ ONLY transaction with a statement timeout. Seeding and scanning use the admin paths.
+
+In development the gateway installs its masking functions itself. In production it connects with a read-only
+account (install=False): the functions must already exist (`maskguard db-install`, run with an owner account), and
+privilege_problems() reports anything the account could use to write or change the database.
 """
-import hashlib, sqlite3, threading, time
+import hashlib, re, sqlite3, threading, time
 from urllib.parse import urlparse
 
 from . import masks
@@ -74,6 +78,17 @@ class Backend:
     def _qualified(self, table):
         return f'"{self.default_schema}"."{table}"'
 
+    def privilege_problems(self):
+        return [f"{self.dialect} has no database accounts to restrict"]
+
+    def _require_functions(self, probe):
+        """Fail closed if the masking functions are missing or this account can't run them."""
+        try:
+            self.execute(probe)
+        except Exception as e:
+            raise RuntimeError(f"masking functions are missing or not executable by this account ({type(e).__name__}): "
+                               "run `maskguard db-install` with an owner account first") from None
+
 
 class SQLiteBackend(Backend):
     dialect, default_schema = "sqlite", "main"
@@ -127,20 +142,66 @@ class SQLiteBackend(Backend):
         return [(r[1], (r[2] or "").upper()) for r in self.admin_query(f'PRAGMA table_info("{table}")')[1]]
 
 
+PG_PROBE = ("SELECT mg_partial('x', 0, 1), mg_email('a@b.c'), mg_hmac('x'), mg_bucket(1::numeric, 10), "
+            "mg_bucket(1::float8, 10), mg_redact_text('x')")
+MYSQL_PROBE = "SELECT mg_partial('x', 0, 1), mg_email('a@b.c'), mg_hmac('x'), mg_bucket(1, 10), mg_redact_text('x')"
+MYSQL_FUNCTION_NAMES = ("mg_partial", "mg_email", "mg_hmac", "mg_bucket", "mg_redact_text")
+# What a MySQL gateway account may hold. Anything else (writes, DDL, routines, *_ADMIN, FILE, SUPER…) is refused.
+MYSQL_READ_PRIVILEGES = {"SELECT", "EXECUTE", "USAGE", "SHOW VIEW"}
+
+
 class PostgresBackend(Backend):
     dialect, default_schema = "postgres", "public"
 
-    def __init__(self, url, hmac_key=None, statement_timeout_ms=5000):
+    def __init__(self, url, hmac_key=None, statement_timeout_ms=5000, install=True):
         import psycopg
         self.url = url
         self.conn = psycopg.connect(url, autocommit=True)
         self.lock = threading.Lock()
         with self.lock:
-            self.conn.execute(PG_FUNCTIONS)
-            self.conn.execute(pg_function_sql())
+            if install:
+                self.conn.execute(PG_FUNCTIONS)
+                self.conn.execute(pg_function_sql())
             key = hmac_key if hmac_key is not None else masks._key().decode()
             self.conn.execute("SELECT set_config('maskguard.hmac_key', %s, false)", (key,))
             self.conn.execute(f"SET statement_timeout = {int(statement_timeout_ms)}")
+        if not install:
+            self._require_functions(PG_PROBE)
+
+    def privilege_problems(self):
+        """Anything beyond read access: role attributes, write/DDL rights on tables, schemas or the database."""
+        user, *flags = self.admin_query(
+            "SELECT current_user, rolsuper, rolcreaterole, rolcreatedb, rolbypassrls, rolreplication "
+            "FROM pg_roles WHERE rolname = current_user")[1][0]
+        problems = [f"database account {user} has {name}" for name, on in
+                    zip(("SUPERUSER", "CREATEROLE", "CREATEDB", "BYPASSRLS", "REPLICATION"), flags) if on]
+        writable = [r[0] for r in self.admin_query(
+            "SELECT c.relname FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace "
+            "WHERE n.nspname = 'public' AND c.relkind IN ('r', 'p', 'v', 'm', 'f') "
+            "AND (has_table_privilege(c.oid, 'INSERT') OR has_table_privilege(c.oid, 'UPDATE') "
+            "OR has_table_privilege(c.oid, 'DELETE') OR has_table_privilege(c.oid, 'TRUNCATE') "
+            "OR has_table_privilege(c.oid, 'TRIGGER') OR pg_has_role(c.relowner, 'USAGE')) ORDER BY 1")[1]]
+        if writable:
+            problems.append(f"database account {user} can write to or owns {len(writable)} table(s): "
+                            f"{', '.join(writable[:5])}{' …' if len(writable) > 5 else ''}")
+        schema_create, db_create = self.admin_query(
+            "SELECT has_schema_privilege('public', 'CREATE'), has_database_privilege(current_database(), 'CREATE')")[1][0]
+        if schema_create:
+            problems.append(f"database account {user} can create objects in schema public (it could replace the "
+                            "masking functions)")
+        if db_create:
+            problems.append(f"database account {user} can create schemas in this database")
+        owned = [r[0] for r in self.admin_query(
+            "SELECT DISTINCT p.proname FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace "
+            "WHERE n.nspname = 'public' AND p.proname LIKE 'mg\\_%' AND pg_has_role(p.proowner, 'USAGE') ORDER BY 1")[1]]
+        if owned:
+            problems.append(f"database account {user} owns the masking functions ({', '.join(owned)}) and could "
+                            "redefine them: install them with the owner account (`maskguard db-install`)")
+        roles = [r[0] for r in self.admin_query(
+            "SELECT r FROM unnest(ARRAY['pg_write_all_data', 'pg_write_server_files', 'pg_read_server_files', "
+            "'pg_execute_server_program']) r WHERE to_regrole(r) IS NOT NULL AND pg_has_role(current_user, r, 'MEMBER')")[1]]
+        problems += [f"database account {user} is a member of {r}" for r in roles]
+        return problems
 
     def execute(self, sql):
         with self.lock:
@@ -234,13 +295,10 @@ def _sql_str(s):
 class MySQLBackend(Backend):
     dialect = "mysql"
 
-    def __init__(self, url, hmac_key=None, statement_timeout_ms=5000):
-        import pymysql
+    def __init__(self, url, hmac_key=None, statement_timeout_ms=5000, install=True):
         u = urlparse(url)
         self.default_schema = u.path.lstrip("/") or "bank"
-        self.conn = pymysql.connect(host=u.hostname or "127.0.0.1", port=u.port or 3306, user=u.username,
-                                    password=u.password or "", database=self.default_schema, autocommit=True,
-                                    charset="utf8mb4")
+        self.conn = _mysql_connect(url)
         self.lock = threading.Lock()
         key = hmac_key if hmac_key is not None else masks._key().decode()
         with self.lock, self.conn.cursor() as c:
@@ -250,10 +308,27 @@ class MySQLBackend(Backend):
             # materialise each masked view once instead of merging it into the outer query; otherwise masking
             # functions re-run per row of every join/cross product
             c.execute("SET SESSION optimizer_switch = 'derived_merge=off'")
-            for name in ("mg_partial", "mg_email", "mg_hmac", "mg_bucket", "mg_redact_text"):
-                c.execute(f"DROP FUNCTION IF EXISTS {name}")
-            for ddl in MYSQL_FUNCTIONS + [mysql_redact_function()]:
-                c.execute(ddl)
+            if install:
+                _mysql_install(c)
+        if not install:
+            self._require_functions(MYSQL_PROBE)
+
+    def privilege_problems(self):
+        """Parse SHOW GRANTS: only read privileges are allowed, scoped to this database."""
+        problems = []
+        for (line,) in self.admin_query("SHOW GRANTS")[1]:
+            m = re.match(r"GRANT (.+?) ON (.+?) TO ", line)
+            if not m:  # e.g. GRANT `role`@`%` TO ...: inherited privileges this check can't see
+                problems.append("database account inherits a role; grant SELECT/EXECUTE directly so they can be checked")
+                continue
+            obj = m.group(2)
+            for priv in re.split(r",\s*(?![^()]*\))", m.group(1)):  # commas inside "SELECT (a, b)" don't split
+                base = priv.split("(")[0].strip().upper()
+                if base not in MYSQL_READ_PRIVILEGES:
+                    problems.append(f"database account has {base} on {obj}")
+                elif obj == "*.*" and base != "USAGE":
+                    problems.append(f"database account has {base} on *.* (grant it on this database only)")
+        return problems
 
     def _run(self, sql, params=None):
         with self.conn.cursor() as c:
@@ -296,18 +371,55 @@ class MySQLBackend(Backend):
             "AND table_name = %s ORDER BY ordinal_position", (table,))[1]]
 
 
+def _mysql_connect(url):
+    import pymysql
+    u = urlparse(url)
+    return pymysql.connect(host=u.hostname or "127.0.0.1", port=u.port or 3306, user=u.username,
+                           password=u.password or "", database=u.path.lstrip("/") or "bank", autocommit=True,
+                           charset="utf8mb4")
+
+
+def _mysql_install(cursor):
+    cursor.execute("SET SESSION sql_mode = CONCAT(@@sql_mode, ',ANSI_QUOTES')")
+    for name in MYSQL_FUNCTION_NAMES:
+        cursor.execute(f"DROP FUNCTION IF EXISTS {name}")
+    for ddl in MYSQL_FUNCTIONS + [mysql_redact_function()]:
+        cursor.execute(ddl)
+
+
+def install_functions(url):
+    """Create or replace the masking functions with an owner/admin account (`maskguard db-install`)."""
+    scheme = urlparse(url).scheme
+    if scheme in ("postgres", "postgresql"):
+        import psycopg
+        with psycopg.connect(url, autocommit=True) as conn:
+            conn.execute(PG_FUNCTIONS)
+            conn.execute(pg_function_sql())
+        return "postgres"
+    if scheme in ("mysql", "mysql+pymysql"):
+        conn = _mysql_connect(url)
+        try:
+            with conn.cursor() as c:
+                _mysql_install(c)
+        finally:
+            conn.close()
+        return "mysql"
+    raise ValueError("db-install supports PostgreSQL and MySQL URLs")
+
+
 def is_numeric(sql_type):
     base = (sql_type or "").upper().split("(")[0].strip()
     return base in NUMERIC_TYPES
 
 
-def connect(url):
-    """sqlite:///path/to.db, sqlite:///:memory:, postgresql://user:pw@host:port/db or mysql://user:pw@host:port/db"""
+def connect(url, install=True):
+    """sqlite:///path/to.db, sqlite:///:memory:, postgresql://user:pw@host:port/db or mysql://user:pw@host:port/db.
+    install=False: don't create the masking functions, require them (production, read-only account)."""
     scheme = urlparse(url).scheme
     if scheme == "sqlite":
         return SQLiteBackend(url[len("sqlite:///"):] or ":memory:")
     if scheme in ("postgres", "postgresql"):
-        return PostgresBackend(url)
+        return PostgresBackend(url, install=install)
     if scheme in ("mysql", "mysql+pymysql"):
-        return MySQLBackend(url)
+        return MySQLBackend(url, install=install)
     raise ValueError(f"unsupported database URL: {url}")

@@ -1,6 +1,10 @@
+# DEMO PROFILE: synthetic data only. NOT for real customer data.
+# It publishes the database ports with demo passwords, runs the database as a superuser, turns demo identities on
+# (anyone who can reach port 8000 can act as admin) and serves plain HTTP. For real data use docker-compose.prod.yml
+# (docs/DEPLOYMENT.md). Setting MASKGUARD_ENV=production here makes MaskGuard refuse to start rather than run unsafely.
+#
 # docker compose up --build  ->  API + Control Room dashboard :8000 (/ui/), classic Streamlit dashboard :8501, PostgreSQL proxy :6543, on PostgreSQL 16.
 # MySQL instead: docker compose --profile mysql up --build, with MASKGUARD_DB=mysql://maskguard:maskguard@mysql:3306/bank
-# Set real secrets in a .env file (MASKGUARD_HMAC_KEY, MASKGUARD_JWT_SECRET) before any non-demo use.
 x-maskguard: &maskguard
   build: .
   environment:
@@ -8,6 +12,7 @@ x-maskguard: &maskguard
     MASKGUARD_HMAC_KEY: ${MASKGUARD_HMAC_KEY:-dev-only-hmac-key-change-me}
     MASKGUARD_JWT_SECRET: ${MASKGUARD_JWT_SECRET:-dev-only-jwt-secret-change-me-0123456789}
     MASKGUARD_SCAN_INTERVAL: "300"
+    MASKGUARD_ENV: ${MASKGUARD_ENV:-development}   # "production" here is refused at startup: use docker-compose.prod.yml
     # Demo identities from outside the container (browser on the host is not loopback to the API). Synthetic data
     # only: anyone who can reach these ports can act as any demo role, including admin. Set to 0 for real data.
     MASKGUARD_DEMO: ${MASKGUARD_DEMO:-1}
@@ -32,7 +37,7 @@ services:
 
   dashboard:
     <<: *maskguard
-    command: ["maskguard", "dashboard", "--classic", "--port", "8501"]
+    command: ["maskguard", "dashboard", "--classic", "--host", "0.0.0.0", "--port", "8501"]
     ports: ["8501:8501"]
 
   proxy:                        # psql "host=localhost port=6543 user=support.sam dbname=bank"
