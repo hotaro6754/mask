@@ -30,7 +30,9 @@ charged:
 2. **Budget.** One **lifetime ε budget per dataset**, shared by all analysts and all instances, with optional
    per-analyst quotas inside it.
 3. **Accountant.** Charge before execution and never refund. The charge is an atomic conditional `UPDATE` in a
-   **PostgreSQL state database** separate from the protected data, with idempotent replays.
+   **PostgreSQL state database** separate from the protected data, with idempotent replays. Every charge is also
+   written to **independent recovery evidence** that can't be rolled back with the ledger (§9.6). If no trustworthy
+   spending total can be established, aggregates stay off.
 4. **Mechanism fixes before any claim:** per-customer contribution bounding, join and ordering restrictions,
    sensitivities matched to the neighbouring relation, an exact discrete noise sampler, and noisy (not exact)
    small-group thresholds.
@@ -46,7 +48,21 @@ written derivation reviewed by someone with differential-privacy expertise (§13
 | **D2** (and D1): what is protected | **Decided** | Option B (§3): each **customer's** protected numeric values, under replace-one-customer. **Limitation, to be stated in every product claim:** membership and row existence are *not* protected, and neither are non-protected attributes |
 | **D3**: budget scope | **Decided** | One budget per dataset, shared by all analysts, processes and servers, **enforced atomically** (§9). It needs a configured dataset identity, the declared privacy unit and contribution bounds, and defined behaviour for dataset changes and resets (§9.5). Per-analyst quotas inside it remain optional (open) |
 | **D4/D5**: total budget, period, per-query charge | **Deferred to the data owner** | Set only after sensitivity, composition and the analyst workload have been reviewed. ε = 0.5 per query is a **candidate**, not a validated default. A lifetime cap is the conservative option, but it is only safe if the reset hazards in §9.5 are handled. Lifetime vs. renewing stays open until then |
-| D6–D10, D12 | Open | §16 |
+| D6–D10, D12, D13 | Open | §16 |
+
+**Gate before Phase 1** (status as of `731cf01`):
+
+| Requirement | Status |
+|---|---|
+| Reproduce the known vulnerabilities | Done: `tests/test_dp_findings.py`, strict `xfail`, with controls |
+| Disable production aggregates (D11) | Done: refusal before charge or data access, audited; boundary test covers both the refusal and the unaffected masking |
+| Correct privacy claims | Done: README, ARCHITECTURE, EVALUATION, ROADMAP, DEPLOYMENT, generated PIA |
+| Total and per-query budget policy (D4/D5) | **Open**: needs data-owner and reviewer approval |
+| Safe budget recovery under rollback or loss | **Open**: trust model specified in §9.6; mechanism selection (D13) and its restore tests still required |
+| Independent review of the DP guarantee (D12) | **Open** |
+
+Phase 1 (the sorting, join and contribution-bound fixes) starts only after D4/D5 are recorded and D13 is selected.
+Production aggregates stay off until every row is done.
 
 This document is a **specification, not a proof**. Synthetic probes and the tests in `tests/test_dp_findings.py` show
 particular failures; passing tests will not establish differential privacy. The accountant, sensitivity calculations,
@@ -375,6 +391,7 @@ CREATE TABLE dp_charge (                                 -- append-only; never u
   query_fingerprint text NOT NULL,                       -- literals stripped, as in the audit log
   policy_version    text NOT NULL,
   instance_id       text NOT NULL,
+  evidence_seq      bigint NOT NULL,                     -- sequence number of the independent evidence record (§9.6)
   charged_at        timestamptz NOT NULL DEFAULT now(),
   outcome           text NOT NULL DEFAULT 'charged'
                     CHECK (outcome IN ('charged', 'released', 'failed_after_charge')),
@@ -431,16 +448,73 @@ acceptance test (§13 item 11).
 | **Dataset replacement or migration** (same customers, new database) | Treated as new data, so the budget restarts | The marker and `dataset_id` move with the data, so the same scope continues. A new scope over the same population needs an explicit admin action, a reason, a privacy-officer sign-off and a conservative carry-over of the old spending (§11) |
 | **Customer deletion** | Deleting customers "frees" budget, or a re-onboarded customer starts fresh | `epsilon_spent` never decreases: no per-customer refunds. Deleted customers' past exposure stays recorded, and a returning customer is covered by the same scope |
 | **Protected-database backup restore** | Older data plus an unchanged ledger | Safe: the ledger is separate and keeps every charge. The restore must keep the marker table |
-| **Ledger restore or point-in-time recovery to an earlier moment** | `epsilon_spent` rolls back, which is a silent refund | Every charge is also appended to the hash-chained audit log (it already records `dp_epsilon`) and, optionally, to an external append-only sink. At startup and periodically, the gateway compares each scope's ledger total with the audit-derived total. If the audit total is higher, DP fails closed until an admin reconciles **upwards** (reconciliation never lowers spending). The recovery runbook rolls the ledger forward before reconciling |
-| **Ledger lost** (empty state database) | Scopes recreated at zero | Scopes are never created implicitly on a first query. `maskguard dp-scope create` is an admin command, refused when the audit log shows charges for that `dataset_id` unless an initial spending at least equal to the audit-derived total is supplied |
-| **Ledger and audit log both lost** | No record of past exposure | No automatic recovery. DP stays off until a privacy officer either retires the dataset or opens a new scope with a documented conservative carry-over |
+| **Ledger restore or point-in-time recovery to an earlier moment** | `epsilon_spent` rolls back, which is a silent refund | Detected against the **independent recovery evidence** (§9.6), never against the local audit log alone. DP stays off until the ledger is reconciled upwards to the evidence |
+| **Ledger lost** (empty state database) | Scopes recreated at zero | Scopes are never created implicitly. `maskguard dp-scope create` checks the recovery evidence for that `dataset_id`, and is refused unless the initial spending is at least the evidence total |
+| **Ledger and audit log both lost or rolled back together** | No local record of past exposure | Rebuilt from the recovery evidence (§9.6). If the evidence is also unavailable, DP stays off until a privacy officer retires the dataset or opens a new scope with a documented conservative carry-over |
 | **Clock** | A wrong gateway clock moves period boundaries | Lifetime scopes don't use dates. If renewing periods are chosen (D4), boundaries come from the state database's clock, never the gateway's |
+
+### 9.6 Recovery evidence and trust model
+
+**Why the audit log is not enough.** An earlier version of §9.5 detected ledger rollbacks by comparing against the
+hash-chained audit log. That fails in the most likely incident, a restore from backup. The audit log lives on the
+gateway host, usually in the same backup set and under the same administrators as the ledger. If both are restored
+to the same older point they agree, and the check passes while the lifetime budget is silently exceeded. The hash
+chain doesn't close the gap: it proves the records that exist were not altered, but not that later records ever
+existed. A chain cut back to an older, consistent end still verifies.
+
+**Requirements.** Whatever mechanism is chosen (D13) must provide:
+
+| # | Requirement |
+|---|---|
+| R1 | **Independence.** The evidence lives in a store whose writes, deletions and restores are controlled by a different administrative and backup domain from the ledger, the audit log and the gateway host. Anyone able to restore the ledger must not be able to roll the evidence back. A second database under the same administrators or the same backup procedure does **not** qualify |
+| R2 | **Append-only and monotonic.** The gateway's credential can append but not modify or delete. Each record carries `dataset_id`, `scope_id`, a strictly increasing sequence number, the cumulative `epsilon_spent`, and the hash of the previous record |
+| R3 | **Durable before release.** A charge counts only once its evidence record is acknowledged. The evidence append happens **before** the ledger commit, so the evidence can be ahead of the ledger (an overcount, reconciled upwards) but never behind it. If the append fails, the query is refused and nothing is released |
+| R4 | **Freshness check.** At startup and periodically, the trusted total for a scope is the evidence total. DP is enabled only if the evidence is reachable, the chain verifies with no sequence gaps, and the ledger is not behind it. Anything else keeps DP off |
+| R5 | **Upward-only reconciliation, no reset.** An admin command can raise the ledger to the evidence total. Nothing lowers spending, and there is no reset command. A new scope for a `dataset_id` that has evidence history needs a carry-over at least equal to the evidence total and a privacy-officer sign-off |
+| R6 | **Authority over dataset history.** Scope creation, dataset replacement and protected-database restores all consult the evidence store, so none of them can produce a fresh budget for data that has been queried before |
+| R7 | **Loss of the evidence itself** keeps DP off until a privacy officer decides. It is never recreated automatically |
+
+**Fail closed.** If MaskGuard cannot establish a trustworthy spending total, protected aggregates stay unavailable.
+Masking and every other function continue.
+
+**Candidate mechanisms** (selection at design review, D13):
+
+| | Mechanism | Strengths | Costs and risks |
+|---|---|---|---|
+| M1 | **Write-once object storage with a retention lock**, under a separate account and administrators; one immutable object per charge, written synchronously (R3) | Strong rollback resistance; simple to reason about; no allowance needed | One remote write per charge (latency); availability of the store gates DP; account separation must be real (R1) |
+| M2 | **Signed checkpoints to an external append-only log** run by another party (or a transparency log), with the signing key in a KMS or HSM the ledger administrators can't use | Cheaper than per-charge writes if checkpoints are batched | Batching means the last checkpoint can trail the ledger. Recovery must then add a conservative allowance of *N* × the largest per-query charge for up to *N* unanchored charges, which burns budget. Key management becomes part of the trust base |
+| M3 | **Replicated ledger in a second system operated by another team** (e.g. the privacy office) with its own backup policy | Uses familiar tooling | Acceptable only if R1 genuinely holds. Same-domain replicas and shared backups do not count |
+| M4 | Hardware monotonic counters (e.g. TPM NV counters) | Rollback-resistant on one host | Doesn't fit multiple instances or host replacement; listed for completeness |
+
+Candidate recommendation for review: **M1 with synchronous per-charge writes**. It needs no staleness allowance and
+satisfies R3 directly. M2 is the fallback if per-charge latency is unacceptable. The choice depends on the
+infrastructure the deploying organisation actually runs and on who administers it, so it is a review decision, not
+something this document can settle.
+
+**Charge flow with evidence** (replaces step 2 of §9.4):
+
+```
+2a  BEGIN (ledger); conditional UPDATE of dp_scope / dp_quota as in §9.4      -> 0 rows: refuse, budget exhausted
+2b  append evidence {dataset_id, scope_id, seq = n+1, cumulative_epsilon, prev_hash}  -> failure: ROLLBACK, refuse
+2c  INSERT dp_charge (… evidence_seq = n+1); COMMIT (ledger)                     -> failure: evidence ahead (safe)
+```
+
+Concurrent charges on one scope serialise on the scope row (2a), which also serialises the evidence sequence for
+that scope, so sequence numbers have no gaps.
+
+**Recovery from a known-good checkpoint.**
+1. Restore the ledger from the checkpoint.
+2. Read the evidence from the checkpoint's sequence number to the latest, and verify the chain and gap-freedom.
+3. Raise `epsilon_spent` to the evidence total.
+4. Enable DP only if every step succeeded. Otherwise it stays off (R4, R7).
 
 ## 10. Failure behaviour
 
 | Situation | Behaviour |
 |---|---|
 | State DB unreachable or ledger invariant broken | DP queries refused (503, fail closed). Non-DP queries continue, since they consume no budget (open decision D9) |
+| Recovery evidence unreachable, chain broken, sequence gap, or ledger behind the evidence | DP disabled until reconciled upwards and re-verified (§9.6 R4); masking continues |
+| Evidence append fails during a charge | Query refused, ledger change rolled back, nothing released |
 | Budget or quota exhausted | Refused at step 2, before data access. The message gives the remaining budget only, which depends on query history, not data |
 | Charge committed, query fails or times out | Charge kept, outcome recorded, no refund |
 | Gateway crash after charge | Charge kept; same-key retry gets 409; never a free fresh release |
@@ -476,7 +550,8 @@ Explicit assumptions behind it:
 1. Analysts keep row-level access to non-protected data, so option B is the right model (D2).
 2. Protected numeric columns have meaningful public bounds.
 3. Every protected table has a declared path to the customer key.
-4. One PostgreSQL state database is available with synchronous replication if HA is required.
+4. One PostgreSQL state database is available with synchronous replication if HA is required, **and** a recovery
+   evidence store in a separate administrative and backup domain (§9.6 R1).
 5. Analyst query rates are low enough for per-scope row serialisation.
 
 ## 13. Verification
@@ -508,13 +583,27 @@ rests on items 1 and 2.
 9. **Failover**, if HA is in scope: promote the standby under load and confirm no committed charge is lost.
 10. **Reproducible evaluation.** Extend `bench/eval_dp.py` to the full lifetime budget with several colluding
     analysts, and report the differencing-attack error as in §1.3. Seeds are used only in test mode.
-11. **Reset-hazard tests** (§9.5):
-    - restore the ledger from an older dump, and check DP is refused until reconciled upwards;
-    - delete customers, and check `epsilon_spent` is unchanged;
-    - start against a protected database whose marker is missing or different, and check DP is refused;
-    - empty the state database while the audit log has charges, and check `dp-scope create` without a sufficient
-      carry-over is refused;
-    - restart, and check spending persists.
+11. **Reset-hazard and restore tests** (§9.5, §9.6). Each must end with DP either correctly enabled at the evidence
+    total, or disabled:
+
+    | Scenario | Expected |
+    |---|---|
+    | Ledger rolled back alone | DP off until reconciled upwards to the evidence |
+    | Audit log rolled back alone | No effect on the trusted total (the audit log is not the evidence) |
+    | Ledger and audit log rolled back **together** from the same backup | Detected against the evidence; DP off until reconciled |
+    | Ledger and audit log both lost | Rebuilt from the evidence; DP on only after verification |
+    | Evidence store unreachable | DP off; masking works |
+    | Evidence tail truncated, record reordered, sequence gap or bad hash/signature | DP off |
+    | Evidence ahead of the ledger (crash between 2b and 2c) | Reconciled upwards; never downwards |
+    | Evidence store lost | DP off until a privacy-officer decision; no automatic recreation |
+    | Recovery from a known-good checkpoint | Chain verified to the latest record; DP on at the evidence total |
+    | Protected database replaced or restored, marker kept | Same scope continues |
+    | Protected database with missing or different marker | DP off |
+    | `dp-scope create` for a `dataset_id` with evidence history and too small a carry-over | Refused |
+    | Customers deleted | `epsilon_spent` unchanged |
+    | Evidence append fails during a charge | Query refused; ledger unchanged; nothing released |
+    | Parallel charges from several instances | Evidence sequence strictly increasing with no gaps; total ≤ cap |
+    | Restart | Spending persists |
 12. **Budget-store failure tests**:
     - state database unreachable, read-only or slow, and the ledger invariant deliberately broken: DP is refused,
       masking keeps working;
@@ -524,7 +613,7 @@ rests on items 1 and 2.
 
 | Phase | Content | Gate to the next phase |
 |---|---|---|
-| 0 | **Done 2026-10-17:** D1, D2, D3 and D11 decided; D11 enforced; claims in README, ARCHITECTURE, EVALUATION, ROADMAP, DEPLOYMENT and the generated PIA corrected; findings encoded as strict-`xfail` tests. **Open:** D4–D10, D12 | Remaining decisions recorded |
+| 0 | **Done 2026-10-17:** D1, D2, D3 and D11 decided; D11 enforced; claims in README, ARCHITECTURE, EVALUATION, ROADMAP, DEPLOYMENT and the generated PIA corrected; findings encoded as strict-`xfail` tests. **Open:** D4–D10, D12, D13 | D4/D5 recorded by the data owner and D13 selected, **before Phase 1 starts** |
 | 1 | Mechanism fixes without persistence: F2, F1 (join rule), F7 (sensitivity by relation), F10 (discrete sampler), §6.1 contribution bounding with a declared unit | Verification items 3–6 pass |
 | 2 | Accountant interface; PostgreSQL implementation (§9); in-memory implementation for tests only; production requires `MASKGUARD_STATE_DB`. **Backfill:** initialise each scope's `epsilon_spent` from the audit log's `dp_epsilon` entries, summed across all analysts (conservative) | Items 7–9 pass |
 | 3 | Suppression change (§7) and AVG-with-public-count | Items 3–6 rerun |
@@ -542,8 +631,8 @@ rests on items 1 and 2.
    one does).
 5. With the accountant unavailable, DP queries are refused and everything else keeps working.
 6. Production refuses to start with `aggregate` in policy and no state DB.
-7. Every reset hazard in §9.5 has a passing acceptance test (§13 item 11), and the budget-store failure tests pass
-   (item 12).
+7. The recovery mechanism (D13) is selected, shown to meet R1–R7 (§9.6), and every scenario in §13 item 11 passes,
+   including the ledger and audit log being rolled back together. The budget-store failure tests pass (item 12).
 8. Statistical tests find no violation for supported mechanisms, and do flag every known-bad control.
 9. Every strict `xfail` in `tests/test_dp_findings.py` has become a passing test (its marker removed).
 10. An independent DP reviewer signs off the derivation. Public claims say exactly what was signed off. Only then is
@@ -565,6 +654,7 @@ rests on items 1 and 2.
 | D10 | HA requirement for the state DB (synchronous standby) | Required if the gateway is HA |
 | D11 | Interim production stance until phase 4 | **Decided and implemented**: noisy aggregates refused in production; development keeps them, labelled "not a formal DP guarantee" |
 | D12 | Who reviews the derivation | An independent reviewer with DP expertise, outside the team |
+| D13 | Recovery evidence mechanism (§9.6) and who administers it | Candidate: M1 (write-once storage with retention lock, synchronous per charge) under a separate administrative domain; M2 as fallback. Selected at design review |
 
 ## 17. References
 
