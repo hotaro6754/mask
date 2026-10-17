@@ -1,0 +1,24 @@
+{
+ "manifest": {
+  "rea_version": "6.5.0",
+  "provider_version": "3",
+  "pty_backend": "node-pty",
+  "started_at": "2026-10-17T12:33:15.513Z",
+  "completed_at": "2026-10-17T12:33:15.780Z",
+  "executable_sha256": "5fbf1d65d05315a4e89f561fee89731cec1f95094b86a56fac47e240edbf7bac"
+ },
+ "evidence_id": "ev_bcb1d44510bb9f33edeab9df52055ad2703bb3a5afcc081b81d6efef95be724c",
+ "exit": {
+  "code": 0,
+  "signal": 0,
+  "reason": "exited"
+ },
+ "captured_terminal": "current_user\r\nsupport_m\r\n(1 row)\r\nid|ssn|email\r\n8|XXX-XX-4321|ze******@ex******.com\r\n(1 row)\r\nid|name\r\n(0 rows)\r\n",
+ "limitations": [
+  "The executable digest is a prelaunch file sample; matching path metadata immediately after spawn does not prove an atomic operating-system image binding.",
+  "Process trees are sampled and may omit short-lived descendants.",
+  "Filesystem observations are before/after snapshots, not syscall traces.",
+  "Inherited host environment variables are not recorded and may affect results.",
+  "No filesystem observation paths were selected; filesystem effects remain unknown."
+ ]
+}

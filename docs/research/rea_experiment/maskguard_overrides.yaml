@@ -1,0 +1,9 @@
+# Explicit tags so classification is not a variable in the comparison (same columns the Anonymizer masks).
+customers:
+  name:  {tag: PII_MEDIUM, kind: name}
+  email: {tag: PII_HIGH, kind: email}
+  ssn:   {tag: PII_HIGH, kind: ssn}
+  phone: {tag: PII_HIGH, kind: phone}
+accounts:
+  card:    {tag: FINANCIAL_CONFIDENTIAL, kind: card}
+  balance: {tag: FINANCIAL_CONFIDENTIAL, kind: amount}

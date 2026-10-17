@@ -1,0 +1,7 @@
+anon_deb_sha256 9bdc19d834f987daabc55ef51ac75c67cbaf85296e3923a3f9746cded302e0bf (matches release checksums.txt)
+anon_release 3.2.3 (gitlab release 2026-09-25), source tag 3.2.3 = d9c13addf015e4c92b53e0e0a23f23a687042ae7
+PostgreSQL 16.15 (Debian 16.15-1.pgdg13+2) on x86_64-pc-linux-gnu, compiled by gcc (Debian 14.2.0-19) 14.2.0, 64-bit
+postgres:16 sha256:ca0bd484cb98bf4b24eb1010e73fb3fcbd6714d240fbc1a10eea5b7dbecb641d ["postgres@sha256:ca0bd484cb98bf4b24eb1010e73fb3fcbd6714d240fbc1a10eea5b7dbecb641d"]
+8a83c5920cd6a01ea00911d0dde20cfe1c3f34b704e22ec338611ef472f695f0  /tmp/claude-0/-home-user-mask/8a88c0e5-7441-517a-bc7d-b513e723ce01/scratchpad/rea-exp/pkg/x/usr/lib/postgresql/16/lib/anon.so
+rea-agents 6.5.0
+v22.22.0

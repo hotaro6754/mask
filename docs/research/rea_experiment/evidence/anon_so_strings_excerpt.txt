@@ -1,0 +1,40 @@
+    SECURITY LABEL FOR anon ON FUNCTION anon.anonymize_column(TEXT,NAME) IS 'UNTRUSTED';
+    SECURITY LABEL FOR anon ON FUNCTION anon.anonymize_table(TEXT) IS 'UNTRUSTED';
+    SECURITY LABEL FOR anon ON FUNCTION anon.drop_replica_trigger_for_table(OID) IS 'UNTRUSTED';
+    SECURITY LABEL FOR anon ON FUNCTION anon.masking_value_for_column IS 'UNTRUSTED';
+    SECURITY LABEL FOR anon ON FUNCTION anon.refresh_replica_trigger_for_table(OID,TEXT) IS 'UNTRUSTED';
+    SELECT COUNT(label)>0 and bool_and(label='TRUSTED')
+  ) AS trusted_schema
+  WHERE upper(label) = 'TRUSTED'
+ is UNTRUSTED
+$ does not belong in a TRUSTED schema
+(?is)^ *MASKED +WHEN +(.*) *$(?is)^ *MASKED +WITH +VALUE +(.*) *$(?is)^ *MASKED *$(?is)^ *MASKED +WITH +FUNCTION +(.*) *$haystack should be valid[^,(?! )]+(?is)^ *TRUSTED *$(?is)^ *UNTRUSTED *$(?is)^ *TABLESAMPLE +(.*) *$(?is)^ *NOT +MASKED *$(?is)^ *RESTRICTED *$(?is)^ *(QUASI|INDIRECT) +IDENTIFIER *$anon::ldp::ldp_grrm_pttt::funboxing value_ argument failedunboxing epsilon_ argument failedunboxing max_v_ argument failedfcinfo pointer must be non-nullPTTT must be in [0, 1)MAX_V must be >= 2unboxing kept_percentage_ argument failedanon::ldp::ldp_grrm::fEpsilon must be greater than 0should be a stringar_SAen_USfr_FRja_JPpt_BRzh_CNzh_TWFailed to guess image formatFailed to load imageFailed to write image#####0#########unboxing sigma_ argument failedunboxing data_ argument failedunboxing r_ argument failedunboxing start_ argument failedunboxing stop_ argument failedunboxing p_ argument failedunboxing c_ argument failedunboxing provider_ argument failedunboxing role_rules_ argument failedanon::anon::anonymize_database_parallel::fFailed to serialize bgwriter extra dataFailed to load bg workerFailed to wait for startupunboxing f_ argument failedunboxing rect_ argument failedunboxing database_rules_ argument failedunboxing is_metric_ argument failedunboxing jobs_ argument failedSchema OID is invalidFunction OID is invalidfunction call is emptyStatic and dynamic masking cannot be used with a superuser if anon.nosuperuser is set to true.This is probably a bug, please report it.anon::error::AnonError::ereport::frole is maskedCannot get relation nameassertion failed: command_type == pg_sys::CmdType::CMD_UTILITY
+--   * a `fk_user` column masked with its md5 hash
+--   * a `login` column masked with "CONFIDENTIAL"
+-- By default, masking filter functions must be trusted
+-- Display all the trusted functions
+-- SECURITY LABEL FOR anon ON FUNCTION anon.tg_refresh_replica_masking IS 'UNTRUSTED';
+-- TRUSTED pg_catalog functions
+-- Untrusted users cannot do anything inside the anon schema
+-- `UNSTRUSTED` to block users from using them in masking rules.
+-- are `TRUSTED` but masked users can't call them directly.
+-- by default. As we try to discourage users to mark it as TRUSTED, we provide
+-- to search_path attacks: an untrusted user may be able to override some
+-- used in masking rule. That's why the pg_catalog schema is not trusted by
+--SECURITY LABEL FOR anon ON FUNCTION pg_catalog.gen_random_uuid IS 'TRUSTED';
+CREATE OR REPLACE VIEW anon.pg_trusted_functions
+Masking filters must be in a trusted schema
+SECURITY LABEL FOR anon ON FUNCTION anon.anonymize_database IS 'UNTRUSTED';
+SECURITY LABEL FOR anon ON FUNCTION anon.init() IS 'UNTRUSTED';
+SECURITY LABEL FOR anon ON FUNCTION anon.init(TEXT) IS 'UNTRUSTED';
+SECURITY LABEL FOR anon ON FUNCTION anon.is_initialized IS 'UNTRUSTED';
+SECURITY LABEL FOR anon ON FUNCTION anon.load() IS 'UNTRUSTED';
+SECURITY LABEL FOR anon ON FUNCTION anon.load(TEXT) IS 'UNTRUSTED';
+SECURITY LABEL FOR anon ON FUNCTION anon.load_csv IS 'UNTRUSTED';
+SECURITY LABEL FOR anon ON FUNCTION anon.notice_if_not_init IS 'UNTRUSTED';
+SECURITY LABEL FOR anon ON FUNCTION anon.refresh_replica_masking(TEXT) IS 'UNTRUSTED';
+SECURITY LABEL FOR anon ON FUNCTION anon.remove_masks_for_all_columns IS 'UNTRUSTED';
+SECURITY LABEL FOR anon ON FUNCTION anon.reset IS 'UNTRUSTED';
+SECURITY LABEL FOR anon ON FUNCTION anon.start_replica_masking(TEXT) IS 'UNTRUSTED';
+SECURITY LABEL FOR anon ON FUNCTION anon.stop_replica_masking() IS 'UNTRUSTED';
+SECURITY LABEL FOR anon ON FUNCTION anon.unload IS 'UNTRUSTED';

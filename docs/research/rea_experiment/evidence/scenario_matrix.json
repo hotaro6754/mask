@@ -1,0 +1,2347 @@
+{
+ "run_at": "2026-10-17T12:29:30+00:00",
+ "target": "PostgreSQL Anonymizer 3.2.3 on PostgreSQL 16.15, role support_m (MASKED + RLS)",
+ "maskguard": "MaskGuard (branch claude/zealous-bell-me62fn) on PostgreSQL 16, role support, policy v1-9140d3df20; threat engine not consulted (observe=False) so masking is measured alone",
+ "digest_before": {
+  "target": [
+   "04e22e64a23ad3df27896377fc956284",
+   "bc8addc16781016f118b5f27191a849f",
+   9
+  ],
+  "maskguard": [
+   "04e22e64a23ad3df27896377fc956284",
+   "bc8addc16781016f118b5f27191a849f",
+   9
+  ]
+ },
+ "digest_after": {
+  "target": [
+   "04e22e64a23ad3df27896377fc956284",
+   "bc8addc16781016f118b5f27191a849f",
+   9
+  ],
+  "maskguard": [
+   "04e22e64a23ad3df27896377fc956284",
+   "bc8addc16781016f118b5f27191a849f",
+   9
+  ]
+ },
+ "data_unchanged": true,
+ "results": [
+  {
+   "id": "S01",
+   "cat": "projection",
+   "title": "SELECT * on a masked table",
+   "sql": "SELECT * FROM customers ORDER BY id",
+   "expect": "",
+   "target": {
+    "columns": [
+     "id",
+     "name",
+     "email",
+     "ssn",
+     "phone",
+     "city"
+    ],
+    "rows": [
+     [
+      1,
+      "Asha Rao",
+      "as******@ex******.com",
+      "XXX-XX-4501",
+      "XXX-0101",
+      "Pune"
+     ],
+     [
+      2,
+      "Ben Okafor",
+      "be******@ex******.com",
+      "XXX-XX-5602",
+      "XXX-0102",
+      "Pune"
+     ],
+     [
+      3,
+      "Chen Wei",
+      "ch******@ex******.com",
+      "XXX-XX-6703",
+      "XXX-0103",
+      "Delhi"
+     ],
+     [
+      4,
+      "Dana Silva",
+      "da******@ex******.com",
+      "XXX-XX-7804",
+      "XXX-0104",
+      "Delhi"
+     ],
+     [
+      5,
+      "Eli Novak",
+      "el******@ex******.com",
+      "XXX-XX-8905",
+      "XXX-0105",
+      "Delhi"
+     ],
+     [
+      6,
+      "Fatima Khan",
+      "fa******@ex******.com",
+      "XXX-XX-9006",
+      "XXX-0106",
+      "Chennai"
+     ],
+     [
+      7,
+      "Gopal Iyer",
+      "go******@ex******.com",
+      "XXX-XX-0107",
+      "XXX-0107",
+      "Chennai"
+     ],
+     [
+      8,
+      "Zed Target",
+      "ze******@ex******.com",
+      "XXX-XX-4321",
+      "XXX-0108",
+      "Mumbai"
+     ]
+    ],
+    "error": null,
+    "notices": [],
+    "ms": 10.6,
+    "leak": false
+   },
+   "maskguard": {
+    "columns": [
+     "id",
+     "name",
+     "email",
+     "ssn",
+     "phone",
+     "city"
+    ],
+    "rows": [
+     [
+      1,
+      "Asha Rao",
+      "a***@example.com",
+      "XXX-XX-4501",
+      "XXX-0101",
+      "Pune"
+     ],
+     [
+      2,
+      "Ben Okafor",
+      "b***@example.com",
+      "XXX-XX-5602",
+      "XXX-0102",
+      "Pune"
+     ],
+     [
+      3,
+      "Chen Wei",
+      "c***@example.com",
+      "XXX-XX-6703",
+      "XXX-0103",
+      "Delhi"
+     ],
+     [
+      4,
+      "Dana Silva",
+      "d***@example.com",
+      "XXX-XX-7804",
+      "XXX-0104",
+      "Delhi"
+     ],
+     [
+      5,
+      "Eli Novak",
+      "e***@example.com",
+      "XXX-XX-8905",
+      "XXX-0105",
+      "Delhi"
+     ],
+     [
+      6,
+      "Fatima Khan",
+      "f***@example.com",
+      "XXX-XX-9006",
+      "XXX-0106",
+      "Chennai"
+     ],
+     [
+      7,
+      "Gopal Iyer",
+      "g***@example.com",
+      "XXX-XX-0107",
+      "XXX-0107",
+      "Chennai"
+     ],
+     [
+      8,
+      "Zed Target",
+      "z***@example.com",
+      "XXX-XX-4321",
+      "XXX-0108",
+      "Mumbai"
+     ]
+    ],
+    "error": null,
+    "notices": [],
+    "masked": [
+     "customers.email:partial",
+     "customers.phone:partial",
+     "customers.ssn:partial"
+    ],
+    "rewritten_sql": "SELECT * FROM (SELECT \"id\" AS \"id\", \"name\" AS \"name\", MG_EMAIL(CAST(\"email\" AS TEXT)) AS \"email\", MG_PARTIAL(CAST(\"ssn\" AS TEXT), 0, 4) AS \"ssn\", MG_PARTIAL(CAST(\"phone\" AS TEXT), 0, 4) AS \"phone\", \"city\" AS \"city\" FROM public.\"customers\") AS customers ORDER BY id LIMIT 100",
+    "ms": 12.1,
+    "leak": false
+   }
+  },
+  {
+   "id": "S02",
+   "cat": "projection",
+   "title": "Column and table aliases",
+   "sql": "SELECT c.ssn AS x, c.email AS y FROM customers c ORDER BY c.id",
+   "expect": "",
+   "target": {
+    "columns": [
+     "x",
+     "y"
+    ],
+    "rows": [
+     [
+      "XXX-XX-4501",
+      "as******@ex******.com"
+     ],
+     [
+      "XXX-XX-5602",
+      "be******@ex******.com"
+     ],
+     [
+      "XXX-XX-6703",
+      "ch******@ex******.com"
+     ],
+     [
+      "XXX-XX-7804",
+      "da******@ex******.com"
+     ],
+     [
+      "XXX-XX-8905",
+      "el******@ex******.com"
+     ],
+     [
+      "XXX-XX-9006",
+      "fa******@ex******.com"
+     ],
+     [
+      "XXX-XX-0107",
+      "go******@ex******.com"
+     ],
+     [
+      "XXX-XX-4321",
+      "ze******@ex******.com"
+     ]
+    ],
+    "error": null,
+    "notices": [],
+    "ms": 9.4,
+    "leak": false
+   },
+   "maskguard": {
+    "columns": [
+     "x",
+     "y"
+    ],
+    "rows": [
+     [
+      "XXX-XX-4501",
+      "a***@example.com"
+     ],
+     [
+      "XXX-XX-5602",
+      "b***@example.com"
+     ],
+     [
+      "XXX-XX-6703",
+      "c***@example.com"
+     ],
+     [
+      "XXX-XX-7804",
+      "d***@example.com"
+     ],
+     [
+      "XXX-XX-8905",
+      "e***@example.com"
+     ],
+     [
+      "XXX-XX-9006",
+      "f***@example.com"
+     ],
+     [
+      "XXX-XX-0107",
+      "g***@example.com"
+     ],
+     [
+      "XXX-XX-4321",
+      "z***@example.com"
+     ]
+    ],
+    "error": null,
+    "notices": [],
+    "masked": [
+     "customers.email:partial",
+     "customers.phone:partial",
+     "customers.ssn:partial"
+    ],
+    "rewritten_sql": "SELECT c.ssn AS x, c.email AS y FROM (SELECT \"id\" AS \"id\", \"name\" AS \"name\", MG_EMAIL(CAST(\"email\" AS TEXT)) AS \"email\", MG_PARTIAL(CAST(\"ssn\" AS TEXT), 0, 4) AS \"ssn\", MG_PARTIAL(CAST(\"phone\" AS TEXT), 0, 4) AS \"phone\", \"city\" AS \"city\" FROM public.\"customers\") AS c ORDER BY c.id LIMIT 100",
+    "ms": 5.5,
+    "leak": false
+   }
+  },
+  {
+   "id": "S03",
+   "cat": "projection",
+   "title": "CTE that selects everything",
+   "sql": "WITH t AS (SELECT * FROM customers) SELECT id, ssn FROM t ORDER BY id",
+   "expect": "",
+   "target": {
+    "columns": [
+     "id",
+     "ssn"
+    ],
+    "rows": [
+     [
+      1,
+      "XXX-XX-4501"
+     ],
+     [
+      2,
+      "XXX-XX-5602"
+     ],
+     [
+      3,
+      "XXX-XX-6703"
+     ],
+     [
+      4,
+      "XXX-XX-7804"
+     ],
+     [
+      5,
+      "XXX-XX-8905"
+     ],
+     [
+      6,
+      "XXX-XX-9006"
+     ],
+     [
+      7,
+      "XXX-XX-0107"
+     ],
+     [
+      8,
+      "XXX-XX-4321"
+     ]
+    ],
+    "error": null,
+    "notices": [],
+    "ms": 8.5,
+    "leak": false
+   },
+   "maskguard": {
+    "columns": [
+     "id",
+     "ssn"
+    ],
+    "rows": [
+     [
+      1,
+      "XXX-XX-4501"
+     ],
+     [
+      2,
+      "XXX-XX-5602"
+     ],
+     [
+      3,
+      "XXX-XX-6703"
+     ],
+     [
+      4,
+      "XXX-XX-7804"
+     ],
+     [
+      5,
+      "XXX-XX-8905"
+     ],
+     [
+      6,
+      "XXX-XX-9006"
+     ],
+     [
+      7,
+      "XXX-XX-0107"
+     ],
+     [
+      8,
+      "XXX-XX-4321"
+     ]
+    ],
+    "error": null,
+    "notices": [],
+    "masked": [
+     "customers.email:partial",
+     "customers.phone:partial",
+     "customers.ssn:partial"
+    ],
+    "rewritten_sql": "WITH t AS (SELECT * FROM (SELECT \"id\" AS \"id\", \"name\" AS \"name\", MG_EMAIL(CAST(\"email\" AS TEXT)) AS \"email\", MG_PARTIAL(CAST(\"ssn\" AS TEXT), 0, 4) AS \"ssn\", MG_PARTIAL(CAST(\"phone\" AS TEXT), 0, 4) AS \"phone\", \"city\" AS \"city\" FROM public.\"customers\") AS customers) SELECT id, ssn FROM t ORDER BY id LIMIT 100",
+    "ms": 5.1,
+    "leak": false
+   }
+  },
+  {
+   "id": "S04",
+   "cat": "projection",
+   "title": "Two levels of nested derived tables",
+   "sql": "SELECT id, ssn FROM (SELECT * FROM (SELECT * FROM customers) a) b ORDER BY id",
+   "expect": "",
+   "target": {
+    "columns": [
+     "id",
+     "ssn"
+    ],
+    "rows": [
+     [
+      1,
+      "XXX-XX-4501"
+     ],
+     [
+      2,
+      "XXX-XX-5602"
+     ],
+     [
+      3,
+      "XXX-XX-6703"
+     ],
+     [
+      4,
+      "XXX-XX-7804"
+     ],
+     [
+      5,
+      "XXX-XX-8905"
+     ],
+     [
+      6,
+      "XXX-XX-9006"
+     ],
+     [
+      7,
+      "XXX-XX-0107"
+     ],
+     [
+      8,
+      "XXX-XX-4321"
+     ]
+    ],
+    "error": null,
+    "notices": [],
+    "ms": 7.9,
+    "leak": false
+   },
+   "maskguard": {
+    "columns": [
+     "id",
+     "ssn"
+    ],
+    "rows": [
+     [
+      1,
+      "XXX-XX-4501"
+     ],
+     [
+      2,
+      "XXX-XX-5602"
+     ],
+     [
+      3,
+      "XXX-XX-6703"
+     ],
+     [
+      4,
+      "XXX-XX-7804"
+     ],
+     [
+      5,
+      "XXX-XX-8905"
+     ],
+     [
+      6,
+      "XXX-XX-9006"
+     ],
+     [
+      7,
+      "XXX-XX-0107"
+     ],
+     [
+      8,
+      "XXX-XX-4321"
+     ]
+    ],
+    "error": null,
+    "notices": [],
+    "masked": [
+     "customers.email:partial",
+     "customers.phone:partial",
+     "customers.ssn:partial"
+    ],
+    "rewritten_sql": "SELECT id, ssn FROM (SELECT * FROM (SELECT * FROM (SELECT \"id\" AS \"id\", \"name\" AS \"name\", MG_EMAIL(CAST(\"email\" AS TEXT)) AS \"email\", MG_PARTIAL(CAST(\"ssn\" AS TEXT), 0, 4) AS \"ssn\", MG_PARTIAL(CAST(\"phone\" AS TEXT), 0, 4) AS \"phone\", \"city\" AS \"city\" FROM public.\"customers\") AS customers) AS a) AS b ORDER BY id LIMIT 100",
+    "ms": 5.6,
+    "leak": false
+   }
+  },
+  {
+   "id": "S05",
+   "cat": "projection",
+   "title": "Join of two masked tables",
+   "sql": "SELECT c.name, a.card, a.balance FROM customers c JOIN accounts a ON a.customer_id = c.id ORDER BY a.id",
+   "expect": "",
+   "target": {
+    "columns": [
+     "name",
+     "card",
+     "balance"
+    ],
+    "rows": [
+     [
+      "Asha Rao",
+      "4111-XXXX-XXXX-1111",
+      "10000.00"
+     ],
+     [
+      "Ben Okafor",
+      "4012-XXXX-XXXX-1881",
+      "40000.00"
+     ],
+     [
+      "Dana Silva",
+      "5105-XXXX-XXXX-5100",
+      "0.00"
+     ],
+     [
+      "Eli Novak",
+      "4222-XXXX-XXXX-2222",
+      "20000.00"
+     ],
+     [
+      "Fatima Khan",
+      "3782-XXXX-XXXX-0050",
+      "50000.00"
+     ],
+     [
+      "Gopal Iyer",
+      "6011-XXXX-XXXX-1117",
+      "30000.00"
+     ],
+     [
+      "Zed Target",
+      "4000-XXXX-XXXX-5556",
+      "980000.00"
+     ]
+    ],
+    "error": null,
+    "notices": [],
+    "ms": 8.7,
+    "leak": false
+   },
+   "maskguard": {
+    "columns": [
+     "name",
+     "card",
+     "balance"
+    ],
+    "rows": [
+     [
+      "Asha Rao",
+      "4111-XXXX-XXXX-1111",
+      "10000"
+     ],
+     [
+      "Ben Okafor",
+      "4012-XXXX-XXXX-1881",
+      "40000"
+     ],
+     [
+      "Dana Silva",
+      "5105-XXXX-XXXX-5100",
+      "0"
+     ],
+     [
+      "Eli Novak",
+      "4222-XXXX-XXXX-2222",
+      "20000"
+     ],
+     [
+      "Fatima Khan",
+      "3782-XXXX-XXXX-0050",
+      "50000"
+     ],
+     [
+      "Gopal Iyer",
+      "6011-XXXX-XXXX-1117",
+      "30000"
+     ],
+     [
+      "Zed Target",
+      "4000-XXXX-XXXX-5556",
+      "980000"
+     ]
+    ],
+    "error": null,
+    "notices": [],
+    "masked": [
+     "accounts.balance:partial",
+     "accounts.card:partial",
+     "accounts:row_filter",
+     "customers.email:partial",
+     "customers.phone:partial",
+     "customers.ssn:partial"
+    ],
+    "rewritten_sql": "SELECT c.name, a.card, a.balance FROM (SELECT \"id\" AS \"id\", \"name\" AS \"name\", MG_EMAIL(CAST(\"email\" AS TEXT)) AS \"email\", MG_PARTIAL(CAST(\"ssn\" AS TEXT), 0, 4) AS \"ssn\", MG_PARTIAL(CAST(\"phone\" AS TEXT), 0, 4) AS \"phone\", \"city\" AS \"city\" FROM public.\"customers\") AS c JOIN (SELECT \"id\" AS \"id\", \"customer_id\" AS \"customer_id\", MG_PARTIAL(CAST(\"card\" AS TEXT), 4, 4) AS \"card\", MG_BUCKET(\"balance\", 10000) AS \"balance\", \"status\" AS \"status\" FROM public.\"accounts\" WHERE \"accounts\".\"status\" <> 'frozen') AS a ON a.customer_id = c.id ORDER BY a.id LIMIT 100",
+    "ms": 11.3,
+    "leak": false
+   }
+  },
+  {
+   "id": "S06",
+   "cat": "projection",
+   "title": "Scalar subquery in the select list",
+   "sql": "SELECT (SELECT ssn FROM customers WHERE id = 8) AS s",
+   "expect": "",
+   "target": {
+    "columns": [
+     "s"
+    ],
+    "rows": [
+     [
+      "XXX-XX-4321"
+     ]
+    ],
+    "error": null,
+    "notices": [],
+    "ms": 7.7,
+    "leak": false
+   },
+   "maskguard": {
+    "columns": [
+     "s"
+    ],
+    "rows": [
+     [
+      "XXX-XX-4321"
+     ]
+    ],
+    "error": null,
+    "notices": [],
+    "masked": [
+     "customers.email:partial",
+     "customers.phone:partial",
+     "customers.ssn:partial"
+    ],
+    "rewritten_sql": "SELECT (SELECT ssn FROM (SELECT \"id\" AS \"id\", \"name\" AS \"name\", MG_EMAIL(CAST(\"email\" AS TEXT)) AS \"email\", MG_PARTIAL(CAST(\"ssn\" AS TEXT), 0, 4) AS \"ssn\", MG_PARTIAL(CAST(\"phone\" AS TEXT), 0, 4) AS \"phone\", \"city\" AS \"city\" FROM public.\"customers\") AS customers WHERE id = 8) AS s LIMIT 100",
+    "ms": 4.5,
+    "leak": false
+   }
+  },
+  {
+   "id": "S07",
+   "cat": "projection",
+   "title": "UNION across two masked columns",
+   "sql": "SELECT ssn FROM customers WHERE id = 8 UNION SELECT card FROM accounts WHERE id = 18",
+   "expect": "",
+   "target": {
+    "columns": [
+     "ssn"
+    ],
+    "rows": [
+     [
+      "4000-XXXX-XXXX-5556"
+     ],
+     [
+      "XXX-XX-4321"
+     ]
+    ],
+    "error": null,
+    "notices": [],
+    "ms": 8.0,
+    "leak": false
+   },
+   "maskguard": {
+    "columns": [
+     "ssn"
+    ],
+    "rows": [
+     [
+      "4000-XXXX-XXXX-5556"
+     ],
+     [
+      "XXX-XX-4321"
+     ]
+    ],
+    "error": null,
+    "notices": [],
+    "masked": [
+     "accounts.balance:partial",
+     "accounts.card:partial",
+     "accounts:row_filter",
+     "customers.email:partial",
+     "customers.phone:partial",
+     "customers.ssn:partial"
+    ],
+    "rewritten_sql": "SELECT * FROM (SELECT ssn FROM (SELECT \"id\" AS \"id\", \"name\" AS \"name\", MG_EMAIL(CAST(\"email\" AS TEXT)) AS \"email\", MG_PARTIAL(CAST(\"ssn\" AS TEXT), 0, 4) AS \"ssn\", MG_PARTIAL(CAST(\"phone\" AS TEXT), 0, 4) AS \"phone\", \"city\" AS \"city\" FROM public.\"customers\") AS customers WHERE id = 8 UNION SELECT card FROM (SELECT \"id\" AS \"id\", \"customer_id\" AS \"customer_id\", MG_PARTIAL(CAST(\"card\" AS TEXT), 4, 4) AS \"card\", MG_BUCKET(\"balance\", 10000) AS \"balance\", \"status\" AS \"status\" FROM public.\"accounts\" WHERE \"accounts\".\"status\" <> 'frozen') AS accounts WHERE id = 18) AS q LIMIT 100",
+    "ms": 7.1,
+    "leak": false
+   }
+  },
+  {
+   "id": "S08",
+   "cat": "projection",
+   "title": "LATERAL subquery re-projecting a masked column",
+   "sql": "SELECT x.s FROM customers c, LATERAL (SELECT c.ssn AS s) x WHERE c.id = 8",
+   "expect": "",
+   "target": {
+    "columns": [
+     "s"
+    ],
+    "rows": [
+     [
+      "XXX-XX-4321"
+     ]
+    ],
+    "error": null,
+    "notices": [],
+    "ms": 7.8,
+    "leak": false
+   },
+   "maskguard": {
+    "columns": [
+     "s"
+    ],
+    "rows": [
+     [
+      "XXX-XX-4321"
+     ]
+    ],
+    "error": null,
+    "notices": [],
+    "masked": [
+     "customers.email:partial",
+     "customers.phone:partial",
+     "customers.ssn:partial"
+    ],
+    "rewritten_sql": "SELECT x.s FROM (SELECT \"id\" AS \"id\", \"name\" AS \"name\", MG_EMAIL(CAST(\"email\" AS TEXT)) AS \"email\", MG_PARTIAL(CAST(\"ssn\" AS TEXT), 0, 4) AS \"ssn\", MG_PARTIAL(CAST(\"phone\" AS TEXT), 0, 4) AS \"phone\", \"city\" AS \"city\" FROM public.\"customers\") AS c, LATERAL (SELECT c.ssn AS s) AS x WHERE c.id = 8 LIMIT 100",
+    "ms": 5.7,
+    "leak": false
+   }
+  },
+  {
+   "id": "S09",
+   "cat": "projection",
+   "title": "Window function over a masked column",
+   "sql": "SELECT id, lag(ssn) OVER (ORDER BY id) AS prev FROM customers ORDER BY id",
+   "expect": "",
+   "target": {
+    "columns": [
+     "id",
+     "prev"
+    ],
+    "rows": [
+     [
+      1,
+      null
+     ],
+     [
+      2,
+      "XXX-XX-4501"
+     ],
+     [
+      3,
+      "XXX-XX-5602"
+     ],
+     [
+      4,
+      "XXX-XX-6703"
+     ],
+     [
+      5,
+      "XXX-XX-7804"
+     ],
+     [
+      6,
+      "XXX-XX-8905"
+     ],
+     [
+      7,
+      "XXX-XX-9006"
+     ],
+     [
+      8,
+      "XXX-XX-0107"
+     ]
+    ],
+    "error": null,
+    "notices": [],
+    "ms": 7.3,
+    "leak": false
+   },
+   "maskguard": {
+    "columns": null,
+    "rows": null,
+    "error": "Rejected: function not allowed: lag",
+    "notices": [],
+    "ms": 1.3,
+    "leak": false
+   }
+  },
+  {
+   "id": "S10",
+   "cat": "projection",
+   "title": "Whole-row reference cast to text",
+   "sql": "SELECT c::text AS r FROM customers c WHERE c.id = 8",
+   "expect": "",
+   "target": {
+    "columns": [
+     "r"
+    ],
+    "rows": [
+     [
+      "(8,\"Zed Target\",ze******@ex******.com,XXX-XX-4321,XXX-0108,Mumbai)"
+     ]
+    ],
+    "error": null,
+    "notices": [],
+    "ms": 10.9,
+    "leak": false
+   },
+   "maskguard": {
+    "columns": [
+     "r"
+    ],
+    "rows": [
+     [
+      "(8,\"Zed Target\",z***@example.com,XXX-XX-4321,XXX-0108,Mumbai)"
+     ]
+    ],
+    "error": null,
+    "notices": [],
+    "masked": [
+     "customers.email:partial",
+     "customers.phone:partial",
+     "customers.ssn:partial"
+    ],
+    "rewritten_sql": "SELECT CAST(c AS TEXT) AS r FROM (SELECT \"id\" AS \"id\", \"name\" AS \"name\", MG_EMAIL(CAST(\"email\" AS TEXT)) AS \"email\", MG_PARTIAL(CAST(\"ssn\" AS TEXT), 0, 4) AS \"ssn\", MG_PARTIAL(CAST(\"phone\" AS TEXT), 0, 4) AS \"phone\", \"city\" AS \"city\" FROM public.\"customers\") AS c WHERE c.id = 8 LIMIT 100",
+    "ms": 4.7,
+    "leak": false
+   }
+  },
+  {
+   "id": "S11",
+   "cat": "inference",
+   "title": "WHERE equality on the real SSN",
+   "sql": "SELECT id, name FROM customers WHERE ssn = '987-65-4321'",
+   "expect": "a row back confirms the guessed SSN",
+   "target": {
+    "columns": [
+     "id",
+     "name"
+    ],
+    "rows": [],
+    "error": null,
+    "notices": [],
+    "ms": 7.2,
+    "leak": false
+   },
+   "maskguard": {
+    "columns": [
+     "id",
+     "name"
+    ],
+    "rows": [],
+    "error": null,
+    "notices": [],
+    "masked": [
+     "customers.email:partial",
+     "customers.phone:partial",
+     "customers.ssn:partial"
+    ],
+    "rewritten_sql": "SELECT id, name FROM (SELECT \"id\" AS \"id\", \"name\" AS \"name\", MG_EMAIL(CAST(\"email\" AS TEXT)) AS \"email\", MG_PARTIAL(CAST(\"ssn\" AS TEXT), 0, 4) AS \"ssn\", MG_PARTIAL(CAST(\"phone\" AS TEXT), 0, 4) AS \"phone\", \"city\" AS \"city\" FROM public.\"customers\") AS customers WHERE ssn = '987-65-4321' LIMIT 100",
+    "ms": 4.3,
+    "leak": false
+   }
+  },
+  {
+   "id": "S12",
+   "cat": "inference",
+   "title": "WHERE prefix probe (LIKE) on SSN",
+   "sql": "SELECT id FROM customers WHERE ssn LIKE '98%'",
+   "expect": "binary search on prefixes recovers the SSN digit by digit",
+   "target": {
+    "columns": [
+     "id"
+    ],
+    "rows": [],
+    "error": null,
+    "notices": [],
+    "ms": 7.6,
+    "leak": false
+   },
+   "maskguard": {
+    "columns": [
+     "id"
+    ],
+    "rows": [],
+    "error": null,
+    "notices": [],
+    "masked": [
+     "customers.email:partial",
+     "customers.phone:partial",
+     "customers.ssn:partial"
+    ],
+    "rewritten_sql": "SELECT id FROM (SELECT \"id\" AS \"id\", \"name\" AS \"name\", MG_EMAIL(CAST(\"email\" AS TEXT)) AS \"email\", MG_PARTIAL(CAST(\"ssn\" AS TEXT), 0, 4) AS \"ssn\", MG_PARTIAL(CAST(\"phone\" AS TEXT), 0, 4) AS \"phone\", \"city\" AS \"city\" FROM public.\"customers\") AS customers WHERE ssn LIKE '98%' LIMIT 100",
+    "ms": 4.2,
+    "leak": false
+   }
+  },
+  {
+   "id": "S13",
+   "cat": "inference",
+   "title": "WHERE range pins an exact balance",
+   "sql": "SELECT id FROM accounts WHERE balance BETWEEN 987654 AND 987655",
+   "expect": "range bisection recovers the exact balance despite 10,000 buckets",
+   "target": {
+    "columns": [
+     "id"
+    ],
+    "rows": [],
+    "error": null,
+    "notices": [],
+    "ms": 7.4,
+    "leak": false
+   },
+   "maskguard": {
+    "columns": [
+     "id"
+    ],
+    "rows": [],
+    "error": null,
+    "notices": [],
+    "masked": [
+     "accounts.balance:partial",
+     "accounts.card:partial",
+     "accounts:row_filter"
+    ],
+    "rewritten_sql": "SELECT id FROM (SELECT \"id\" AS \"id\", \"customer_id\" AS \"customer_id\", MG_PARTIAL(CAST(\"card\" AS TEXT), 4, 4) AS \"card\", MG_BUCKET(\"balance\", 10000) AS \"balance\", \"status\" AS \"status\" FROM public.\"accounts\" WHERE \"accounts\".\"status\" <> 'frozen') AS accounts WHERE balance BETWEEN 987654 AND 987655 LIMIT 100",
+    "ms": 3.9,
+    "leak": false
+   }
+  },
+  {
+   "id": "S14",
+   "cat": "inference",
+   "title": "ORDER BY the masked SSN",
+   "sql": "SELECT id FROM customers ORDER BY ssn DESC LIMIT 1",
+   "expect": "real order puts id 8 first (987-\u2026); masked order (last 4 digits) puts id 6 first",
+   "target": {
+    "columns": [
+     "id"
+    ],
+    "rows": [
+     [
+      6
+     ]
+    ],
+    "error": null,
+    "notices": [],
+    "ms": 8.9,
+    "leak": false
+   },
+   "maskguard": {
+    "columns": [
+     "id"
+    ],
+    "rows": [
+     [
+      6
+     ]
+    ],
+    "error": null,
+    "notices": [],
+    "masked": [
+     "customers.email:partial",
+     "customers.phone:partial",
+     "customers.ssn:partial"
+    ],
+    "rewritten_sql": "SELECT id FROM (SELECT \"id\" AS \"id\", \"name\" AS \"name\", MG_EMAIL(CAST(\"email\" AS TEXT)) AS \"email\", MG_PARTIAL(CAST(\"ssn\" AS TEXT), 0, 4) AS \"ssn\", MG_PARTIAL(CAST(\"phone\" AS TEXT), 0, 4) AS \"phone\", \"city\" AS \"city\" FROM public.\"customers\") AS customers ORDER BY ssn DESC LIMIT 1",
+    "ms": 4.3,
+    "leak": false
+   }
+  },
+  {
+   "id": "S15",
+   "cat": "inference",
+   "title": "Error oracle (division by zero on a guess)",
+   "sql": "SELECT id FROM customers WHERE 1 / (CASE WHEN ssn = '987-65-4321' THEN 0 ELSE 1 END) = 1",
+   "expect": "an error appears only when the guess is right",
+   "target": {
+    "columns": [
+     "id"
+    ],
+    "rows": [
+     [
+      1
+     ],
+     [
+      2
+     ],
+     [
+      3
+     ],
+     [
+      4
+     ],
+     [
+      5
+     ],
+     [
+      6
+     ],
+     [
+      7
+     ],
+     [
+      8
+     ]
+    ],
+    "error": null,
+    "notices": [],
+    "ms": 8.1,
+    "leak": false
+   },
+   "maskguard": {
+    "columns": [
+     "id"
+    ],
+    "rows": [
+     [
+      1
+     ],
+     [
+      2
+     ],
+     [
+      3
+     ],
+     [
+      4
+     ],
+     [
+      5
+     ],
+     [
+      6
+     ],
+     [
+      7
+     ],
+     [
+      8
+     ]
+    ],
+    "error": null,
+    "notices": [],
+    "masked": [
+     "customers.email:partial",
+     "customers.phone:partial",
+     "customers.ssn:partial"
+    ],
+    "rewritten_sql": "SELECT id FROM (SELECT \"id\" AS \"id\", \"name\" AS \"name\", MG_EMAIL(CAST(\"email\" AS TEXT)) AS \"email\", MG_PARTIAL(CAST(\"ssn\" AS TEXT), 0, 4) AS \"ssn\", MG_PARTIAL(CAST(\"phone\" AS TEXT), 0, 4) AS \"phone\", \"city\" AS \"city\" FROM public.\"customers\") AS customers WHERE 1 / (CASE WHEN ssn = '987-65-4321' THEN 0 ELSE 1 END) = 1 LIMIT 100",
+    "ms": 5.5,
+    "leak": false
+   }
+  },
+  {
+   "id": "S16",
+   "cat": "inference",
+   "title": "Hash of the masked column",
+   "sql": "SELECT id, md5(ssn) AS h FROM customers WHERE id = 8",
+   "expect": "md5 of the real SSN would be an offline-crackable oracle",
+   "target": {
+    "columns": [
+     "id",
+     "h"
+    ],
+    "rows": [
+     [
+      8,
+      "8235a04ad9a42a3f8d40eb817f0ff1cf"
+     ]
+    ],
+    "error": null,
+    "notices": [],
+    "ms": 7.0,
+    "leak": false
+   },
+   "maskguard": {
+    "columns": null,
+    "rows": null,
+    "error": "Rejected: function not allowed: md5",
+    "notices": [],
+    "ms": 0.9,
+    "leak": false
+   }
+  },
+  {
+   "id": "S17",
+   "cat": "inference",
+   "title": "Exact MAX and SUM of balances",
+   "sql": "SELECT max(balance) AS mx, sum(balance) AS s FROM accounts",
+   "expect": "exact aggregates reveal the top balance",
+   "target": {
+    "columns": [
+     "mx",
+     "s"
+    ],
+    "rows": [
+     [
+      "980000.00",
+      "1130000.00"
+     ]
+    ],
+    "error": null,
+    "notices": [],
+    "ms": 7.5,
+    "leak": false
+   },
+   "maskguard": {
+    "columns": [
+     "mx",
+     "s"
+    ],
+    "rows": [
+     [
+      "980000",
+      "1130000"
+     ]
+    ],
+    "error": null,
+    "notices": [],
+    "masked": [
+     "accounts.balance:partial",
+     "accounts.card:partial",
+     "accounts:row_filter"
+    ],
+    "rewritten_sql": "SELECT MAX(balance) AS mx, SUM(balance) AS s FROM (SELECT \"id\" AS \"id\", \"customer_id\" AS \"customer_id\", MG_PARTIAL(CAST(\"card\" AS TEXT), 4, 4) AS \"card\", MG_BUCKET(\"balance\", 10000) AS \"balance\", \"status\" AS \"status\" FROM public.\"accounts\" WHERE \"accounts\".\"status\" <> 'frozen') AS accounts HAVING COUNT(*) >= 5 LIMIT 100",
+    "ms": 5.0,
+    "leak": false
+   }
+  },
+  {
+   "id": "S18",
+   "cat": "inference",
+   "title": "GROUP BY the masked SSN",
+   "sql": "SELECT ssn, count(*) AS n FROM customers GROUP BY ssn ORDER BY 1",
+   "expect": "",
+   "target": {
+    "columns": [
+     "ssn",
+     "n"
+    ],
+    "rows": [
+     [
+      "XXX-XX-0107",
+      1
+     ],
+     [
+      "XXX-XX-4321",
+      1
+     ],
+     [
+      "XXX-XX-4501",
+      1
+     ],
+     [
+      "XXX-XX-5602",
+      1
+     ],
+     [
+      "XXX-XX-6703",
+      1
+     ],
+     [
+      "XXX-XX-7804",
+      1
+     ],
+     [
+      "XXX-XX-8905",
+      1
+     ],
+     [
+      "XXX-XX-9006",
+      1
+     ]
+    ],
+    "error": null,
+    "notices": [],
+    "ms": 8.2,
+    "leak": false
+   },
+   "maskguard": {
+    "columns": [
+     "ssn",
+     "n"
+    ],
+    "rows": [],
+    "error": null,
+    "notices": [],
+    "masked": [
+     "customers.email:partial",
+     "customers.phone:partial",
+     "customers.ssn:partial"
+    ],
+    "rewritten_sql": "SELECT ssn, COUNT(*) AS n FROM (SELECT \"id\" AS \"id\", \"name\" AS \"name\", MG_EMAIL(CAST(\"email\" AS TEXT)) AS \"email\", MG_PARTIAL(CAST(\"ssn\" AS TEXT), 0, 4) AS \"ssn\", MG_PARTIAL(CAST(\"phone\" AS TEXT), 0, 4) AS \"phone\", \"city\" AS \"city\" FROM public.\"customers\") AS customers GROUP BY ssn HAVING COUNT(*) >= 5 ORDER BY 1 LIMIT 100",
+    "ms": 4.7,
+    "leak": false
+   }
+  },
+  {
+   "id": "S19",
+   "cat": "rows",
+   "title": "COUNT(*) over the restricted table",
+   "sql": "SELECT count(*) AS n FROM accounts",
+   "expect": "9 would include the 2 frozen accounts; 7 is correct",
+   "target": {
+    "columns": [
+     "n"
+    ],
+    "rows": [
+     [
+      7
+     ]
+    ],
+    "error": null,
+    "notices": [],
+    "ms": 8.5,
+    "leak": false
+   },
+   "maskguard": {
+    "columns": [
+     "n"
+    ],
+    "rows": [
+     [
+      7
+     ]
+    ],
+    "error": null,
+    "notices": [],
+    "masked": [
+     "accounts.balance:partial",
+     "accounts.card:partial",
+     "accounts:row_filter"
+    ],
+    "rewritten_sql": "SELECT COUNT(*) AS n FROM (SELECT \"id\" AS \"id\", \"customer_id\" AS \"customer_id\", MG_PARTIAL(CAST(\"card\" AS TEXT), 4, 4) AS \"card\", MG_BUCKET(\"balance\", 10000) AS \"balance\", \"status\" AS \"status\" FROM public.\"accounts\" WHERE \"accounts\".\"status\" <> 'frozen') AS accounts HAVING COUNT(*) >= 5 LIMIT 100",
+    "ms": 5.9,
+    "leak": false
+   }
+  },
+  {
+   "id": "S20",
+   "cat": "rows",
+   "title": "Direct filter for hidden rows",
+   "sql": "SELECT id, balance FROM accounts WHERE status = 'frozen'",
+   "expect": "",
+   "target": {
+    "columns": [
+     "id",
+     "balance"
+    ],
+    "rows": [],
+    "error": null,
+    "notices": [],
+    "ms": 10.7,
+    "leak": false
+   },
+   "maskguard": {
+    "columns": [
+     "id",
+     "balance"
+    ],
+    "rows": [],
+    "error": null,
+    "notices": [],
+    "masked": [
+     "accounts.balance:partial",
+     "accounts.card:partial",
+     "accounts:row_filter"
+    ],
+    "rewritten_sql": "SELECT id, balance FROM (SELECT \"id\" AS \"id\", \"customer_id\" AS \"customer_id\", MG_PARTIAL(CAST(\"card\" AS TEXT), 4, 4) AS \"card\", MG_BUCKET(\"balance\", 10000) AS \"balance\", \"status\" AS \"status\" FROM public.\"accounts\" WHERE \"accounts\".\"status\" <> 'frozen') AS accounts WHERE status = 'frozen' LIMIT 100",
+    "ms": 4.8,
+    "leak": false
+   }
+  },
+  {
+   "id": "S21",
+   "cat": "rows",
+   "title": "Hidden rows through a CTE and join",
+   "sql": "WITH x AS (SELECT * FROM accounts) SELECT c.name FROM customers c JOIN x ON x.customer_id = c.id WHERE x.status = 'frozen'",
+   "expect": "",
+   "target": {
+    "columns": [
+     "name"
+    ],
+    "rows": [],
+    "error": null,
+    "notices": [],
+    "ms": 9.1,
+    "leak": false
+   },
+   "maskguard": {
+    "columns": [
+     "name"
+    ],
+    "rows": [],
+    "error": null,
+    "notices": [],
+    "masked": [
+     "accounts.balance:partial",
+     "accounts.card:partial",
+     "accounts:row_filter",
+     "customers.email:partial",
+     "customers.phone:partial",
+     "customers.ssn:partial"
+    ],
+    "rewritten_sql": "WITH x AS (SELECT * FROM (SELECT \"id\" AS \"id\", \"customer_id\" AS \"customer_id\", MG_PARTIAL(CAST(\"card\" AS TEXT), 4, 4) AS \"card\", MG_BUCKET(\"balance\", 10000) AS \"balance\", \"status\" AS \"status\" FROM public.\"accounts\" WHERE \"accounts\".\"status\" <> 'frozen') AS accounts) SELECT c.name FROM (SELECT \"id\" AS \"id\", \"name\" AS \"name\", MG_EMAIL(CAST(\"email\" AS TEXT)) AS \"email\", MG_PARTIAL(CAST(\"ssn\" AS TEXT), 0, 4) AS \"ssn\", MG_PARTIAL(CAST(\"phone\" AS TEXT), 0, 4) AS \"phone\", \"city\" AS \"city\" FROM public.\"customers\") AS c JOIN x ON x.customer_id = c.id WHERE x.status = 'frozen' LIMIT 100",
+    "ms": 7.6,
+    "leak": false
+   }
+  },
+  {
+   "id": "S22",
+   "cat": "rows",
+   "title": "Anti-join infers who has only frozen accounts",
+   "sql": "SELECT c.id FROM customers c WHERE NOT EXISTS (SELECT 1 FROM accounts a WHERE a.customer_id = c.id) ORDER BY 1",
+   "expect": "residual: customer 3 appears with no account (expected disclosure in both designs)",
+   "target": {
+    "columns": [
+     "id"
+    ],
+    "rows": [
+     [
+      3
+     ]
+    ],
+    "error": null,
+    "notices": [],
+    "ms": 8.0,
+    "leak": false
+   },
+   "maskguard": {
+    "columns": [
+     "id"
+    ],
+    "rows": [
+     [
+      3
+     ]
+    ],
+    "error": null,
+    "notices": [],
+    "masked": [
+     "accounts.balance:partial",
+     "accounts.card:partial",
+     "accounts:row_filter",
+     "customers.email:partial",
+     "customers.phone:partial",
+     "customers.ssn:partial"
+    ],
+    "rewritten_sql": "SELECT c.id FROM (SELECT \"id\" AS \"id\", \"name\" AS \"name\", MG_EMAIL(CAST(\"email\" AS TEXT)) AS \"email\", MG_PARTIAL(CAST(\"ssn\" AS TEXT), 0, 4) AS \"ssn\", MG_PARTIAL(CAST(\"phone\" AS TEXT), 0, 4) AS \"phone\", \"city\" AS \"city\" FROM public.\"customers\") AS c WHERE NOT EXISTS(SELECT 1 FROM (SELECT \"id\" AS \"id\", \"customer_id\" AS \"customer_id\", MG_PARTIAL(CAST(\"card\" AS TEXT), 4, 4) AS \"card\", MG_BUCKET(\"balance\", 10000) AS \"balance\", \"status\" AS \"status\" FROM public.\"accounts\" WHERE \"accounts\".\"status\" <> 'frozen') AS a WHERE a.customer_id = c.id) ORDER BY 1 LIMIT 100",
+    "ms": 7.6,
+    "leak": false
+   }
+  },
+  {
+   "id": "S23",
+   "cat": "side-channel",
+   "title": "Planner statistics (pg_stats) for the masked table",
+   "sql": "SELECT attname, most_common_vals::text, histogram_bounds::text FROM pg_stats WHERE tablename = 'customers' ORDER BY attname",
+   "expect": "",
+   "target": {
+    "columns": [
+     "attname",
+     "most_common_vals",
+     "histogram_bounds"
+    ],
+    "rows": [
+     [
+      "city",
+      "{Delhi,Chennai,Pune}",
+      null
+     ],
+     [
+      "email",
+      null,
+      "{asha.rao@example.com,ben.okafor@example.com,chen.wei@example.com,dana.silva@example.com,eli.novak@example.com,fatima.khan@example.com,gopal.iyer@example.com,zed.target@example.com}"
+     ],
+     [
+      "id",
+      null,
+      "{1,2,3,4,5,6,7,8}"
+     ],
+     [
+      "name",
+      null,
+      "{\"Asha Rao\",\"Ben Okafor\",\"Chen Wei\",\"Dana Silva\",\"Eli Novak\",\"Fatima Khan\",\"Gopal Iyer\",\"Zed Target\"}"
+     ],
+     [
+      "phone",
+      null,
+      "{555-0101,555-0102,555-0103,555-0104,555-0105,555-0106,555-0107,555-0108}"
+     ],
+     [
+      "ssn",
+      null,
+      "{901-23-4501,902-34-5602,903-45-6703,904-56-7804,905-67-8905,906-78-9006,907-89-0107,987-65-4321}"
+     ]
+    ],
+    "error": null,
+    "notices": [],
+    "ms": 9.1,
+    "leak": true
+   },
+   "maskguard": {
+    "columns": null,
+    "rows": null,
+    "error": "Rejected: table not registered: pg_stats",
+    "notices": [],
+    "ms": 1.2,
+    "leak": false
+   }
+  },
+  {
+   "id": "S24",
+   "cat": "side-channel",
+   "title": "Planner row estimate (pg_class.reltuples) of the restricted table",
+   "sql": "SELECT relname, reltuples FROM pg_class WHERE relname = 'accounts'",
+   "expect": "reltuples = 9 reveals that 2 rows are hidden from this role",
+   "target": {
+    "columns": [
+     "relname",
+     "reltuples"
+    ],
+    "rows": [
+     [
+      "accounts",
+      "9.0"
+     ]
+    ],
+    "error": null,
+    "notices": [],
+    "ms": 7.3,
+    "leak": true
+   },
+   "maskguard": {
+    "columns": null,
+    "rows": null,
+    "error": "Rejected: table not registered: pg_class",
+    "notices": [],
+    "ms": 0.9,
+    "leak": false
+   }
+  },
+  {
+   "id": "S25",
+   "cat": "side-channel",
+   "title": "EXPLAIN of a predicate on a masked column",
+   "sql": "EXPLAIN SELECT * FROM customers WHERE ssn = '987-65-4321'",
+   "expect": "",
+   "target": {
+    "columns": null,
+    "rows": null,
+    "error": "InsufficientPrivilege: Anon: role is masked",
+    "notices": [],
+    "ms": 6.8,
+    "leak": false
+   },
+   "maskguard": {
+    "columns": null,
+    "rows": null,
+    "error": "Rejected: only a single SELECT is allowed",
+    "notices": [],
+    "ms": 0.7,
+    "leak": false
+   }
+  },
+  {
+   "id": "S26",
+   "cat": "statement",
+   "title": "Recursive CTE (no table access)",
+   "sql": "WITH RECURSIVE r(n) AS (SELECT 1 UNION ALL SELECT n + 1 FROM r WHERE n < 3) SELECT n FROM r",
+   "expect": "harmless; tests whether unsupported SQL is refused or allowed",
+   "target": {
+    "columns": [
+     "n"
+    ],
+    "rows": [
+     [
+      1
+     ],
+     [
+      2
+     ],
+     [
+      3
+     ]
+    ],
+    "error": null,
+    "notices": [],
+    "ms": 7.0,
+    "leak": false
+   },
+   "maskguard": {
+    "columns": null,
+    "rows": null,
+    "error": "Rejected: recursive queries are not allowed",
+    "notices": [],
+    "ms": 1.4,
+    "leak": false
+   }
+  },
+  {
+   "id": "S27",
+   "cat": "statement",
+   "title": "Recursive CTE seeded from a masked table",
+   "sql": "WITH RECURSIVE r(id, s) AS (SELECT id, ssn FROM customers WHERE id = 8 UNION ALL SELECT id, s FROM r WHERE false) SELECT s FROM r",
+   "expect": "",
+   "target": {
+    "columns": [
+     "s"
+    ],
+    "rows": [
+     [
+      "XXX-XX-4321"
+     ]
+    ],
+    "error": null,
+    "notices": [],
+    "ms": 7.5,
+    "leak": false
+   },
+   "maskguard": {
+    "columns": null,
+    "rows": null,
+    "error": "Rejected: recursive queries are not allowed",
+    "notices": [],
+    "ms": 3.2,
+    "leak": false
+   }
+  },
+  {
+   "id": "S28",
+   "cat": "statement",
+   "title": "UPDATE through the masked role",
+   "sql": "UPDATE customers SET city = 'X' WHERE id = 1",
+   "expect": "a write that succeeds would change the source data",
+   "target": {
+    "columns": null,
+    "rows": null,
+    "error": "InsufficientPrivilege: Anon: role is masked",
+    "notices": [],
+    "ms": 7.4,
+    "leak": false
+   },
+   "maskguard": {
+    "columns": null,
+    "rows": null,
+    "error": "Rejected: only a single SELECT is allowed",
+    "notices": [],
+    "ms": 0.9,
+    "leak": false
+   }
+  },
+  {
+   "id": "S29",
+   "cat": "statement",
+   "title": "COPY table TO STDOUT",
+   "sql": "COPY customers TO STDOUT",
+   "expect": "",
+   "target": {
+    "columns": null,
+    "rows": [
+     [
+      "1\tAsha Rao\tas******@ex******.com\tXXX-XX-4501\tXXX-0101\tPune\n"
+     ],
+     [
+      "2\tBen Okafor\tbe******@ex******.com\tXXX-XX-5602\tXXX-0102\tPune\n"
+     ],
+     [
+      "3\tChen Wei\tch******@ex******.com\tXXX-XX-6703\tXXX-0103\tDelhi\n"
+     ],
+     [
+      "4\tDana Silva\tda******@ex******.com\tXXX-XX-7804\tXXX-0104\tDelhi\n"
+     ],
+     [
+      "5\tEli Novak\tel******@ex******.com\tXXX-XX-8905\tXXX-0105\tDelhi\n"
+     ],
+     [
+      "6\tFatima Khan\tfa******@ex******.com\tXXX-XX-9006\tXXX-0106\tChennai\n"
+     ],
+     [
+      "7\tGopal Iyer\tgo******@ex******.com\tXXX-XX-0107\tXXX-0107\tChennai\n"
+     ],
+     [
+      "8\tZed Target\tze******@ex******.com\tXXX-XX-4321\tXXX-0108\tMumbai\n"
+     ]
+    ],
+    "error": null,
+    "notices": [],
+    "ms": 7.3,
+    "leak": false
+   },
+   "maskguard": {
+    "columns": null,
+    "rows": null,
+    "error": "Rejected: only a single SELECT is allowed",
+    "notices": [],
+    "ms": 0.6,
+    "leak": false
+   }
+  },
+  {
+   "id": "S30",
+   "cat": "statement",
+   "title": "Prepared statement then EXECUTE",
+   "sql": "PREPARE p AS SELECT ssn FROM customers WHERE id = 8; EXECUTE p",
+   "expect": "",
+   "anon_sql": [
+    "PREPARE p AS SELECT ssn FROM customers WHERE id = 8",
+    "EXECUTE p"
+   ],
+   "target": {
+    "columns": [
+     "ssn"
+    ],
+    "rows": [
+     [
+      "XXX-XX-4321"
+     ]
+    ],
+    "error": null,
+    "notices": [],
+    "ms": 7.9,
+    "leak": false
+   },
+   "maskguard": {
+    "columns": null,
+    "rows": null,
+    "error": "Rejected: exactly one statement is required",
+    "notices": [],
+    "ms": 0.7,
+    "leak": false
+   }
+  },
+  {
+   "id": "S31",
+   "cat": "statement",
+   "title": "PL/pgSQL DO block reads a masked column into a NOTICE",
+   "sql": "DO $$DECLARE v text; BEGIN SELECT ssn INTO v FROM customers WHERE id = 8; RAISE NOTICE 'v=%', v; END$$",
+   "expect": "",
+   "target": {
+    "columns": null,
+    "rows": null,
+    "error": null,
+    "notices": [
+     "v=XXX-XX-4321"
+    ],
+    "ms": 7.6,
+    "leak": false
+   },
+   "maskguard": {
+    "columns": null,
+    "rows": null,
+    "error": "Rejected: only a single SELECT is allowed",
+    "notices": [],
+    "ms": 0.6,
+    "leak": false
+   }
+  },
+  {
+   "id": "S32",
+   "cat": "statement",
+   "title": "Temp table materialised from the masked table",
+   "sql": "CREATE TEMP TABLE t AS SELECT * FROM customers; SELECT ssn FROM t WHERE id = 8",
+   "expect": "",
+   "anon_sql": [
+    "CREATE TEMP TABLE t AS SELECT * FROM customers",
+    "SELECT ssn FROM t WHERE id = 8"
+   ],
+   "target": {
+    "columns": [
+     "ssn"
+    ],
+    "rows": [
+     [
+      "987-65-4321"
+     ]
+    ],
+    "error": null,
+    "notices": [],
+    "ms": 9.4,
+    "leak": true
+   },
+   "maskguard": {
+    "columns": null,
+    "rows": null,
+    "error": "Rejected: exactly one statement is required",
+    "notices": [],
+    "ms": 1.3,
+    "leak": false
+   }
+  },
+  {
+   "id": "S33",
+   "cat": "parser",
+   "title": "PostgreSQL TABLE shorthand",
+   "sql": "TABLE customers",
+   "expect": "",
+   "target": {
+    "columns": [
+     "id",
+     "name",
+     "email",
+     "ssn",
+     "phone",
+     "city"
+    ],
+    "rows": [
+     [
+      1,
+      "Asha Rao",
+      "as******@ex******.com",
+      "XXX-XX-4501",
+      "XXX-0101",
+      "Pune"
+     ],
+     [
+      2,
+      "Ben Okafor",
+      "be******@ex******.com",
+      "XXX-XX-5602",
+      "XXX-0102",
+      "Pune"
+     ],
+     [
+      3,
+      "Chen Wei",
+      "ch******@ex******.com",
+      "XXX-XX-6703",
+      "XXX-0103",
+      "Delhi"
+     ],
+     [
+      4,
+      "Dana Silva",
+      "da******@ex******.com",
+      "XXX-XX-7804",
+      "XXX-0104",
+      "Delhi"
+     ],
+     [
+      5,
+      "Eli Novak",
+      "el******@ex******.com",
+      "XXX-XX-8905",
+      "XXX-0105",
+      "Delhi"
+     ],
+     [
+      6,
+      "Fatima Khan",
+      "fa******@ex******.com",
+      "XXX-XX-9006",
+      "XXX-0106",
+      "Chennai"
+     ],
+     [
+      7,
+      "Gopal Iyer",
+      "go******@ex******.com",
+      "XXX-XX-0107",
+      "XXX-0107",
+      "Chennai"
+     ],
+     [
+      8,
+      "Zed Target",
+      "ze******@ex******.com",
+      "XXX-XX-4321",
+      "XXX-0108",
+      "Mumbai"
+     ]
+    ],
+    "error": null,
+    "notices": [],
+    "ms": 7.5,
+    "leak": false
+   },
+   "maskguard": {
+    "columns": null,
+    "rows": null,
+    "error": "Rejected: only a single SELECT is allowed",
+    "notices": [],
+    "ms": 0.4,
+    "leak": false
+   }
+  },
+  {
+   "id": "S34",
+   "cat": "parser",
+   "title": "FROM ONLY (inheritance syntax)",
+   "sql": "SELECT ssn FROM ONLY customers WHERE id = 8",
+   "expect": "",
+   "target": {
+    "columns": [
+     "ssn"
+    ],
+    "rows": [
+     [
+      "XXX-XX-4321"
+     ]
+    ],
+    "error": null,
+    "notices": [],
+    "ms": 7.8,
+    "leak": false
+   },
+   "maskguard": {
+    "columns": [
+     "ssn"
+    ],
+    "rows": [
+     [
+      "XXX-XX-4321"
+     ]
+    ],
+    "error": null,
+    "notices": [],
+    "masked": [
+     "customers.email:partial",
+     "customers.phone:partial",
+     "customers.ssn:partial"
+    ],
+    "rewritten_sql": "SELECT ssn FROM (SELECT \"id\" AS \"id\", \"name\" AS \"name\", MG_EMAIL(CAST(\"email\" AS TEXT)) AS \"email\", MG_PARTIAL(CAST(\"ssn\" AS TEXT), 0, 4) AS \"ssn\", MG_PARTIAL(CAST(\"phone\" AS TEXT), 0, 4) AS \"phone\", \"city\" AS \"city\" FROM public.\"customers\") AS customers WHERE id = 8 LIMIT 100",
+    "ms": 4.5,
+    "leak": false
+   }
+  },
+  {
+   "id": "S35",
+   "cat": "parser",
+   "title": "Schema-qualified table",
+   "sql": "SELECT ssn FROM public.customers WHERE id = 8",
+   "expect": "",
+   "target": {
+    "columns": [
+     "ssn"
+    ],
+    "rows": [
+     [
+      "XXX-XX-4321"
+     ]
+    ],
+    "error": null,
+    "notices": [],
+    "ms": 8.4,
+    "leak": false
+   },
+   "maskguard": {
+    "columns": [
+     "ssn"
+    ],
+    "rows": [
+     [
+      "XXX-XX-4321"
+     ]
+    ],
+    "error": null,
+    "notices": [],
+    "masked": [
+     "customers.email:partial",
+     "customers.phone:partial",
+     "customers.ssn:partial"
+    ],
+    "rewritten_sql": "SELECT ssn FROM (SELECT \"id\" AS \"id\", \"name\" AS \"name\", MG_EMAIL(CAST(\"email\" AS TEXT)) AS \"email\", MG_PARTIAL(CAST(\"ssn\" AS TEXT), 0, 4) AS \"ssn\", MG_PARTIAL(CAST(\"phone\" AS TEXT), 0, 4) AS \"phone\", \"city\" AS \"city\" FROM public.\"customers\") AS customers WHERE id = 8 LIMIT 100",
+    "ms": 4.5,
+    "leak": false
+   }
+  },
+  {
+   "id": "S36",
+   "cat": "parser",
+   "title": "Database-qualified table",
+   "sql": "SELECT ssn FROM rea_fixture.public.customers WHERE id = 8",
+   "expect": "",
+   "anon_sql": "SELECT ssn FROM rea.public.customers WHERE id = 8",
+   "target": {
+    "columns": [
+     "ssn"
+    ],
+    "rows": [
+     [
+      "XXX-XX-4321"
+     ]
+    ],
+    "error": null,
+    "notices": [],
+    "ms": 10.3,
+    "leak": false
+   },
+   "maskguard": {
+    "columns": null,
+    "rows": null,
+    "error": "Rejected: only the public schema is allowed",
+    "notices": [],
+    "ms": 0.9,
+    "leak": false
+   }
+  },
+  {
+   "id": "S37",
+   "cat": "parser",
+   "title": "Quoted identifiers",
+   "sql": "SELECT \"ssn\" FROM \"customers\" WHERE \"id\" = 8",
+   "expect": "",
+   "target": {
+    "columns": [
+     "ssn"
+    ],
+    "rows": [
+     [
+      "XXX-XX-4321"
+     ]
+    ],
+    "error": null,
+    "notices": [],
+    "ms": 8.1,
+    "leak": false
+   },
+   "maskguard": {
+    "columns": [
+     "ssn"
+    ],
+    "rows": [
+     [
+      "XXX-XX-4321"
+     ]
+    ],
+    "error": null,
+    "notices": [],
+    "masked": [
+     "customers.email:partial",
+     "customers.phone:partial",
+     "customers.ssn:partial"
+    ],
+    "rewritten_sql": "SELECT \"ssn\" FROM (SELECT \"id\" AS \"id\", \"name\" AS \"name\", MG_EMAIL(CAST(\"email\" AS TEXT)) AS \"email\", MG_PARTIAL(CAST(\"ssn\" AS TEXT), 0, 4) AS \"ssn\", MG_PARTIAL(CAST(\"phone\" AS TEXT), 0, 4) AS \"phone\", \"city\" AS \"city\" FROM public.\"customers\") AS customers WHERE \"id\" = 8 LIMIT 100",
+    "ms": 4.2,
+    "leak": false
+   }
+  },
+  {
+   "id": "S38",
+   "cat": "parser",
+   "title": "Unicode-escaped column identifier",
+   "sql": "SELECT U&\"\\0073sn\" AS s FROM customers WHERE id = 8",
+   "expect": "",
+   "target": {
+    "columns": [
+     "s"
+    ],
+    "rows": [
+     [
+      "XXX-XX-4321"
+     ]
+    ],
+    "error": null,
+    "notices": [],
+    "ms": 7.2,
+    "leak": false
+   },
+   "maskguard": {
+    "columns": null,
+    "rows": null,
+    "error": "UndefinedColumn: query failed: unknown column",
+    "notices": [],
+    "ms": 2.8,
+    "leak": false
+   }
+  },
+  {
+   "id": "S39",
+   "cat": "parser",
+   "title": "Subquery alias shadows the table name",
+   "sql": "SELECT customers.ssn FROM (SELECT * FROM customers) customers WHERE customers.id = 8",
+   "expect": "",
+   "target": {
+    "columns": [
+     "ssn"
+    ],
+    "rows": [
+     [
+      "XXX-XX-4321"
+     ]
+    ],
+    "error": null,
+    "notices": [],
+    "ms": 7.6,
+    "leak": false
+   },
+   "maskguard": {
+    "columns": [
+     "ssn"
+    ],
+    "rows": [
+     [
+      "XXX-XX-4321"
+     ]
+    ],
+    "error": null,
+    "notices": [],
+    "masked": [
+     "customers.email:partial",
+     "customers.phone:partial",
+     "customers.ssn:partial"
+    ],
+    "rewritten_sql": "SELECT customers.ssn FROM (SELECT * FROM (SELECT \"id\" AS \"id\", \"name\" AS \"name\", MG_EMAIL(CAST(\"email\" AS TEXT)) AS \"email\", MG_PARTIAL(CAST(\"ssn\" AS TEXT), 0, 4) AS \"ssn\", MG_PARTIAL(CAST(\"phone\" AS TEXT), 0, 4) AS \"phone\", \"city\" AS \"city\" FROM public.\"customers\") AS customers) AS customers WHERE customers.id = 8 LIMIT 100",
+    "ms": 5.6,
+    "leak": false
+   }
+  },
+  {
+   "id": "S40",
+   "cat": "parser",
+   "title": "Whole row to JSON",
+   "sql": "SELECT to_jsonb(c) AS j FROM customers c WHERE c.id = 8",
+   "expect": "",
+   "target": {
+    "columns": [
+     "j"
+    ],
+    "rows": [
+     [
+      "{'id': 8, 'ssn': 'XXX-XX-4321', 'city': 'Mumbai', 'name': 'Zed Target', 'email': 'ze******@ex******.com', 'phone': 'XXX-0108'}"
+     ]
+    ],
+    "error": null,
+    "notices": [],
+    "ms": 8.2,
+    "leak": false
+   },
+   "maskguard": {
+    "columns": null,
+    "rows": null,
+    "error": "Rejected: function not allowed: to_jsonb",
+    "notices": [],
+    "ms": 1.1,
+    "leak": false
+   }
+  },
+  {
+   "id": "S41",
+   "cat": "parser",
+   "title": "row_to_json over a derived table",
+   "sql": "SELECT row_to_json(x) AS j FROM (SELECT * FROM customers WHERE id = 8) x",
+   "expect": "",
+   "target": {
+    "columns": [
+     "j"
+    ],
+    "rows": [
+     [
+      "{'id': 8, 'name': 'Zed Target', 'email': 'ze******@ex******.com', 'ssn': 'XXX-XX-4321', 'phone': 'XXX-0108', 'city': 'Mumbai'}"
+     ]
+    ],
+    "error": null,
+    "notices": [],
+    "ms": 8.5,
+    "leak": false
+   },
+   "maskguard": {
+    "columns": null,
+    "rows": null,
+    "error": "Rejected: function not allowed: row_to_json",
+    "notices": [],
+    "ms": 1.3,
+    "leak": false
+   }
+  },
+  {
+   "id": "S42",
+   "cat": "parser",
+   "title": "array_agg of the masked column",
+   "sql": "SELECT array_agg(ssn ORDER BY id) AS a FROM customers",
+   "expect": "",
+   "target": {
+    "columns": [
+     "a"
+    ],
+    "rows": [
+     [
+      "['XXX-XX-4501', 'XXX-XX-5602', 'XXX-XX-6703', 'XXX-XX-7804', 'XXX-XX-8905', 'XXX-XX-9006', 'XXX-XX-0107', 'XXX-XX-4321']"
+     ]
+    ],
+    "error": null,
+    "notices": [],
+    "ms": 8.5,
+    "leak": false
+   },
+   "maskguard": {
+    "columns": null,
+    "rows": null,
+    "error": "Rejected: function not allowed: arrayagg",
+    "notices": [],
+    "ms": 1.1,
+    "leak": false
+   }
+  },
+  {
+   "id": "S43",
+   "cat": "inference",
+   "title": "HAVING predicate on an aggregate of the masked column",
+   "sql": "SELECT count(*) AS n FROM customers HAVING min(ssn) < '95'",
+   "expect": "a row back means some real SSN sorts below '95' (masked values start with X and never do)",
+   "target": {
+    "columns": [
+     "n"
+    ],
+    "rows": [],
+    "error": null,
+    "notices": [],
+    "ms": 8.0,
+    "leak": false
+   },
+   "maskguard": {
+    "columns": [
+     "n"
+    ],
+    "rows": [],
+    "error": null,
+    "notices": [],
+    "masked": [
+     "customers.email:partial",
+     "customers.phone:partial",
+     "customers.ssn:partial"
+    ],
+    "rewritten_sql": "SELECT COUNT(*) AS n FROM (SELECT \"id\" AS \"id\", \"name\" AS \"name\", MG_EMAIL(CAST(\"email\" AS TEXT)) AS \"email\", MG_PARTIAL(CAST(\"ssn\" AS TEXT), 0, 4) AS \"ssn\", MG_PARTIAL(CAST(\"phone\" AS TEXT), 0, 4) AS \"phone\", \"city\" AS \"city\" FROM public.\"customers\") AS customers HAVING MIN(ssn) < '95' AND COUNT(*) >= 5 LIMIT 100",
+    "ms": 5.9,
+    "leak": false
+   }
+  },
+  {
+   "id": "S44",
+   "cat": "inference",
+   "title": "Boolean projection of a comparison",
+   "sql": "SELECT id, ssn < '95' AS b FROM customers ORDER BY id",
+   "expect": "true for ids 1-7 would reveal the real SSN prefix; masked values compare false everywhere",
+   "target": {
+    "columns": [
+     "id",
+     "b"
+    ],
+    "rows": [
+     [
+      1,
+      false
+     ],
+     [
+      2,
+      false
+     ],
+     [
+      3,
+      false
+     ],
+     [
+      4,
+      false
+     ],
+     [
+      5,
+      false
+     ],
+     [
+      6,
+      false
+     ],
+     [
+      7,
+      false
+     ],
+     [
+      8,
+      false
+     ]
+    ],
+    "error": null,
+    "notices": [],
+    "ms": 7.9,
+    "leak": false
+   },
+   "maskguard": {
+    "columns": [
+     "id",
+     "b"
+    ],
+    "rows": [
+     [
+      1,
+      false
+     ],
+     [
+      2,
+      false
+     ],
+     [
+      3,
+      false
+     ],
+     [
+      4,
+      false
+     ],
+     [
+      5,
+      false
+     ],
+     [
+      6,
+      false
+     ],
+     [
+      7,
+      false
+     ],
+     [
+      8,
+      false
+     ]
+    ],
+    "error": null,
+    "notices": [],
+    "masked": [
+     "customers.email:partial",
+     "customers.phone:partial",
+     "customers.ssn:partial"
+    ],
+    "rewritten_sql": "SELECT id, ssn < '95' AS b FROM (SELECT \"id\" AS \"id\", \"name\" AS \"name\", MG_EMAIL(CAST(\"email\" AS TEXT)) AS \"email\", MG_PARTIAL(CAST(\"ssn\" AS TEXT), 0, 4) AS \"ssn\", MG_PARTIAL(CAST(\"phone\" AS TEXT), 0, 4) AS \"phone\", \"city\" AS \"city\" FROM public.\"customers\") AS customers ORDER BY id LIMIT 100",
+    "ms": 4.1,
+    "leak": false
+   }
+  },
+  {
+   "id": "S45",
+   "cat": "inference",
+   "title": "Guess list tested with IN (subquery)",
+   "sql": "SELECT v.g FROM (VALUES ('987-65-4321'), ('111-11-1111')) v(g) WHERE v.g IN (SELECT ssn FROM customers)",
+   "expect": "",
+   "target": {
+    "columns": [
+     "g"
+    ],
+    "rows": [],
+    "error": null,
+    "notices": [],
+    "ms": 8.9,
+    "leak": false
+   },
+   "maskguard": {
+    "columns": [
+     "g"
+    ],
+    "rows": [],
+    "error": null,
+    "notices": [],
+    "masked": [
+     "customers.email:partial",
+     "customers.phone:partial",
+     "customers.ssn:partial"
+    ],
+    "rewritten_sql": "SELECT v.g FROM (VALUES ('987-65-4321'), ('111-11-1111')) AS v(g) WHERE v.g IN (SELECT ssn FROM (SELECT \"id\" AS \"id\", \"name\" AS \"name\", MG_EMAIL(CAST(\"email\" AS TEXT)) AS \"email\", MG_PARTIAL(CAST(\"ssn\" AS TEXT), 0, 4) AS \"ssn\", MG_PARTIAL(CAST(\"phone\" AS TEXT), 0, 4) AS \"phone\", \"city\" AS \"city\" FROM public.\"customers\") AS customers) LIMIT 100",
+    "ms": 6.1,
+    "leak": false
+   }
+  },
+  {
+   "id": "S46",
+   "cat": "inference",
+   "title": "Regular-expression predicate",
+   "sql": "SELECT id FROM customers WHERE ssn ~ '^98'",
+   "expect": "",
+   "target": {
+    "columns": [
+     "id"
+    ],
+    "rows": [],
+    "error": null,
+    "notices": [],
+    "ms": 7.4,
+    "leak": false
+   },
+   "maskguard": {
+    "columns": null,
+    "rows": null,
+    "error": "Rejected: function not allowed: regexplike",
+    "notices": [],
+    "ms": 0.7,
+    "leak": false
+   }
+  },
+  {
+   "id": "S47",
+   "cat": "statement",
+   "title": "Cursor declared over the masked table",
+   "sql": "DECLARE c CURSOR FOR SELECT ssn FROM customers WHERE id = 8",
+   "expect": "",
+   "anon_sql": [
+    "BEGIN",
+    "DECLARE c CURSOR FOR SELECT ssn FROM customers WHERE id = 8",
+    "FETCH c",
+    "COMMIT"
+   ],
+   "target": {
+    "columns": [
+     "ssn"
+    ],
+    "rows": [
+     [
+      "XXX-XX-4321"
+     ]
+    ],
+    "error": null,
+    "notices": [],
+    "ms": 8.1,
+    "leak": false
+   },
+   "maskguard": {
+    "columns": null,
+    "rows": null,
+    "error": "Rejected: only a single SELECT is allowed",
+    "notices": [],
+    "ms": 0.6,
+    "leak": false
+   }
+  }
+ ]
+}

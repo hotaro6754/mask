@@ -1,0 +1,62 @@
+--- session identity
+ current_user | session_user 
+--------------+--------------
+ support_m    | support_m
+(1 row)
+
+--- baseline masked read
+     ssn     
+-------------
+ XXX-XX-4321
+(1 row)
+
+--- V1 CREATE TEMP TABLE AS
+SELECT 8
+     ssn     |         email          
+-------------+------------------------
+ 987-65-4321 | zed.target@example.com
+(1 row)
+
+--- V2 SELECT INTO TEMP
+SELECT 8
+     ssn     
+-------------
+ 987-65-4321
+(1 row)
+
+--- V3 CTAS of a single column with a WHERE
+SELECT 1
+     ssn     
+-------------
+ 987-65-4321
+(1 row)
+
+--- V4 CTAS over the RLS table
+SELECT 7
+ id |        card         |  balance  | status 
+----+---------------------+-----------+--------
+ 11 | 4111-1111-1111-1111 |  12500.00 | active
+ 12 | 4012-8888-8888-1881 |  48250.75 | active
+ 14 | 5105-1051-0510-5100 |   9100.10 | active
+ 15 | 4222-2222-2222-2222 |  23999.99 | active
+ 16 | 3782-8224-6310-0050 |  56000.00 | active
+ 17 | 6011-1111-1111-1117 |  31415.92 | active
+ 18 | 4000-0566-5566-5556 | 987654.32 | active
+(7 rows)
+
+--- V5 INSERT INTO temp SELECT
+CREATE TABLE
+psql:<stdin>:19: ERROR:  Anon: role is masked
+ s 
+---
+(0 rows)
+
+--- V6 CTAS WITH NO DATA then explicit predicate
+SELECT 1
+ id 
+----
+  8
+(1 row)
+
+--- V7 EXPLAIN ANALYZE CTAS
+psql:<stdin>:25: ERROR:  Anon: role is masked
