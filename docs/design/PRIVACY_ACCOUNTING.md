@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| **Status** | Proposal under review. Only decision D11 is implemented: noisy aggregates are refused in production. The accounting design itself is **not** implemented. |
+| **Status** | Ready for **independent protocol review**; not proven complete (§9.8). Only decision D11 is implemented: noisy aggregates are refused in production. The accounting design itself is **not** implemented. |
 | **Scope** | The `aggregate` policy action: noisy `SUM`/`AVG`/`COUNT` over protected numeric columns, the ε budget, small-group suppression. |
 | **Out of scope** | Masking actions (partial, HMAC, redact), the threat engine, the deployment profile. |
 | **Date** | 2026-10-17, against commit `1c811c1` on `claude/zealous-bell-me62fn`. |
@@ -62,7 +62,7 @@ PIA).
 | D4/D5 | The data owner approves the total privacy budget and the per-query charging policy | Open |
 | D12 | An independent reviewer approves the privacy model and composition assumptions | Open |
 | D13 | The recovery mechanism and its trust assumptions (§9.6, T1–T7) are selected | Open |
-| D14 | The global recovery and fencing mechanism (§9.7, G1–G8, I2) is selected, and its race tests are specified | Open |
+| D14 | The global recovery and fencing mechanism (§9.7, G1–G8, I2) is selected, with the release-ordering argument (O1–O3) and the store semantics it needs (S1–S3) confirmed by the reviewer, or a serialised alternative chosen | Open |
 | Recovery tests | Rollback, concurrent charges, partial writes, retries, evidence loss and multi-gateway recovery races are tested (§13 items 11 and 13) | Open: specified, not yet runnable (no accountant exists) |
 | D11 | Production aggregate queries stay disabled until every gate above passes | **In force** |
 
@@ -480,8 +480,15 @@ If the retry's `request_fingerprint` differs (the key is being reused for a diff
 conflict, with no charge. Otherwise:
 - if the charge is still `pending`, steps 4–6 are completed for **that** charge (create-if-absent rules out a
   duplicate evidence record);
-- a stored result is returned only if its release record exists **and** its epoch is still the newest authorised
-  epoch (a fresh step-8 check). A result decided before a recovery is never re-sent after it;
+- **re-sending a stored result is a new disclosure, and a matching key authorises nothing by itself.** The retry
+  must:
+  - pass the full release fence of step 8: the release record exists (create-if-absent, so the original record and
+    its epoch *E* are reused), and a fresh listing finds no epoch newer than *E* (obligation O3, §9.7);
+  - present a stored result whose digest matches the digest in the release record. A mismatch is refused and marks
+    the scope `suspect`.
+
+  A result whose release was aborted, or decided before a recovery, can never be sent afterwards, because epochs are
+  never removed;
 - otherwise the response is 409, "already charged; resubmit with a new key".
 
 A retry never executes the query a second time, never creates a second charge, and never runs an uncharged query.
@@ -600,7 +607,7 @@ for the deployment, and the data owner must accept the residual risks explicitly
 | T2 | **Least-privilege credentials.** The gateway holds a create-and-read credential, scoped to its dataset's prefix, that can't overwrite, delete, change retention or holds, or change store configuration. It is distinct from every ledger credential | At startup: attempting to overwrite or delete a dedicated canary record must be refused, otherwise DP stays off |
 | T3 | **Store-enforced retention.** Immutability that no principal, including the store's own administrators, can remove or shorten before expiry (e.g. "compliance"-style retention in object stores), with retention ≥ the dataset's lifetime plus a margin | At startup: read the retention configuration (where the store exposes it) and the canary's retention; refuse DP if it is weaker |
 | T4 | **Independent backup and recovery.** The store's durability comes from its own replication. Its restore procedures can't remove or replace existing records, and are separate from the ledger's backups | Reviewed at D13; documented runbook |
-| T5 | **Consistency.** Create-if-absent is atomic, and after a successful write, reads and listings return the record (read-after-write) | Store documentation, plus a concurrent create-if-absent test (§13) |
+| T5 | **Store semantics S1–S3** (the protocol's correctness depends on them; §9.7):<br>**S1** Create-if-absent on a key is atomic. Once acknowledged it is durable, and at most one create per key ever succeeds.<br>**S2** *Real-time listing consistency across clients*: a listing that **begins after** a create was acknowledged, by any client, includes that object. Per-client read-your-writes or eventual listing is **not** enough.<br>**S3** Objects are never removed or replaced (T3), so nothing a listing could once return disappears | The store's documented guarantees, **confirmed by the reviewer for the specific store and configuration**, plus tests: concurrent creates on one key; create on one client, then list immediately on another; listings running concurrently with creates. If S2 can't be established, the candidate fence is unsound and D14 must use a serialised alternative (§9.7) |
 | T6 | **Availability is a cost, not a weakness.** If the store is unreachable, DP is refused | Failure tests (§13) |
 | T7 | **Residual risks, accepted or not by the data owner.** Anyone with authority over both domains (an organisation-wide super-administrator, the platform provider); collusion between the two teams; retention misconfigured at creation; provider data loss. **If one operator can control both systems, this design gives no rollback guarantee**, and the product must not claim one | Recorded with D13 |
 
@@ -651,15 +658,47 @@ back cannot certify that its own state is current. Recovery is a safety boundary
 - Allocating a new epoch is therefore an instant, global stop: from that moment no gateway passes step 2 or step 8,
   whatever its own cache or its ledger says.
 
-**The release fence (G4, I2).** Step 8 writes the release record **first**, then lists `epochs/` after *E*. The
-release is *decided* at that listing:
-- If recovery allocated a newer epoch before it, the gateway doesn't send, which covers the paused-gateway race.
-- If recovery allocates one after it, the release precedes recovery in the store's order, and recovery counts its
-  record (G8).
+**The release fence (G4, I2): definitions, obligations and argument.** A check at release time is not automatically
+an atomic fence. It is one only under the definitions, store semantics (S1–S3, §9.6 T5) and obligations below,
+which the reviewer must confirm (§9.8).
 
-Bytes may leave the gateway later, but no new decision is made then. This relies on the store's strongly consistent
-listing (T5), and on gateways running honest code. A compromised gateway holds plaintext results, and no protocol
-can stop it sending them; that case is outside the threat model (§2).
+*Definitions.*
+- Recovery to epoch *E+1* **begins** at the moment the create of `epochs/<E+1>` is acknowledged (*t_A*).
+- A release in epoch *E* is **authorised** when the gateway's step-8 listing of `epochs/` after *E* begins (*t_L*)
+  and then returns no newer epoch. *t_L* is the release's **linearisation point**.
+- **Disclosure** (sending the bytes) happens after *t_L* and is not a new decision.
+
+*Obligations.*
+- **O1 (gateway).** The release record's create is acknowledged before the step-8 listing begins.
+- **O2 (recovery).** Recovery's listing of `releases/` begins only after its `epochs/<E+1>` create is acknowledged.
+- **O3 (every path).** Every disclosure passes a step-8 check, the first send and every retry re-send alike. No
+  other code path (API, CLI, PostgreSQL proxy, dashboards, caches, error handlers) sends a protected result.
+
+*Claim.* Under S1–S3 and O1–O3, for any release authorised in epoch *E* and any recovery to *E+1*, exactly one of
+these holds:
+- the release was authorised before recovery began, and recovery's listing includes its record; or
+- the gateway's listing saw *E+1*, and nothing is disclosed.
+
+*Argument.*
+- Suppose the step-8 listing returned no epoch newer than *E*. By S2, the create of `epochs/<E+1>` wasn't
+  acknowledged before *t_L*, so *t_A* ≥ *t_L*.
+- Recovery lists `releases/` only after *t_A* (O2). So that listing begins after *t_L*, and therefore after the
+  release record was acknowledged (O1). By S2, it includes the record.
+- If instead *t_A* < *t_L*, then by S2 the listing returns *E+1*, and the gateway doesn't disclose.
+- **Corollary:** recovery's listing contains every release that can be disclosed in epoch *E*. A record created
+  after that listing began has an acknowledgement later than *t_A*. Its own step-8 listing begins later still, so
+  it sees *E+1* and doesn't disclose.
+
+This is a write-then-read handshake: each side writes its own record, then reads the other's. It needs real-time
+listing consistency (S2), not an atomic multi-step check-and-send.
+
+*Limits, stated rather than assumed away:*
+- The argument stands or falls with S2 for the chosen store. It must be demonstrated, not presumed (T5).
+- Gateways are assumed to run honest code. A compromised gateway already holds plaintext results, and no ordering
+  protocol stops it sending them (§2).
+- Bytes may physically leave after *t_A* when *t_L* < *t_A*. By the definitions above, that release precedes the
+  recovery. If the reviewer requires that **no bytes at all** leave a gateway after recovery begins, disclosure has
+  to go through a path the gateway can't bypass: key-gated disclosure (below).
 
 **The counter (G5).** What it is, and what it isn't:
 - **What it represents.** A token issued by the ledger and unique per charge for the life of the scope. Its binding
@@ -687,7 +726,8 @@ can stop it sending them; that case is outside the threat model (§2).
    running, so stop.
 2. **Mark the ledger** `recovery_state = 'reconciling'`, `cached_epoch = E+1`. This is a refuse-only courtesy, not
    relied on.
-3. **Reconcile** from a full, consistent listing of `charges/` and `releases/` (§9.6 table):
+3. **Reconcile** from a full, consistent listing of `charges/` and `releases/` (§9.6 table). The listing begins only
+   **after** step 1's create is acknowledged (O2):
    - import every evidence-only charge;
    - give pending charges whose counter collides a fresh counter, then evidence them;
    - raise `charge_counter` above every slot;
@@ -713,17 +753,29 @@ the ledger already has, and the periodic reconciliation matches them.
 
 Recovery itself is the only thing that can turn service back on.
 
-**Alternatives for D14:**
-- leases with fencing tokens from a linearizable coordination service, where the release step (8) presents the token
-  and the service refuses stale ones;
-- a single centralised release-approval service.
+**Alternatives for D14.** Use one of these if S2 can't be established for the chosen store, or if the reviewer
+prefers a single serialisation point:
 
-Either must still meet G1–G8, including fencing at release time. The candidate above needs no extra service, and per
+- **Serialised release approval.** A strictly serialisable transaction service, in the independent domain (T1–T4
+  apply to it), holds `current_epoch` per scope.
+  - Release approval is one transaction: check `current_epoch = E` and record the approval.
+  - Recovery initiation is one transaction: set `current_epoch = E+1`.
+  - The commit order *is* the linearisation order, so no listing-consistency assumption is needed. The cost is a
+    service in the trust base, and a liveness dependency.
+- **Leases with fencing tokens.** A coordination service issues tokens equal to epochs. **A lease's expiry alone
+  doesn't fence a paused gateway**: the process can resume after its lease expired without knowing it. The token
+  must therefore be checked by whatever authorises disclosure, which makes this serialised approval with tokens as
+  the epoch. Leases help liveness (bounded waits for recovery), not safety.
+- **Key-gated disclosure** (optional, if no bytes may leave after recovery begins). The gateway sends only
+  ciphertext. The decryption key is released by the approval service under the same serialised check, so even an
+  honest, paused gateway's late send is useless after recovery begins.
+
+All of these must still meet G1–G8 and I2. The candidate above needs no extra service, and per
 charge costs:
 - two creates (the slot and the release record);
 - three consistent listings (the epoch at step 2, the fence at step 5, the epoch at step 8).
 
-It depends on the store's create-if-absent and strongly consistent listing (T5).
+It depends on S1–S3 (T5).
 
 **Charge flow.** The crash-safe protocol is in §9.4: the epoch check, then ledger intent, then the evidence slot,
 then the fence, then confirmation, computation, and a release fence before anything is sent.
@@ -731,6 +783,47 @@ then the fence, then confirmation, computation, and a release fence before anyth
 **Recovery from a known-good checkpoint** follows the §9.7 procedure: allocate a new epoch first (stopping service
 everywhere), restore the ledger from the checkpoint, reconcile from the evidence, and authorise only after
 verification. Any `suspect` outcome leaves service off (R4, R7).
+
+### 9.8 Review brief
+
+**Status: ready for independent protocol review, not proven complete.** The reviewer is asked to establish that **no
+interleaving of crashes, pauses, retries, ledger rollbacks or restores, failovers, concurrent charges and concurrent
+recoveries** can either bypass the budget or release a result across a recovery boundary. Questions, in priority
+order:
+
+1. **Ordering of recovery initiation, release authorisation and disclosure.**
+   - Is the I2 argument (§9.7) correct?
+   - Are O1–O3 sufficient, and is every disclosure path covered by O3?
+   - Should the stronger requirement (no bytes after recovery begins, so key-gated disclosure) apply?
+2. **Store semantics.** Do S1–S3 hold for the store and configuration selected under D13, with evidence? If not,
+   which serialised alternative should D14 use?
+3. **Accounting.** Can any interleaving produce a computed result without durable charge evidence (I1)? A charge
+   approved against a rolled-back ledger (G5)? A discarded or duplicated charge?
+4. **Epochs.** Is allocation atomic (S1), strictly increasing, and immune to ledger restores? Are superseded
+   authorisations inert?
+5. **Trust assumptions T1–T7.** Are they realistic for the deploying organisation, and which residual risks does
+   the data owner accept?
+6. **The DP model itself** (D12): unit, neighbouring relation, sensitivities, composition (§3–§7).
+
+**Recommended method.** Model the protocol in a model checker (for example TLA+ with TLC, or an equivalent).
+- **Actors:** *N* gateways, each able to crash or pause at every step; one or more reconcilers; a ledger with
+  rollback, restore and failover actions; an evidence store with S1–S3; analysts retrying with reused or conflicting
+  keys.
+- **Invariants:**
+  - every disclosure has charge evidence;
+  - no disclosure is authorised after a newer epoch began;
+  - no two charges share a key or a counter binding;
+  - no charge is ever removed;
+  - at most one reconciler per epoch;
+  - service runs only while the newest epoch is authorised;
+  - disclosed spending never exceeds the cap except through charges detected and imported by recovery.
+- **Negative controls:** weaken S2 (eventual listing), or drop O2, and confirm the checker produces the
+  paused-gateway counterexample. This shows which assumptions the safety actually rests on.
+
+A bounded model check explores every interleaving up to its bounds. It is strong evidence, not a proof for unbounded
+systems, and it doesn't replace the written argument. Counterexample traces become tests in §13.
+
+
 
 ## 10. Failure behaviour
 
@@ -854,10 +947,16 @@ rests on items 1 and 2.
     | Pending charge whose counter collides after a restore | Recovery gives it a fresh counter; never discarded |
     | Asynchronous failover that lost evidenced commits | Detected at the next charge; imported (G5) |
     | Evidence store unreachable, or its epochs unreadable | No gateway releases (G1) |
-    | Same-key retry across a recovery | The stored result is not re-sent; 409 (G4) |
+    | Same-key retry across a recovery | The stored result is not re-sent; 409 (G4, O3) |
+    | Same-key retry whose cached result doesn't match the release record's digest | Refused; scope `suspect` |
+    | Store test double that violates S2 (eventual listing) running the paused-gateway race | The race test **detects** a violation, showing the test can see the failure it guards against |
+    | Recovery that lists `releases/` before its epoch create is acknowledged (O2 violated, test double) | The race test detects a missed release record |
     | Duplicate requests with the same key | One charge, one slot, at most one release |
     | Same key reused for a different query | Refused as a key conflict; no charge |
     | Restore that lost no evidenced charge | Not flagged; totals match the evidence (harmless) |
+
+14. **Model checking** (§9.8): the model, its invariants and bounds, the negative controls (S2 weakened, O2
+    dropped) producing counterexamples, and every counterexample turned into a test in item 13.
 
 ## 14. Migration plan
 
@@ -881,8 +980,10 @@ rests on items 1 and 2.
    one does).
 5. With the accountant unavailable, DP queries are refused and everything else keeps working.
 6. Production refuses to start with `aggregate` in policy and no state DB.
-7. The fencing mechanism (D14) is selected and meets G1–G8 and I2, and every race in §13 item 13 passes, including
-   the paused-gateway release race and concurrent recovery against a restored ledger.
+7. The fencing mechanism (D14) is selected and meets G1–G8 and I2. Either S1–S3 are demonstrated for the chosen
+   store, or a serialised alternative is used. Every race in §13 item 13 passes, including the paused-gateway
+   release race and concurrent recovery against a restored ledger. The model-checking results (§13 item 14) are
+   reviewed.
 8. The recovery mechanism (D13) is selected; its trust assumptions T1–T7 are documented and accepted by the data
    owner; it meets R1–R7 and invariant I1; and every scenario in §13 item 11 passes, including crashes at each step,
    same-key retries, partial writes, concurrent charges, and the ledger and audit log being rolled back together.
@@ -908,7 +1009,7 @@ rests on items 1 and 2.
 | D10 | HA requirement for the state DB (synchronous standby) | Required if the gateway is HA |
 | D11 | Interim production stance until phase 4 | **Decided and implemented**: noisy aggregates refused in production; development keeps them, labelled "not a formal DP guarantee" |
 | D12 | Who reviews the derivation | An independent reviewer with DP expertise, outside the team |
-| D14 | Global recovery and fencing mechanism (§9.7, G1–G8, I2) | Candidate: epochs allocated and authorised only in the evidence store (create-if-absent), a release fence at release time, counter fencing as a rollback detector, ledger state refuse-only. Alternatives: leases with fencing tokens from a linearizable coordination service, or a central release-approval service; either must fence at release time. Selected at design review with D13 |
+| D14 | Global recovery and fencing mechanism (§9.7, G1–G8, I2) | Candidate: epochs allocated and authorised only in the evidence store (create-if-absent), a write-then-check release fence valid under S1–S3 and O1–O3, counter fencing as a rollback detector, ledger state refuse-only. Alternatives if S2 can't be shown: serialised release approval (leases with fencing tokens reduce to this), optionally with key-gated disclosure. Selected at design review with D13 |
 | D13 | Recovery evidence mechanism (§9.6), its trust assumptions T1–T7, and who administers it | Candidate: M1 (write-once storage with store-enforced retention, one record per `charge_id`) under a separate administrative domain; M2 as fallback. Selected at design review, with T7's residual risks accepted in writing |
 
 ## 17. References
