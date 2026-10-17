@@ -4,7 +4,7 @@
 |---|---|
 | **What this is** | Clarifications to the *review brief* (§9.8 and §13 item 14) of the privacy-accounting design. Scope of the review only. |
 | **What this is not** | A change to the protocol. No invariant, obligation, store requirement, step, decision or claim in the design is added, removed or reworded here. |
-| **Date** | 2026-10-17 |
+| **Date** | 2026-10-17 (§5 added the same day, after the fix in `63b0c25`) |
 | **Author** | The design's author. This file defines what the reviewer is asked to check; it is not part of the review. |
 
 ## 1. The revision under review
@@ -246,3 +246,19 @@ Noisy aggregates stay disabled in production until every one of these is complet
 - the independent approvals of both the design and the implementation (§15).
 
 None of these is changed by this file.
+
+## 5. Implementation changes since `a6891fd`
+
+These change the code, not the protocol. The C2 inventory above stays as the record of what was found at
+`a6891fd`. Review the paths against both revisions.
+
+| Date | Commit | Change | Evidence |
+|---|---|---|---|
+| 2026-10-17 | `63b0c2549b69f455247786e09e2d62abc13937e1` | **Attack self-test refused in production.** `GET /attacks` (403, generic message, every role and any parameters), `maskguard attack`, `test` and `simulate-attack` (exit 3), and the dashboard's attack, simulated-attack and benchmark tabs. The check runs inside the runners before the first read. It fails closed unless the environment is development both now and at build time. Refusals are audited without SQL, schema or results. | Regression tests in `tests/test_production.py` (support and admin, demo mode on, unrecognised environment, failing audit log, zero backend reads, full production build on PostgreSQL); all fail with the guard disabled. Full suite: 474 passed, 6 xfailed, 1 skipped on SQLite, PostgreSQL 16 and MySQL 8.4. Live production server on PostgreSQL 16: six `/attacks` requests got 403, and `pg_stat_user_tables` scan counters did not move (an ordinary masked query did move them). |
+
+**Still open, unchanged by this fix:**
+
+- The proxy's `Describe` still runs the rewritten SQL directly, with `LIMIT 0`.
+- The proxy's extended-protocol error path still echoes exception text (C2).
+
+The reviewer should still assess both.
