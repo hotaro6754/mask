@@ -48,7 +48,7 @@ written derivation reviewed by someone with differential-privacy expertise (§13
 | **D2** (and D1): what is protected | **Decided** | Option B (§3): each **customer's** protected numeric values, under replace-one-customer. **Limitation, to be stated in every product claim:** membership and row existence are *not* protected, and neither are non-protected attributes |
 | **D3**: budget scope | **Decided** | One budget per dataset, shared by all analysts, processes and servers, **enforced atomically** (§9). It needs a configured dataset identity, the declared privacy unit and contribution bounds, and defined behaviour for dataset changes and resets (§9.5). Per-analyst quotas inside it remain optional (open) |
 | **D4/D5**: total budget, period, per-query charge | **Deferred to the data owner** | Set only after sensitivity, composition and the analyst workload have been reviewed. ε = 0.5 per query is a **candidate**, not a validated default. A lifetime cap is the conservative option, but it is only safe if the reset hazards in §9.5 are handled. Lifetime vs. renewing stays open until then |
-| D6–D10, D12, D13 | Open | §16 |
+| D6–D10, D12, D13, D14 | Open | §16 |
 
 **Done** (as of `731cf01`): the known vulnerabilities are reproduced (`tests/test_dp_findings.py`, strict `xfail`,
 with controls); production aggregates are disabled (D11), with a boundary test covering both the refusal and the
@@ -62,7 +62,8 @@ PIA).
 | D4/D5 | The data owner approves the total privacy budget and the per-query charging policy | Open |
 | D12 | An independent reviewer approves the privacy model and composition assumptions | Open |
 | D13 | The recovery mechanism and its trust assumptions (§9.6, T1–T7) are selected | Open |
-| Recovery tests | Rollback, concurrent charges, partial writes, retries and evidence loss are tested (§13 item 11) | Open: specified, not yet runnable (no accountant exists) |
+| D14 | The global recovery and fencing mechanism (§9.7, G1–G8, I2) is selected, and its race tests are specified | Open |
+| Recovery tests | Rollback, concurrent charges, partial writes, retries, evidence loss and multi-gateway recovery races are tested (§13 items 11 and 13) | Open: specified, not yet runnable (no accountant exists) |
 | D11 | Production aggregate queries stay disabled until every gate above passes | **In force** |
 
 This document is a **specification, not a proof**. Synthetic probes and the tests in `tests/test_dp_findings.py` show
@@ -399,8 +400,19 @@ CREATE TABLE dp_charge (                                 -- append-only; only `s
 );
 -- every state counts towards epsilon_spent: a charge is never discarded or refunded once it exists
 
-ALTER TABLE dp_scope ADD COLUMN recovery_state text NOT NULL DEFAULT 'reconciling'
-  CHECK (recovery_state IN ('consistent', 'reconciling', 'suspect'));   -- DP only while 'consistent' (§9.6)
+ALTER TABLE dp_scope
+  ADD COLUMN recovery_state text NOT NULL DEFAULT 'reconciling'
+    CHECK (recovery_state IN ('consistent', 'reconciling', 'suspect')),  -- refuse-only cache (§9.7 G2)
+  ADD COLUMN cached_epoch bigint NOT NULL DEFAULT 0,      -- refuse-only cache; the evidence store is the epoch authority
+  ADD COLUMN charge_counter bigint NOT NULL DEFAULT 0;    -- fencing-token source (§9.7 "The counter"); never authorises
+
+ALTER TABLE dp_charge
+  ADD COLUMN counter bigint NOT NULL,                     -- fencing token issued at reserve; gaps are allowed
+  ADD COLUMN epoch bigint NOT NULL,                       -- authorised epoch read from the evidence store at step 2
+  ADD COLUMN request_fingerprint text NOT NULL,           -- digest of query fingerprint + mechanism; binds the key
+  ADD COLUMN privacy_policy_version text NOT NULL,        -- digest of unit, join paths, neighbour relation, ε policy
+  ADD COLUMN contribution_policy_version text NOT NULL,   -- digest of bounds, per-unit row cap, C (groups per unit)
+  ADD CONSTRAINT dp_charge_counter_unique UNIQUE (scope_id, counter);
 
 CREATE TABLE dp_release (                                -- noisy outputs only (already public to the requester)
   scope_id text, request_key text, result jsonb NOT NULL,
@@ -418,67 +430,88 @@ Two durable records exist for every charge: the ledger row (in the state databas
 independent store, §9.6). The protocol's one safety property:
 
 > **I1. No protected aggregate is computed until its charge is durable in both the ledger and the evidence store.**
+> **I2. No protected aggregate is released unless, after its release record is durable, the epoch it was authorised
+> in is still the newest epoch in the evidence store.**
 
-So every released output, and every query whose outcome is unknown, has an evidence record. The ledger can lose
+I1 means every released output, and every query whose outcome is unknown, has an evidence record. The ledger can lose
 rows (rollback, failover, restore); the evidence can't (§9.6 T3). Rebuilding upwards from the evidence therefore
-never under-counts what was released.
+never under-counts what was released. I2 makes recovery a boundary that releases can't cross (§9.7).
 
 ```
 1  plan      rewrite + mechanism + cost; charge_id := new UUID (bound to scope_id + request_key)
              (no data touched; refusals here are data-independent)
-2  reserve   BEGIN (state DB primary)
-               INSERT INTO dp_charge (charge_id, scope_id, request_key, epsilon, …, state = 'pending')
-                 ON CONFLICT (scope_id, request_key) DO NOTHING
-                 - conflict -> COMMIT, go to "retry" below (no new charge, nothing executed)
-               UPDATE dp_scope SET epsilon_spent = epsilon_spent + :eps
+2  epoch     list epochs/<scope>/ in the evidence store (strongly consistent) -> E := newest allocated epoch
+               - auth/<scope>/<E> absent (recovery active) or store unreachable -> refuse
+             (the ledger's recovery_state and cached_epoch may refuse earlier, but never approve: §9.7 G2)
+3  reserve   BEGIN (state DB primary)
+               UPDATE dp_scope SET epsilon_spent = epsilon_spent + :eps, charge_counter = charge_counter + 1
                  WHERE scope_id = :s AND closed_at IS NULL AND recovery_state = 'consistent'
                    AND epsilon_spent + :eps <= epsilon_cap
+                 RETURNING charge_counter
                  - 0 rows -> ROLLBACK, refuse (budget exhausted, or scope not consistent)
+               INSERT INTO dp_charge (charge_id, scope_id, request_key, request_fingerprint, epsilon, …,
+                                      counter, epoch = E, state = 'pending')
+                 ON CONFLICT (scope_id, request_key) DO NOTHING
+                 - conflict -> ROLLBACK, go to "retry" below (no new charge, nothing executed)
                UPDATE dp_quota … (same pattern; fixed lock order scope -> quota)
              COMMIT (synchronous_commit = on)   -- from here the charge counts and is never refunded
-3  evidence  create-if-absent  <dataset_id>/<scope_id>/<charge_id>
-               = {charge_id, scope_id, request_key, epsilon, delta, policy_version, mechanism digest, charged_at}
+4  evidence  create-if-absent  charges/<scope>/<counter, zero-padded> = the evidence record (§9.6)
                - created, or already present with identical content -> continue
-               - present with different content                     -> scope 'suspect', refuse
-               - error or timeout (outcome unknown)                 -> refuse this request; the charge stays
-                                                                       'pending' and counted (the reaper finishes it)
-4  confirm   UPDATE dp_charge SET state = 'evidenced' WHERE charge_id = :c AND state = 'pending' RETURNING …
-5  execute   only if step 4 returned the row; read-only query on the protected DB; add noise
-6  record    INSERT dp_release …; UPDATE dp_charge SET state = 'released'                    (best effort)
-7  respond
+               - present for a DIFFERENT charge_id                  -> the ledger reissued a used counter
+                                                                       (rollback): start recovery (§9.7), refuse
+               - error or timeout (outcome unknown)                 -> refuse; the charge stays 'pending' and
+                                                                       counted (the reaper finishes it)
+5  fence     list charges/<scope>/ after <counter> (strongly consistent); each slot found must name a charge_id
+             the ledger has
+               - all present (ordinary newer concurrent charges)    -> continue
+               - any missing (an evidenced charge lost by rollback) -> start recovery (§9.7), refuse
+6  confirm   UPDATE dp_charge SET state = 'evidenced' WHERE charge_id = :c AND state = 'pending' RETURNING …
+7  execute   only if step 6 returned the row; read-only query on the protected DB; add noise; hold the result
+8  release   create-if-absent releases/<scope>/<charge_id> = {charge_id, epoch E, result digest}
+             THEN list epochs/<scope>/ after E (strongly consistent)
+               - none newer          -> the release is decided: continue to 9
+               - any newer           -> do NOT send; refuse. The charge and the release record stay counted
+               - store unreachable   -> do NOT send; refuse
+9  respond   send the result; INSERT dp_release (local cache); UPDATE dp_charge SET state = 'released' (best effort)
 ```
 
-**Retry with the same idempotency key** (same `scope_id`, `request_key`): the existing charge is found at step 2.
-If it is still `pending`, steps 3–4 are completed for **that** charge (create-if-absent makes a duplicate evidence
-record impossible). Then:
-- if a stored release exists, it is returned;
+**Retry with the same idempotency key** (same `scope_id`, `request_key`): the existing charge is found at step 3.
+If the retry's `request_fingerprint` differs (the key is being reused for a different query), it is refused as a key
+conflict, with no charge. Otherwise:
+- if the charge is still `pending`, steps 4–6 are completed for **that** charge (create-if-absent rules out a
+  duplicate evidence record);
+- a stored result is returned only if its release record exists **and** its epoch is still the newest authorised
+  epoch (a fresh step-8 check). A result decided before a recovery is never re-sent after it;
 - otherwise the response is 409, "already charged; resubmit with a new key".
 
 A retry never executes the query a second time, never creates a second charge, and never runs an uncharged query.
 A new key is a new charge.
 
-**Reaper.** A periodic job completes steps 3–4 for `pending` charges older than a timeout. It never voids or refunds
-a charge, and never executes a query.
+**Reaper.** A periodic job completes steps 4–6 for `pending` charges older than a timeout. It never voids or refunds
+a charge, never executes a query and never releases. If a pending charge's counter collides at step 4, the
+reconciler gives it a fresh counter (§9.7); it is never discarded.
 
-| Crash point | Ledger | Evidence | Recovery | Charge |
+| Crash or pause point | Ledger | Evidence | Outcome | Charge |
 |---|---|---|---|---|
-| Before step 2 commits | — | — | Nothing happened | None |
-| After 2, before 3 | `pending` | absent | Reaper or same-key retry writes the evidence, then confirms. The query was never executed | Kept |
-| During 3 (store wrote it, reply lost) | `pending` | present | Create-if-absent reports "present, identical"; confirm | Kept |
-| After 3, before 4 | `pending` | present | As above | Kept |
-| After 4 (during or after 5) | `evidenced` | present | Outcome unknown: counted as spent; same-key retry gets 409 | Kept |
-| After 6 | `released` | present | Same-key retry returns the stored result | Kept |
-| Ledger commit of step 2 lost in a failover (asynchronous standby) | absent | absent | Step 3 never ran on the new primary, so the query was never executed: no release, no privacy loss | n/a |
+| Before step 3 commits | — | — | Nothing happened | None |
+| After 3, before 4 | `pending` | no slot | Reaper or same-key retry writes the slot, then confirms. Never executed | Kept |
+| During 4 (store wrote it, reply lost) | `pending` | slot | Create-if-absent reports "present, identical"; confirm | Kept |
+| After 4, before 6 | `pending` | slot | As above | Kept |
+| After 6 or 7, before 8 (including a long pause across a recovery) | `evidenced` | slot | Step 8 finds the newer epoch: not sent | Kept |
+| After the step-8 check, before 9 | `evidenced` | slot + release record | The release was decided before any newer epoch existed (I2); recovery counts it | Kept |
+| After 9 | `released` | slot + release record | Same-key retry returns the result only while its epoch is current | Kept |
+| Ledger commit of step 3 lost in a failover (asynchronous standby) | absent | none | Step 4 never ran on the new primary, so the query was never executed | n/a |
+| Ledger commit lost **after** step 4 wrote the slot | absent | slot | The next charge collides at 4 or finds the slot at 5: recovery imports it | Kept (imported) |
 
-- **Concurrency across servers.** There is one serialisation point: the conditional `UPDATE` of the scope row on the
-  single state-database primary that every gateway uses. At READ COMMITTED, PostgreSQL re-evaluates the `WHERE`
-  against the latest row version after waiting for the row lock [18]. So two gateways can't both approve against
-  the same remaining budget. Budget enforcement is **not** the evidence store's job; its job is the guarantees in
-  §9.6 T2–T5.
-- **Step 5 fails** (error, timeout). `state = 'failed_after_charge'`, with no refund, because whether a query times
+- **Concurrency across servers.** There is one serialisation point for budget: the conditional `UPDATE` of the
+  scope row on the single state-database primary that every gateway uses. At READ COMMITTED, PostgreSQL
+  re-evaluates the `WHERE` against the latest row version after waiting for the row lock [18]. So two gateways
+  can't both approve against the same remaining budget **of a ledger that is current**. Whether the ledger *is*
+  current, and whether service may run at all, is established by the evidence store (§9.7), not by the ledger.
+- **Step 7 fails** (error, timeout). `state = 'failed_after_charge'`, with no refund, because whether a query times
   out can depend on data.
-- **Step 6 fails.** The result is still returned. A later same-key retry can't be served from cache (409), so it
-  never produces a second free release.
+- **Step 9's bookkeeping fails.** The result was already sent. A same-key retry finds the release record and applies
+  the epoch rule above.
 
 ### 9.5 Things that must never reset the budget
 
@@ -511,7 +544,7 @@ existed. A chain cut back to an older, consistent end still verifies.
 | # | Requirement |
 |---|---|
 | R1 | **Independence.** The evidence lives in a store whose writes, deletions and restores are controlled by a different administrative and backup domain from the ledger, the audit log and the gateway host. Anyone able to restore the ledger must not be able to roll the evidence back. A second database under the same administrators or the same backup procedure does **not** qualify |
-| R2 | **One immutable record per charge, keyed by `charge_id`.** The store enforces create-if-absent: a second write under the same key can't replace the first. The gateway's credential can create and read, but not overwrite or delete. Records carry `charge_id`, `dataset_id`, `scope_id`, `request_key`, ε, δ and the policy version. Ordering fields (timestamps, optional sequence numbers) are informational: **gaps are legitimate** after crashes and are not a failure condition |
+| R2 | **One immutable record per charge.** It is stored under the ledger-issued counter (the fencing token, §9.7) and identified by the `charge_id` it contains. The store enforces create-if-absent: a second write under the same key can't replace the first. The gateway's credential can create, read and list, but not overwrite or delete. Counters are unique, but **gaps are legitimate** after crashes and are never a failure condition. Reconciliation matches records by `charge_id` |
 | R3 | **Durable before computation (I1).** The query runs only after the charge is recorded in the ledger and confirmed in the evidence (§9.4). If the evidence write fails or its outcome is unknown, the query is refused and the charge stays counted |
 | R4 | **Set-based reconciliation.** At startup, periodically, and whenever the state database's identity or timeline changes, each scope's ledger charges are compared with its evidence records **by `charge_id`** (below). DP is allowed only while the scope is `consistent` |
 | R5 | **Upward-only, no reset.** Reconciliation only adds charges and never removes one. Nothing lowers spending, and there is no reset command. A new scope for a `dataset_id` with evidence history first imports that history and needs a privacy-officer sign-off |
@@ -521,16 +554,39 @@ existed. A chain cut back to an older, consistent end still verifies.
 **Fail closed.** If MaskGuard cannot establish a trustworthy spending total, protected aggregates stay unavailable.
 Masking and every other function continue.
 
+**What each record binds.** Restoring the amount spent isn't enough; recovery must also preserve the context that
+made the charge valid. Each evidence record contains:
+- `charge_id`, `counter`, `epoch`, `dataset_id`, `scope_id`;
+- `request_key` and `request_fingerprint`;
+- the pseudonymous principal;
+- ε, δ and `charged_at`;
+- the **privacy-policy version**: a digest of the privacy unit and its join paths, the neighbouring relation and the
+  ε policy;
+- the **contribution-bound policy version**: a digest of the clipping bounds, the per-unit row cap and *C* (groups
+  per unit);
+- the **query-policy version** (`policy_version`);
+- the full mechanism parameters (operations, sensitivities, noise scales).
+
+Recovery validates every imported record:
+- its `dataset_id` and `scope_id` must match the scope;
+- its recorded ε must be at least the cost recomputed from its mechanism under its own privacy-policy and
+  contribution-bound versions.
+
+A mismatch, or an unknown version, still counts the charge (the larger amount). It also marks the scope `suspect`
+for review, so nothing is ever dropped because its context looks odd.
+
 **Reconciliation: what "evidence is ahead" means operationally.** For each scope, with *L* the ledger's charges and
 *E* the evidence records:
 
 | Observation | Meaning | Action |
 |---|---|---|
 | A charge in *E* but not in *L* | The ledger lost rows (rollback, restore, failover): **evidence is ahead** | Scope → `reconciling`, DP refused. Import each missing charge as `imported` with the evidence's ε and δ, recompute `epsilon_spent`, re-verify, then `consistent` |
-| `pending` in *L*, absent from *E* | A charge in flight or interrupted after step 2 | Normal: the reaper or a same-key retry completes it. The query was not executed (I1) |
+| `pending` in *L*, absent from *E* | A charge in flight or interrupted after step 3 | Normal: the reaper or a same-key retry completes it. The query was not executed (I1) |
 | `evidenced`, `released` or `failed_after_charge` in *L*, absent from *E* | Evidence lost or tampered with | Scope → `suspect`, DP refused until a privacy officer decides (R7). Never "repaired" by deleting the ledger row |
 | Same `charge_id` in both, contents differ | Tampering or a bug | Scope → `suspect` |
 | Ledger total ≠ Σ of its charges | Ledger corruption | Scope → `suspect` |
+| A slot's counter is reissued for a different `charge_id` (step 4), or a slot above a new counter has no ledger row (step 5) | The ledger was rolled back after charges were evidenced | Recovery (§9.7); the lost charges are imported from their slots |
+| The ledger's `epoch` is below the latest authorisation record in the evidence store | The ledger was restored from before a completed recovery | Recovery (§9.7) |
 
 Every outcome either adds charges or stops DP. None discards or refunds an uncertain charge. The trusted spending
 total is the sum over the **union** of *L* and *E* by `charge_id`.
@@ -562,14 +618,119 @@ satisfies R3 directly. M2 is the fallback if per-charge latency is unacceptable.
 infrastructure the deploying organisation actually runs and on who administers it, so it is a review decision, not
 something this document can settle.
 
-**Charge flow.** The crash-safe protocol is in §9.4: ledger intent first, then the evidence record keyed by
-`charge_id`, then confirmation, then computation.
+### 9.7 Global recovery and fencing
 
-**Recovery from a known-good checkpoint.**
-1. Restore the ledger from the checkpoint. Every scope starts as `reconciling`.
-2. List the evidence records for each scope and import every `charge_id` the ledger lacks (upwards only).
-3. Run the reconciliation table above. Any `suspect` outcome stops here.
-4. Enable DP for a scope only when it reaches `consistent`. Otherwise it stays off (R4, R7).
+**The race to rule out.** Gateway A authorises a query, then pauses. Gateway B detects a rollback and starts
+recovery. A resumes and sends its result. A database restored from an old backup makes this worse, because it also
+restores its own old `recovery_state = 'consistent'` and its old epoch. A store whose state may have been rolled
+back cannot certify that its own state is current. Recovery is a safety boundary only if every gateway is fenced
+**at the moment of release** by something a rollback can't undo.
+
+**Required properties:**
+
+| # | Property |
+|---|---|
+| G1 | **Fail closed, globally.** No gateway releases a protected aggregate while the evidence store is unreachable, its newest epoch can't be established, the newest epoch has no authorisation (recovery active), or ledger and evidence disagree (which always starts recovery) |
+| G2 | **No approval from local state.** Caches, the ledger's `recovery_state` and `cached_epoch` may only *refuse*. Approval always comes from per-charge checks against the evidence store |
+| G3 | **The evidence store is the epoch authority.** Epochs are allocated only there, atomically, each strictly greater than every epoch ever allocated for the scope. A restored ledger can't reinstate an older epoch, because validity is never read from the ledger |
+| G4 | **Releases are fenced at release time (I2).** A result computed under epoch *E* is sent only if, after its release record is durable, no epoch newer than *E* exists. A check made before a pause is never enough on its own |
+| G5 | **No computation against a rolled-back ledger.** A ledger that lost an evidenced charge is detected before any further aggregate is computed (counter fencing, below) |
+| G6 | **Resume only after verification.** A new epoch is authorised only after reconciliation is verified. An authorisation for a superseded epoch has no effect |
+| G7 | **One reconciler per epoch.** Two recovery attempts can't claim the same epoch, and a stale reconciler can't revive service in an epoch that has been superseded |
+| G8 | **Recovery counts everything that was decided.** Every charge with a slot and every release record is counted. Stragglers from an old epoch can add charges, but can never release |
+
+**Epochs and authorisation (G1, G3, G6, G7).** All in the evidence store, under the scope's prefix:
+- `epochs/<E>` (zero-padded): created only by recovery. **Allocation** means listing `epochs/` (strongly
+  consistent), taking the newest *E*, and creating `epochs/<E+1>` with create-if-absent.
+  - Of two concurrent attempts, exactly one create succeeds. The loser stops: recovery is already in progress.
+  - Because every allocation is "newest plus one" over a consistent listing and is never deleted (T3), each epoch is
+    strictly greater than all earlier ones.
+- `auth/<E>`: written once, by the reconciler that allocated *E*, only after verification.
+- **Service may run** only when `auth/<newest E>` exists. A stale reconciler that writes `auth/<E>` after `E+1` has
+  been allocated changes nothing, because *E* is no longer the newest.
+- Allocating a new epoch is therefore an instant, global stop: from that moment no gateway passes step 2 or step 8,
+  whatever its own cache or its ledger says.
+
+**The release fence (G4, I2).** Step 8 writes the release record **first**, then lists `epochs/` after *E*. The
+release is *decided* at that listing:
+- If recovery allocated a newer epoch before it, the gateway doesn't send, which covers the paused-gateway race.
+- If recovery allocates one after it, the release precedes recovery in the store's order, and recovery counts its
+  record (G8).
+
+Bytes may leave the gateway later, but no new decision is made then. This relies on the store's strongly consistent
+listing (T5), and on gateways running honest code. A compromised gateway holds plaintext results, and no protocol
+can stop it sending them; that case is outside the threat model (§2).
+
+**The counter (G5).** What it is, and what it isn't:
+- **What it represents.** A token issued by the ledger and unique per charge for the life of the scope. Its binding
+  to one `charge_id` is recorded once in the evidence store (`charges/<counter>`, create-if-absent) and can never
+  change.
+- **How it advances.** By exactly one inside the step-3 transaction, together with the budget update. A refused or
+  rolled-back reserve consumes nothing; gaps appear only when a crash falls between step 3's commit and step 4.
+  Recovery raises it above every slot it has seen.
+- **It never authorises.** Its only effect is to *trigger* refusal and recovery. The authority on what was spent is
+  the set of evidence records (matched by `charge_id`). The authority on whether service may run is the epoch and
+  authorisation records.
+- **Why restoring either database can't make an old counter look current.**
+  - Restoring the ledger lowers `charge_counter`. Every value it then reissues is either already bound to another
+    charge (step 4 refuses) or lies below a bound value whose charge the restored ledger lacks (step 5 finds it).
+    That happens before anything is computed.
+  - The evidence store can't be restored to an earlier state (T3, T4). If that assumption fails, T7 applies and no
+    rollback guarantee is claimed.
+  - A restore that lost no evidenced charge reissues unbound values and passes. That is correct: nothing that was
+    evidenced, and so nothing that was released, is missing.
+- **It doesn't replace the evidence.** The counter checks are detectors. Reconciliation always works from the
+  evidence records themselves.
+
+**Recovery procedure:**
+1. **Allocate** `epochs/<E+1>`. This stops service everywhere (G1). If the create fails, another recovery is
+   running, so stop.
+2. **Mark the ledger** `recovery_state = 'reconciling'`, `cached_epoch = E+1`. This is a refuse-only courtesy, not
+   relied on.
+3. **Reconcile** from a full, consistent listing of `charges/` and `releases/` (§9.6 table):
+   - import every evidence-only charge;
+   - give pending charges whose counter collides a fresh counter, then evidence them;
+   - raise `charge_counter` above every slot;
+   - validate context bindings;
+   - compute the union total.
+4. **Authorise** with create-if-absent `auth/<E+1>` = {epoch, union total, charge-set digest, counter high-water
+   mark, ledger identity, verifier}. Written only if the reconcile step verified everything; otherwise service stays off.
+5. **Set the ledger cache** back to `consistent`. Gateways resume because step 2 now finds `auth/<E+1>`, not because
+   of this flag.
+
+If the reconciler dies at any point, the newest epoch has no authorisation, so service stays off until a new recovery
+allocates `E+2`.
+
+Stragglers from epoch *E* may still write slots (counted, G8) but can't pass step 8. Their late slots name charges
+the ledger already has, and the periodic reconciliation matches them.
+
+**What triggers recovery** (any gateway, any time):
+- a collision at step 4 or a missing ledger row at step 5;
+- a ledger total that doesn't match its charges;
+- an evidence store unavailable for longer than a set limit;
+- a change in the state database's identity or timeline;
+- a ledger `cached_epoch` older than an authorised epoch.
+
+Recovery itself is the only thing that can turn service back on.
+
+**Alternatives for D14:**
+- leases with fencing tokens from a linearizable coordination service, where the release step (8) presents the token
+  and the service refuses stale ones;
+- a single centralised release-approval service.
+
+Either must still meet G1–G8, including fencing at release time. The candidate above needs no extra service, and per
+charge costs:
+- two creates (the slot and the release record);
+- three consistent listings (the epoch at step 2, the fence at step 5, the epoch at step 8).
+
+It depends on the store's create-if-absent and strongly consistent listing (T5).
+
+**Charge flow.** The crash-safe protocol is in §9.4: the epoch check, then ledger intent, then the evidence slot,
+then the fence, then confirmation, computation, and a release fence before anything is sent.
+
+**Recovery from a known-good checkpoint** follows the §9.7 procedure: allocate a new epoch first (stopping service
+everywhere), restore the ledger from the checkpoint, reconcile from the evidence, and authorise only after
+verification. Any `suspect` outcome leaves service off (R4, R7).
 
 ## 10. Failure behaviour
 
@@ -578,7 +739,7 @@ something this document can settle.
 | State DB unreachable or ledger invariant broken | DP queries refused (503, fail closed). Non-DP queries continue, since they consume no budget (open decision D9) |
 | Recovery evidence unreachable, or the scope is `reconciling` or `suspect` | DP disabled until reconciliation (§9.6) reaches `consistent`; masking continues |
 | Evidence write fails or its outcome is unknown during a charge | Query refused, nothing computed; the charge stays `pending` and counted, and the reaper completes it |
-| Budget or quota exhausted | Refused at step 2, before data access. The message gives the remaining budget only, which depends on query history, not data |
+| Budget or quota exhausted | Refused at step 3, before data access. The message gives the remaining budget only, which depends on query history, not data |
 | Charge committed, query fails or times out | Charge kept as `failed_after_charge`, no refund |
 | Gateway crash after charge | Charge kept; same-key retry gets 409; never a free fresh release |
 | Policy changes while a request is in flight | The request uses the plan and cost computed in step 1 and recorded in `dp_charge.policy_version` |
@@ -641,7 +802,7 @@ rests on items 1 and 2.
    attainable outputs doesn't depend on the input (the Mironov class [10]).
 7. **Ledger concurrency.** 200 concurrent charges against a cap that admits exactly *n*: exactly *n* succeed,
    `epsilon_spent = n·ε`, never above the cap. Repeat with three gateway processes.
-8. **Crash and restart.** Kill the gateway between steps 2 and 3, and between 3 and 4. Check that the invariant
+8. **Crash and restart.** Kill the gateway between steps 3 and 4, 6 and 8, and 8 and 9. Check that the invariant
    holds and same-key retries behave per §9.4. Restart: spending persists.
 9. **Failover**, if HA is in scope: promote the standby under load and confirm no committed charge is lost.
 10. **Reproducible evaluation.** Extend `bench/eval_dp.py` to the full lifetime budget with several colluding
@@ -651,7 +812,7 @@ rests on items 1 and 2.
 
     | Scenario | Expected |
     |---|---|
-    | Crash after step 2, after 3, after 4 and during 5 (fault injection at each point) | Matches the crash table in §9.4; the charge is never lost or duplicated, and no query runs without both records |
+    | Crash after steps 3, 4, 6, 7 and 8 (fault injection at each point) | Matches the crash table in §9.4; the charge is never lost or duplicated, and no query runs without both records |
     | Same-key retry at each of those crash points | Completes the existing charge; no second evidence record, no second charge, no execution |
     | Evidence write succeeds but the reply is lost (partial write) | Retry finds "present, identical" and confirms |
     | Two writers race to create the same `charge_id` | Exactly one record; the other sees "present" |
@@ -676,12 +837,33 @@ rests on items 1 and 2.
     - state database unreachable, read-only or slow, and the ledger invariant deliberately broken: DP is refused,
       masking keeps working;
     - concurrent consumption across processes and servers (item 7) never exceeds the cap.
+13. **Multi-gateway recovery races** (§9.7). At least three gateway processes, with fault injection and the ability
+    to pause any process at any step:
+
+    | Scenario | Passes only if |
+    |---|---|
+    | **A authorises, pauses before releasing; B detects a rollback and starts recovery; A resumes** | A does not release its result (refused at step 8); A's charge and release record stay counted (G4, G8) |
+    | A pauses after its step-8 check; B allocates a new epoch; A resumes | A's release is the one decided before the new epoch; recovery counts its release record (I2, G8) |
+    | **Old budget database restored while the evidence store holds a newer epoch** | Every gateway refuses until a new epoch above the store's newest is authorised; the restored `recovery_state` and `cached_epoch` are ignored (G2, G3) |
+    | **Two gateways start recovery concurrently** (including against a restored ledger) | Exactly one `epochs/<E+1>` create succeeds; the other stops; no service until `auth/<E+1>` (G7) |
+    | A reconciler dies after allocating, before authorising | Service stays off; the next recovery allocates `E+2` (G1, G6) |
+    | A stale reconciler writes `auth/<E>` after `E+1` exists | No effect; service stays off until `auth/<E+1>` (G6, G7) |
+    | A gateway with a cached "healthy" state during recovery | Refused at step 2 or step 8 (G1, G2) |
+    | Ledger restored from a file-level backup (no timeline change) while gateways run | The first charge anywhere collides at step 4 or fails step 5; nothing computed against the restored ledger (G5) |
+    | Restore where the next counter falls in a crash gap | Caught at step 5 (G5) |
+    | Pending charge whose counter collides after a restore | Recovery gives it a fresh counter; never discarded |
+    | Asynchronous failover that lost evidenced commits | Detected at the next charge; imported (G5) |
+    | Evidence store unreachable, or its epochs unreadable | No gateway releases (G1) |
+    | Same-key retry across a recovery | The stored result is not re-sent; 409 (G4) |
+    | Duplicate requests with the same key | One charge, one slot, at most one release |
+    | Same key reused for a different query | Refused as a key conflict; no charge |
+    | Restore that lost no evidenced charge | Not flagged; totals match the evidence (harmless) |
 
 ## 14. Migration plan
 
 | Phase | Content | Gate to the next phase |
 |---|---|---|
-| 0 | **Done 2026-10-17:** D1, D2, D3 and D11 decided; D11 enforced; claims in README, ARCHITECTURE, EVALUATION, ROADMAP, DEPLOYMENT and the generated PIA corrected; findings encoded as strict-`xfail` tests. **Open:** D4–D10, D12, D13 | D4/D5 recorded by the data owner and D13 selected, **before Phase 1 starts** |
+| 0 | **Done 2026-10-17:** D1, D2, D3 and D11 decided; D11 enforced; claims in README, ARCHITECTURE, EVALUATION, ROADMAP, DEPLOYMENT and the generated PIA corrected; findings encoded as strict-`xfail` tests. **Open:** D4–D10, D12, D13, D14 | D4/D5 approved, D12 review done, D13 and D14 selected, **before Phase 1 starts** |
 | 1 | Mechanism fixes without persistence: F2, F1 (join rule), F7 (sensitivity by relation), F10 (discrete sampler), §6.1 contribution bounding with a declared unit | Verification items 3–6 pass |
 | 2 | Accountant interface; PostgreSQL implementation (§9); in-memory implementation for tests only; production requires `MASKGUARD_STATE_DB`. **Backfill:** initialise each scope's `epsilon_spent` from the audit log's `dp_epsilon` entries, summed across all analysts (conservative) | Items 7–9 pass |
 | 3 | Suppression change (§7) and AVG-with-public-count | Items 3–6 rerun |
@@ -699,13 +881,15 @@ rests on items 1 and 2.
    one does).
 5. With the accountant unavailable, DP queries are refused and everything else keeps working.
 6. Production refuses to start with `aggregate` in policy and no state DB.
-7. The recovery mechanism (D13) is selected; its trust assumptions T1–T7 are documented and accepted by the data
+7. The fencing mechanism (D14) is selected and meets G1–G8 and I2, and every race in §13 item 13 passes, including
+   the paused-gateway release race and concurrent recovery against a restored ledger.
+8. The recovery mechanism (D13) is selected; its trust assumptions T1–T7 are documented and accepted by the data
    owner; it meets R1–R7 and invariant I1; and every scenario in §13 item 11 passes, including crashes at each step,
    same-key retries, partial writes, concurrent charges, and the ledger and audit log being rolled back together.
    The budget-store failure tests pass (item 12).
-8. Statistical tests find no violation for supported mechanisms, and do flag every known-bad control.
-9. Every strict `xfail` in `tests/test_dp_findings.py` has become a passing test (its marker removed).
-10. An independent DP reviewer signs off the derivation. Public claims say exactly what was signed off. Only then is
+9. Statistical tests find no violation for supported mechanisms, and do flag every known-bad control.
+10. Every strict `xfail` in `tests/test_dp_findings.py` has become a passing test (its marker removed).
+11. An independent DP reviewer signs off the derivation. Public claims say exactly what was signed off. Only then is
     the production refusal (D11) lifted.
 
 ## 16. Decisions needed before implementation
@@ -724,6 +908,7 @@ rests on items 1 and 2.
 | D10 | HA requirement for the state DB (synchronous standby) | Required if the gateway is HA |
 | D11 | Interim production stance until phase 4 | **Decided and implemented**: noisy aggregates refused in production; development keeps them, labelled "not a formal DP guarantee" |
 | D12 | Who reviews the derivation | An independent reviewer with DP expertise, outside the team |
+| D14 | Global recovery and fencing mechanism (§9.7, G1–G8, I2) | Candidate: epochs allocated and authorised only in the evidence store (create-if-absent), a release fence at release time, counter fencing as a rollback detector, ledger state refuse-only. Alternatives: leases with fencing tokens from a linearizable coordination service, or a central release-approval service; either must fence at release time. Selected at design review with D13 |
 | D13 | Recovery evidence mechanism (§9.6), its trust assumptions T1–T7, and who administers it | Candidate: M1 (write-once storage with store-enforced retention, one record per `charge_id`) under a separate administrative domain; M2 as fallback. Selected at design review, with T7's residual risks accepted in writing |
 
 ## 17. References
