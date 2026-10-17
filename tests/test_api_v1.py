@@ -149,6 +149,22 @@ def test_demo_mode_off_and_production_guard(client, monkeypatch):
         config.demo_enabled()
 
 
+def test_production_refuses_the_demo_user_store(sqlite_env, monkeypatch, tmp_path):
+    """Turning demo mode off removes /auth/demo only; production must also refuse to start with the demo users,
+    otherwise admin.ann/admin123 still logs in through /auth/login."""
+    from maskguard.auth import Authenticator, hash_password
+    monkeypatch.setenv("MASKGUARD_ENV", "production")
+    monkeypatch.delenv("MASKGUARD_DEMO", raising=False)
+    demo_store = Authenticator.from_file(config.Settings().users)
+    with pytest.raises(RuntimeError, match="demo identities"):
+        config.check_production_identity(demo_store)
+    prod = Authenticator({"ops.lead": {"role": "admin", "password_hash": hash_password("a-long-production-pass")}})
+    config.check_production_identity(prod)  # a real user store is accepted
+    monkeypatch.delenv("MASKGUARD_JWT_SECRET")
+    with pytest.raises(RuntimeError, match="MASKGUARD_JWT_SECRET"):
+        config.check_production_identity(prod)
+
+
 def test_scan_dry_run_does_not_change_registry(client, sqlite_env):
     adm = demo(client, "admin")
     before = dict(sqlite_env.gw.registry)

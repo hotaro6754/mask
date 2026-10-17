@@ -45,6 +45,9 @@ the gateway.
   - It is on by default only when `MASKGUARD_ENV` isn't `production`.
   - With `MASKGUARD_ENV=production` it is off by default.
   - `MASKGUARD_DEMO=1` together with `production` stops startup with an error.
+  - Production also stops startup if the user store contains any demo identity, because turning demo mode off
+    only removes `/auth/demo`: the demo users would otherwise still log in through `/auth/login`. It also requires
+    `MASKGUARD_JWT_SECRET`, so tokens survive restarts and are shared by every instance.
   - Demo logins are accepted only from the same machine (loopback) unless `MASKGUARD_DEMO=1` is set explicitly, and
     the server logs a DEMO MODE warning at startup. Anyone who can use demo mode can act as any demo role,
     including admin, so it is for synthetic data only.
@@ -88,7 +91,7 @@ the gateway.
 | partial | `mg_partial(col, prefix, suffix)` / `mg_email(col)` / `mg_bucket(num, 10000)` | Separators kept, so formats stay readable. Output is byte-identical across SQLite (Python UDF), PostgreSQL (PL/pgSQL) and MySQL (stored function) |
 | hmac | `mg_hmac(col)`, keyed HMAC-SHA256, 16 hex characters | Deterministic, so joins and counts still work. The key comes from `MASKGUARD_HMAC_KEY` (fail closed if missing). It is **not** encryption: tokens can't be reversed, but equal values give equal tokens (frequency analysis) |
 | redact_text | `mg_redact_text(col)` | 21 ordered patterns: identifiers inside text become `[PHONE]`, `[AADHAAR]` and so on |
-| aggregate | `LEAST(GREATEST(col, lo), hi)` inside the view, plus Laplace noise on SUM/AVG/COUNT | Any other use of the column is redacted |
+| aggregate | `LEAST(GREATEST(col, lo), hi)` inside the view, plus Laplace noise on SUM/AVG/COUNT | Any other use of the column is redacted. Bounds are per table and column (`dp.bounds.<table>.<col>`); a reference that can't be tied to one table gets no noisy release. Not yet a formal DP guarantee: the ε ledger is in memory per process and per account, and small groups are suppressed on the true count before noise |
 | redact | `'REDACTED'` / typed NULL | |
 | deny | Typed NULL | |
 
@@ -111,7 +114,9 @@ check reads whole tables, so it is for demos and audits, not for every query.
 ## Audit
 
 The audit log (`data/audit.jsonl`) is append-only JSON lines with a hash chain (`prev` → `hash`), and
-`verify()` detects any edited, removed or reordered entry.
+`verify()` detects any edited, removed or reordered entry. The chain is unkeyed, so it shows accidental or partial
+edits; someone who can rewrite the whole file on the host can recompute it. Ship entries to an external store if
+that matters.
 - **What it records:** request id, channel (`rest`, `rest-demo`, `cli`, `pgwire`, `dashboard`, `engine`), user,
   role, the SQL fingerprint with **every literal replaced by `?`**, policy version, masked columns, decision, rows,
   latency, threat risk and actions, and ε spent.

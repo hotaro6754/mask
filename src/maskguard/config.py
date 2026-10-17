@@ -37,6 +37,19 @@ def demo_accounts():
     return dict(DEMO_ACCOUNTS) if demo_enabled() else {}
 
 
+def check_production_identity(auth):
+    """Production must not accept the shipped demo identities through /auth/login, and tokens need a stable secret.
+    Turning demo mode off only removes /auth/demo; the demo users would still log in from the default user store."""
+    if environment() != "production":
+        return
+    demo = sorted(u for u, _ in DEMO_ACCOUNTS.values() if u in auth.users)
+    if demo:
+        raise RuntimeError(f"MASKGUARD_ENV=production but the user store contains demo identities ({', '.join(demo)}): "
+                           "set MASKGUARD_USERS to a production user file")
+    if not os.environ.get("MASKGUARD_JWT_SECRET"):
+        raise RuntimeError("MASKGUARD_ENV=production requires MASKGUARD_JWT_SECRET")
+
+
 DEMO_ENABLED = os.environ.get("MASKGUARD_DEMO", "0" if environment() == "production" else "1") == "1"
 
 
@@ -107,6 +120,7 @@ def build(settings=None, start_worker=False):
     if s.registry_out:
         save_registry(registry, s.registry_out)
     auth = Authenticator.from_file(s.users)
+    check_production_identity(auth)
     gateway = Gateway(backend, registry, policy, auth, s.audit)
     integrity = IntegrityStore(backend, s.db, s.state("integrity_baseline.json"), s.state("integrity_history.jsonl"))
     integrity.ensure_baseline()

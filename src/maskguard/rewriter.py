@@ -43,13 +43,27 @@ def _dp_bounds(policy, table, col):
 
 
 def _dp_columns(jobs, registry, role, policy):
-    """Numeric columns this role may only see through DP aggregates: {name: (table, lo, hi)}."""
+    """Numeric columns this role may only see through DP aggregates: {(alias, name): (table, lo, hi)}.
+    Keyed by the table's alias so same-named columns in joined tables keep their own bounds."""
     out = {}
     for t in jobs:
-        for c, m in registry[t.name.lower()].items():
+        table = t.name.lower()
+        for c, m in registry[table].items():
             if m.get("type") == "num" and action_for(m, role, policy) == "aggregate":
-                out[c.lower()] = (t.name.lower(), *_dp_bounds(policy, t.name.lower(), c.lower()))
+                out[(t.alias_or_name.lower(), c.lower())] = (table, *_dp_bounds(policy, table, c.lower()))
     return out
+
+
+AMBIGUOUS = object()
+
+
+def _dp_key(col, dp_cols):
+    """The DP column a reference points at: its key, None if it isn't one, AMBIGUOUS if that can't be told."""
+    name, qual = col.name.lower(), col.table.lower()
+    if qual:
+        return (qual, name) if (qual, name) in dp_cols else None
+    hits = [k for k in dp_cols if k[1] == name]
+    return hits[0] if len(hits) == 1 else (AMBIGUOUS if hits else None)
 
 
 def _dp_eligible(tree, dp_cols):
@@ -60,7 +74,10 @@ def _dp_eligible(tree, dp_cols):
            for e in tree.expressions):
         return False
     for c in tree.find_all(exp.Column):
-        if c.name.lower() not in dp_cols:
+        key = _dp_key(c, dp_cols)
+        if key is AMBIGUOUS:  # fail closed: the column then stays redacted outside DP
+            return False
+        if key is None:
             continue
         agg = c.parent
         if not isinstance(agg, DP_FUNCS) or agg.args.get("this") is not c:
@@ -80,9 +97,12 @@ def _dp_plan(tree, dp_cols, policy):
     n_visible = len(tree.expressions)
     for i, proj in enumerate(list(tree.expressions)):
         node = proj.this if isinstance(proj, exp.Alias) else proj
-        if not isinstance(node, DP_FUNCS) or not isinstance(node.this, exp.Column) or node.this.name.lower() not in dp_cols:
+        if not isinstance(node, DP_FUNCS) or not isinstance(node.this, exp.Column):
             continue
-        _, lo, hi = dp_cols[node.this.name.lower()]
+        key = _dp_key(node.this, dp_cols)
+        if key is None or key is AMBIGUOUS:
+            continue
+        _, lo, hi = dp_cols[key]
         sens = max(abs(lo), abs(hi))
         if isinstance(node, exp.Count):
             ops.append({"index": i, "type": "count", "epsilon": eps})
@@ -245,7 +265,8 @@ def rewrite(sql, role, registry, policy, dialect="sqlite", schema=None):
                 jobs.append(table)
     shape = _shape(tree, jobs, registry, role, policy)
     dp_cols = _dp_columns(jobs, registry, role, policy)
-    used = {c.name.lower() for c in tree.find_all(exp.Column)} & set(dp_cols)
+    refs = [_dp_key(c, dp_cols) for c in tree.find_all(exp.Column)]
+    used = {k[1] for k in refs if k is not None and k is not AMBIGUOUS}
     dp_plan = None
     if used and _dp_eligible(tree, dp_cols):
         dp_plan = _dp_plan(tree, dp_cols, policy)
@@ -256,7 +277,8 @@ def rewrite(sql, role, registry, policy, dialect="sqlite", schema=None):
             action = action_for(meta, role, policy)
             if action != "allow":
                 masked.append(f"{table.name.lower()}.{col}:{action}")
-            bounds = dp_cols.get(col.lower())[1:] if dp_plan and col.lower() in dp_cols else None
+            key = (table.alias_or_name.lower(), col.lower())
+            bounds = dp_cols[key][1:] if dp_plan and key in dp_cols else None
             projections.append(_mask_expr(col, meta, action, policy, bounds).as_(col, quoted=True))
         inner = exp.Table(this=exp.to_identifier(real_names[table.name.lower()], quoted=True),
                           db=exp.to_identifier(schema))  # pinned to the real table: a CTE can't capture it

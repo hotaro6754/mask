@@ -1,6 +1,6 @@
 # MaskGuard
 
-**AI-powered PII discovery and leak-proof, role-based masking for SQLite, PostgreSQL and MySQL.**
+**AI-powered PII discovery and query-time, role-based masking for SQLite, PostgreSQL and MySQL.**
 MaskGuard sits in front of the database, finds sensitive columns with a LightGBM + checksum scanner, and masks them
 per role at query time. Stored data never changes.
 
@@ -8,7 +8,7 @@ per role at query time. Stored data never changes.
 |---|---|
 | **Admin** | real values |
 | **Support** | partial masks: `4111-XXXX-XXXX-1111`, `XXX-XX-6789`, `r***@bank.in`, `[PHONE]` inside notes, balances rounded to 10,000; frozen accounts hidden (row-level filter) |
-| **Analyst** | `REDACTED` or keyed-HMAC tokens (joinable, not reversible); balances only through differentially private SUM/AVG/COUNT |
+| **Analyst** | `REDACTED` or keyed-HMAC tokens (joinable, not reversible); balances only through noisy (Laplace) SUM/AVG/COUNT within a daily ε budget |
 | **Auditor** | `REDACTED` for every personal-data column; reads policies, scanner evidence, the audit log and integrity proofs |
 
 ![The maskguard CLI: real health checks, then one query as four roles](docs/img/cli.png)
@@ -19,10 +19,11 @@ per role at query time. Stored data never changes.
    (Aadhaar Verhoeff, PAN, GSTIN mod-36, EPIC, card Luhn, IBAN), tags 20 PII types, including Indian IDs and
    Devanagari names, even when column names lie. Checksum hits can never be downgraded, and uncertain columns are
    still masked for review. A background worker rescans, and new tables are blocked until they're scanned.
-2. **Leak-proof masking.** Each table in a query is rewritten into a masked view
+2. **Masking inside the SQL.** Each table in a query is rewritten into a masked view
    (`FROM users` → `FROM (SELECT mg_partial(ssn,0,4) AS ssn, … FROM users) AS users`). Aliases, `*`, CTEs, joins,
    `WHERE`, `ORDER BY` and aggregates therefore only ever see masked values. Writes, stacked statements, catalogs,
-   variables and unknown functions are rejected.
+   variables and unknown functions are rejected. The 17-attack regression suite finds 0 leaks; that is evidence for
+   those cases, not a proof against every possible query shape.
 3. **Free-text redaction.** Identifiers inside notes and comments become `[PHONE]`, `[AADHAAR]`, `[UPI]` and so on,
    inside the database, with byte-identical output on all three engines.
 4. **Insider-threat engine.** Rules and an IsolationForest score each user's query stream (enumeration, probing,
@@ -55,7 +56,8 @@ uv run maskguard serve                                     # REST API + Control 
 ```
 
 Or `docker compose up --build`: PostgreSQL 16, API + dashboard on :8000, classic Streamlit dashboard on :8501, and the
-PostgreSQL wire proxy on :6543. **[docs/DEMO_RUNBOOK.md](docs/DEMO_RUNBOOK.md)** walks through the whole demo with
+PostgreSQL wire proxy on :6543. The Compose file is a **demo profile**: it publishes the database ports with demo
+passwords and turns demo identities on, so don't use it for real data. **[docs/DEMO_RUNBOOK.md](docs/DEMO_RUNBOOK.md)** walks through the whole demo with
 exact commands and expected output.
 
 | Interface | What it gives you |
@@ -73,8 +75,10 @@ Demo identities (`policies/users.demo.yaml`, synthetic):
 - `admin.ann`, `support.sam`, `analyst.ali`, `auditor.aud`, with passwords `<role>123`;
 - `intruder.ian` for the threat demo.
 
-Demo mode (one-click identities) is off when `MASKGUARD_ENV=production`, and refused if forced on there. Create
-real users with `maskguard hash-password`. All settings are in `.env.example`.
+Demo mode (one-click identities) is off when `MASKGUARD_ENV=production`, and refused if forced on there. Production
+also refuses to start if the user store contains any demo identity (so `admin.ann` can't log in through
+`/auth/login`) or if `MASKGUARD_JWT_SECRET` is unset. Create real users with `maskguard hash-password` and point
+`MASKGUARD_USERS` at them. All settings are in `.env.example`.
 
 ## Architecture
 
@@ -142,6 +146,14 @@ these gaps to a MaskGuard component.
 - The threat engine was evaluated on simulated sessions; recalibrate it on real normal traffic.
 - Names and addresses inside free text need NER, which isn't integrated yet.
 - Applications must not hold direct database credentials, or they bypass the gateway.
+- Untagged columns are returned as they are: classification decides what is protected.
+- The analyst aggregates are noisy, but they are **not a formal differential-privacy guarantee** yet: the ε ledger
+  lives in memory per process (a restart or a second instance starts fresh), budgets are per account rather than
+  per person, and small groups are suppressed on the true count before noise is added.
+- The audit hash chain is unkeyed. It catches accidental or partial edits, not someone who can rewrite the whole
+  file on the host.
+- The PostgreSQL proxy speaks cleartext password auth with no TLS of its own: keep it on a trusted network or put
+  TLS termination in front of it.
 
 ## Submission material
 

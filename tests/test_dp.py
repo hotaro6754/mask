@@ -71,3 +71,34 @@ def test_ledger_resets_daily():
     led = PrivacyLedger(1.0)
     led.spend("u", 1.0, now=1_760_000_000)
     assert led.remaining("u", now=1_760_000_000 + 86400) == 1.0
+
+
+def _two_tables_same_column():
+    import yaml
+
+    with open("policies/default.yaml") as f:
+        policy = yaml.safe_load(f)
+    policy["dp"]["bounds"] = {"small.amount": [0, 100], "big.amount": [0, 1000000], "default": [0, 1000000]}
+    num = {"type": "num", "tag": "FINANCIAL_CONFIDENTIAL", "kind": "amount"}
+    registry = {"small": {"id": {"type": "num"}, "amount": dict(num)},
+                "big": {"id": {"type": "num"}, "amount": dict(num)}}
+    return registry, policy
+
+
+@pytest.mark.parametrize("order", ["big b JOIN small s", "small s JOIN big b"])
+def test_dp_bounds_follow_the_source_table_not_the_column_name(order):
+    """Joined tables with a same-named protected column keep their own clip bounds, whatever the join order."""
+    from maskguard.rewriter import rewrite
+    registry, policy = _two_tables_same_column()
+    res = rewrite(f"SELECT SUM(s.amount) AS x, SUM(b.amount) AS y FROM {order} ON s.id = b.id",
+                  "analyst", registry, policy, "sqlite")
+    assert 'MIN(MAX("amount", 0.0), 100.0) AS "amount" FROM main."small"' in res.sql
+    assert 'MIN(MAX("amount", 0.0), 1000000.0) AS "amount" FROM main."big"' in res.sql
+    assert [op["sensitivity"] for op in res.dp["ops"]] == [100.0, 1000000.0]
+
+
+def test_ambiguous_protected_column_gets_no_dp_release():
+    from maskguard.rewriter import rewrite
+    registry, policy = _two_tables_same_column()
+    res = rewrite("SELECT SUM(amount) AS x FROM small s JOIN big b ON s.id = b.id", "analyst", registry, policy, "sqlite")
+    assert res.dp is None and "MIN(MAX(" not in res.sql  # no noisy release; the column stays redacted
