@@ -59,6 +59,11 @@ if any of these fail:
 | Database account | PostgreSQL: superuser, `CREATEROLE`, `CREATEDB`, `BYPASSRLS` or `REPLICATION`; write (`INSERT`/`UPDATE`/`DELETE`/`TRUNCATE`/`TRIGGER`) on or ownership of any table; `CREATE` on schema `public` or the database; owning any `mg_*` masking function (it could redefine them); membership of `pg_write_all_data` or the server-file roles. MySQL: any privilege except `SELECT`, `EXECUTE`, `USAGE`, `SHOW VIEW` on the database (from `SHOW GRANTS`; column-level grants are fine), anything but `USAGE` on `*.*`, or inherited roles |
 | Network | `serve` off loopback without `--ssl-certfile`/`--ssl-keyfile`; `proxy` or `dashboard --classic` off loopback at all |
 
+**Noisy aggregates are refused in production** (decision D11 in `docs/design/PRIVACY_ACCOUNTING.md`). An analyst
+query that would release a noisy SUM/AVG/COUNT is rejected before any budget is charged or data is read, and the
+rejection is audited. Analysts keep every other masked view (HMAC tokens, redactions), and other uses of protected
+numbers stay redacted. `maskguard status` shows "Noisy aggregates: disabled in production".
+
 `maskguard seed` is refused in production. Nothing in production writes to your database. The gateway's own state
 (audit log, registry, integrity baseline) lives in `/app/data`.
 
@@ -144,8 +149,8 @@ refreshed from `uv.lock` and the current source mounted in. Treat the profile as
 
 These are not solved by the production profile:
 
-- **Privacy accounting.** The analyst ε ledger is in memory per process and per account, and small-group
-  suppression happens before noise. Restarting or adding an instance resets budgets. This is the next piece of work.
+- **Noisy aggregates are off in production.** They return only after `docs/design/PRIVACY_ACCOUNTING.md` is
+  implemented, meets its acceptance criteria and is independently reviewed.
 - **Threat-engine state** is in memory per process (blocks reset on restart, not shared between instances).
 - **No native TLS for the PostgreSQL proxy** (above).
 - **Secrets via environment variables**, not `*_FILE`/secret mounts.

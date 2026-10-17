@@ -36,8 +36,11 @@ class QueryResult:
 class Gateway:
     """The only path to the data: authenticate -> rewrite -> execute read-only -> audit."""
 
-    def __init__(self, backend, registry, policy, auth, audit_path):
+    def __init__(self, backend, registry, policy, auth, audit_path, allow_dp=True):
         self.backend, self.policy, self.auth = backend, policy, auth
+        # Noisy aggregates (policy action `aggregate`) are refused in production until the privacy-accounting
+        # design is implemented and reviewed (docs/design/PRIVACY_ACCOUNTING.md, decision D11).
+        self.allow_dp = allow_dp
         self.audit = AuditLog(audit_path)
         self._registry, self._lock = registry, threading.Lock()
         self.threat = ThreatEngine.from_policy(policy)
@@ -83,6 +86,10 @@ class Gateway:
             self.audit.append(**base, decision="reject", reason=str(e)[:160], **self._risk_fields(a))
             raise
         dp_info = None
+        if res.dp and not self.allow_dp:  # before any budget is charged or data is read
+            self.audit.append(**base, decision="reject", reason="noisy aggregates disabled in production")
+            raise Rejected("noisy aggregates are disabled in production until the privacy-accounting design is "
+                           "implemented and reviewed (docs/design/PRIVACY_ACCOUNTING.md)")
         if res.dp:
             try:  # charge the budget before touching the data
                 remaining = self.dp_ledger.spend(session.user, res.dp["cost"], now)

@@ -74,7 +74,8 @@ def build(app, since_days=30):
             "inventory": inventory, "access_matrix": matrix, "roles": roles,
             "controls": {"masking": True, "threat_engine": gw.threat is not None,
                          "threat_thresholds": {"alert": gw.threat.alert, "block": gw.threat.block} if gw.threat else None,
-                         "differential_privacy": policy.get("dp"), "row_caps": policy.get("max_rows"),
+                         "differential_privacy": policy.get("dp"), "noisy_aggregates": gw.allow_dp,
+                         "row_caps": policy.get("max_rows"),
                          "min_group_size": policy.get("min_group_size"), "row_filters": policy.get("row_filters") or {},
                          "audit_chain_valid": gw.audit.verify()},
             "activity": {"days": since_days, "decisions": dict(stats), "users": len(users - {None}),
@@ -97,8 +98,12 @@ def to_markdown(r):
     L += ["", "## 3. Controls in place", "",
           f"- Query-time masking: on. Stored data is never modified.",
           f"- Threat engine: {'on, alert at ' + str(c['threat_thresholds']['alert']) + ', block at ' + str(c['threat_thresholds']['block']) if c['threat_engine'] else 'off'}.",
-          f"- Differential privacy: ε per query {c['differential_privacy'].get('epsilon_per_query') if c['differential_privacy'] else '-'}, "
-          f"daily budget {c['differential_privacy'].get('daily_budget') if c['differential_privacy'] else '-'}.",
+          ("- Noisy aggregates (experimental, not a formal differential-privacy guarantee): ε per query "
+           f"{c['differential_privacy'].get('epsilon_per_query') if c['differential_privacy'] else '-'}, daily budget "
+           f"{c['differential_privacy'].get('daily_budget') if c['differential_privacy'] else '-'}."
+           if c["noisy_aggregates"] else
+           "- Noisy aggregates: disabled in production until the privacy-accounting design is implemented and "
+           "reviewed (docs/design/PRIVACY_ACCOUNTING.md); protected numbers are redacted for analysts."),
           f"- Row caps {c['row_caps']}; aggregates over fewer than {c['min_group_size']} rows suppressed.",
           f"- Row-level filters: {c['row_filters'] or 'none'}.",
           f"- Audit log hash chain: {'intact' if c['audit_chain_valid'] else 'BROKEN — investigate'}.", "",

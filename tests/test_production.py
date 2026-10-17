@@ -99,6 +99,27 @@ def test_development_defaults_are_unchanged(monkeypatch):
     assert config.listen_problems("api", "0.0.0.0") == [] and config.listen_problems("proxy", "0.0.0.0") == []
 
 
+# ---------------------------------------------------------------- noisy aggregates off in production (D11)
+
+def test_production_refuses_noisy_aggregates_but_keeps_masking(sqlite_env):
+    """docs/design/PRIVACY_ACCOUNTING.md D11. Same gateway as production builds (allow_dp=False), on synthetic data."""
+    gw = sqlite_env.gw
+    assert gw.allow_dp is True  # development default is unchanged
+    gw.allow_dp = False
+    analyst, before = sqlite_env.login("analyst"), gw.dp_ledger.remaining("analyst.ali")
+    with pytest.raises(Rejected, match="disabled in production"):
+        gw.query(analyst, "SELECT status, avg(balance) AS a FROM accounts GROUP BY status", observe=False)
+    assert gw.dp_ledger.remaining("analyst.ali") == before  # refused before any budget was charged
+    assert gw.audit.tail(1)[0]["reason"] == "noisy aggregates disabled in production"
+    token = gw.query(analyst, "SELECT email FROM users ORDER BY id LIMIT 1", observe=False).rows[0][0]
+    assert re.fullmatch(r"[0-9a-f]{16}", token)  # ordinary masking still works for analysts
+    assert gw.query(analyst, "SELECT balance FROM accounts LIMIT 1", observe=False).rows[0][0] in (None, "REDACTED")
+    admin = sqlite_env.login("admin")
+    assert gw.query(admin, "SELECT SUM(balance) FROM accounts", observe=False).rows[0][0] > 0  # admins unaffected
+    from maskguard.pia import build, to_markdown
+    assert "Noisy aggregates: disabled in production" in to_markdown(build(sqlite_env.app))
+
+
 # ---------------------------------------------------------------- network exposure
 
 @pytest.mark.parametrize("service,host,tls,ok", [
@@ -259,6 +280,7 @@ def test_production_build_end_to_end_on_postgres(pg_prod_db, prod, monkeypatch):
     assert r.rows[0][1] == "XXX-XX-4501" and "customers.ssn:partial" in r.masked
     with pytest.raises(Rejected):
         app.gateway.query(s, "UPDATE customers SET name = 'x'", observe=False)
+    assert app.gateway.allow_dp is False  # D11: no noisy aggregates in production
     monkeypatch.setenv("MASKGUARD_DB", pg_prod_db["admin"])  # the owner/superuser account is refused outright
     with pytest.raises(config.UnsafeConfiguration, match="SUPERUSER"):
         config.build()

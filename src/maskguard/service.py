@@ -79,6 +79,8 @@ class LocalService:
         checks.append(("Integrity baseline", base is not None, base["taken_at"] if base else "none recorded"))
         checks.append(("HMAC key", bool(os.environ.get("MASKGUARD_HMAC_KEY")), "set" if os.environ.get("MASKGUARD_HMAC_KEY") else "MISSING"))
         checks.append(("Threat engine", gw.threat is not None, "rules + IsolationForest" if gw.threat else "off"))
+        checks.append(("Noisy aggregates", True, "enabled (development only; not a formal DP guarantee)" if gw.allow_dp
+                       else "disabled in production (design review pending)"))
         return {"mode": self.mode, "environment": config.environment(), "demo_mode": config.demo_enabled(),
                 "backend": a.backend.dialect, "policy_version": P.version(gw.policy),
                 "checks": [{"name": n, "ok": ok, "detail": d} for n, ok, d in checks]}

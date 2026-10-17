@@ -61,7 +61,7 @@ the gateway.
 |---|---|---|
 | admin | Real values | policy.read, policy.write, registry.read, scan.run, audit.read, integrity.verify, integrity.baseline, threats.manage, pia.read |
 | support | Partial masks (`XXX-XX-6789`, `4111-XXXX-XXXX-1111`, `r***@bank.in`), names, identifiers inside notes replaced by `[PHONE]` etc., balances rounded to 10,000; **no frozen accounts** (row filter) | none |
-| analyst | Identifiers as keyed HMAC tokens (joinable, not reversible), names redacted, money only through noisy SUM/AVG/COUNT within a daily ε budget | none |
+| analyst | Identifiers as keyed HMAC tokens (joinable, not reversible), names redacted, money only through noisy SUM/AVG/COUNT within a daily ε budget (development only; refused in production) | none |
 | auditor | `REDACTED` for every personal-data column | policy.read, registry.read, audit.read, integrity.verify, pia.read |
 
 ## Policy semantics
@@ -91,7 +91,7 @@ the gateway.
 | partial | `mg_partial(col, prefix, suffix)` / `mg_email(col)` / `mg_bucket(num, 10000)` | Separators kept, so formats stay readable. Output is byte-identical across SQLite (Python UDF), PostgreSQL (PL/pgSQL) and MySQL (stored function) |
 | hmac | `mg_hmac(col)`, keyed HMAC-SHA256, 16 hex characters | Deterministic, so joins and counts still work. The key comes from `MASKGUARD_HMAC_KEY` (fail closed if missing). It is **not** encryption: tokens can't be reversed, but equal values give equal tokens (frequency analysis) |
 | redact_text | `mg_redact_text(col)` | 21 ordered patterns: identifiers inside text become `[PHONE]`, `[AADHAAR]` and so on |
-| aggregate | `LEAST(GREATEST(col, lo), hi)` inside the view, plus Laplace noise on SUM/AVG/COUNT | Any other use of the column is redacted. Bounds are per table and column (`dp.bounds.<table>.<col>`); a reference that can't be tied to one table gets no noisy release. Not yet a formal DP guarantee: the ε ledger is in memory per process and per account, and small groups are suppressed on the true count before noise |
+| aggregate | `LEAST(GREATEST(col, lo), hi)` inside the view, plus Laplace noise on SUM/AVG/COUNT | Any other use of the column is redacted. Bounds are per table and column (`dp.bounds.<table>.<col>`); a reference that can't be tied to one table gets no noisy release. Not a formal DP guarantee: known gaps and the proposed fix are in `docs/design/PRIVACY_ACCOUNTING.md`. Refused in production (the gateway rejects the query before charging any budget) |
 | redact | `'REDACTED'` / typed NULL | |
 | deny | Typed NULL | |
 

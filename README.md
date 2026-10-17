@@ -8,7 +8,7 @@ per role at query time. Stored data never changes.
 |---|---|
 | **Admin** | real values |
 | **Support** | partial masks: `4111-XXXX-XXXX-1111`, `XXX-XX-6789`, `r***@bank.in`, `[PHONE]` inside notes, balances rounded to 10,000; frozen accounts hidden (row-level filter) |
-| **Analyst** | `REDACTED` or keyed-HMAC tokens (joinable, not reversible); balances only through noisy (Laplace) SUM/AVG/COUNT within a daily ε budget |
+| **Analyst** | `REDACTED` or keyed-HMAC tokens (joinable, not reversible); balances only through noisy (Laplace) SUM/AVG/COUNT within a daily ε budget (development only; disabled in production) |
 | **Auditor** | `REDACTED` for every personal-data column; reads policies, scanner evidence, the audit log and integrity proofs |
 
 ![The maskguard CLI: real health checks, then one query as four roles](docs/img/cli.png)
@@ -28,8 +28,10 @@ per role at query time. Stored data never changes.
    inside the database, with byte-identical output on all three engines.
 4. **Insider-threat engine.** Rules and an IsolationForest score each user's query stream (enumeration, probing,
    bulk paging, firewall bursts, slow attacks) and alert or block.
-5. **Differential privacy.** Analysts get useful noisy aggregates within a daily ε budget, but can't work out any
-   one person's value.
+5. **Noisy aggregates (experimental).** In development, analysts get noisy SUM/AVG/COUNT within a daily ε budget.
+   This is **not** a differential-privacy guarantee yet: known gaps (joins, ordering, per-account and daily budgets)
+   are listed in [docs/design/PRIVACY_ACCOUNTING.md](docs/design/PRIVACY_ACCOUNTING.md), and the feature is disabled
+   in production until that design is implemented and reviewed.
 6. **Plugs in anywhere.** A PostgreSQL wire-protocol proxy (psql or any driver), a REST API with a Python SDK, a
    Postman collection, a CLI and a Streamlit dashboard. A hash-chained audit log strips literals, so PII never
    reaches it.

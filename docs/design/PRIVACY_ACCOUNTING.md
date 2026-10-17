@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| **Status** | Proposal for review. **Nothing here is implemented**, and runtime behaviour is unchanged. |
+| **Status** | Proposal under review. Only decision D11 is implemented: noisy aggregates are refused in production. The accounting design itself is **not** implemented. |
 | **Scope** | The `aggregate` policy action: noisy `SUM`/`AVG`/`COUNT` over protected numeric columns, the ε budget, small-group suppression. |
 | **Out of scope** | Masking actions (partial, HMAC, redact), the threat engine, the deployment profile. |
 | **Date** | 2026-10-17, against commit `1c811c1` on `claude/zealous-bell-me62fn`. |
@@ -37,6 +37,20 @@ charged:
 
 Experiments in this plan can find violations. They cannot prove a guarantee. The claim at the end must rest on a
 written derivation reviewed by someone with differential-privacy expertise (§13).
+
+## 0.1 Decision gate (2026-10-17)
+
+| Decision | Status | Record |
+|---|---|---|
+| **D11**: what happens before the fix | **Decided, implemented** | Production refuses any query that would release a noisy aggregate. The refusal happens before any budget is charged or data is read, and is audited. Masking, tokens, row filters and every other role are unchanged (`Gateway.allow_dp`, set false by `config.build` in production; `tests/test_production.py::test_production_refuses_noisy_aggregates_but_keeps_masking`). The feature returns to production only when §15 is met **and** an independent review (D12) signs off |
+| **D2** (and D1): what is protected | **Decided** | Option B (§3): each **customer's** protected numeric values, under replace-one-customer. **Limitation, to be stated in every product claim:** membership and row existence are *not* protected, and neither are non-protected attributes |
+| **D3**: budget scope | **Decided** | One budget per dataset, shared by all analysts, processes and servers, **enforced atomically** (§9). It needs a configured dataset identity, the declared privacy unit and contribution bounds, and defined behaviour for dataset changes and resets (§9.5). Per-analyst quotas inside it remain optional (open) |
+| **D4/D5**: total budget, period, per-query charge | **Deferred to the data owner** | Set only after sensitivity, composition and the analyst workload have been reviewed. ε = 0.5 per query is a **candidate**, not a validated default. A lifetime cap is the conservative option, but it is only safe if the reset hazards in §9.5 are handled. Lifetime vs. renewing stays open until then |
+| D6–D10, D12 | Open | §16 |
+
+This document is a **specification, not a proof**. Synthetic probes and the tests in `tests/test_dp_findings.py` show
+particular failures; passing tests will not establish differential privacy. The accountant, sensitivity calculations,
+noise distribution, composition rules and query semantics all need independent review (§13, D12).
 
 ## 1. What the code does today, and what's wrong with it
 
@@ -79,6 +93,22 @@ so they can be rerun.
 | F9 | **Group floor on true counts** (`HAVING COUNT(*) >= 5` before noise) | Confirmed (rewritten SQL) | Same dependency as F8: harmless if counts are public, a leak if they aren't (§7) |
 | F10 | **Floating-point Laplace sampler** (`random()` → `log`) | Source | The class of sampler shown by Mironov [10] to leak the input through gaps in attainable doubles |
 
+**Reproduction status.** F1, F2, F4 and F6 are executable tests in `tests/test_dp_findings.py`, written to assert
+the *required* behaviour and marked strict `xfail`. They fail on the code at `51f6826` (whose `src/` is identical to
+`1c811c1`), and will fail the build as soon as a fix makes them pass, until the marker is removed. Measured with a
+neighbouring-dataset harness (exact query on *D* and on *D′* = one customer's values replaced, noise excluded):
+
+| Finding | Measured on the committed code |
+|---|---|
+| F6 | One customer with two accounts moved `SUM(balance)` by **2,000,000**; noise calibrated to 1,000,000 |
+| F1 | One customer with four joined tickets moved it by **4,000,000**; noise calibrated to 1,000,000 |
+| F2 | `ORDER BY s`, `ORDER BY 2` and `ORDER BY 2 … LIMIT 1` all produce a noisy release whose SQL sorts on true values |
+| F4 | After one analyst spends 6 of 10, a second analyst still has 10 |
+
+A control test (customers with one account each, no join) stays within the declared sensitivity, so the harness
+isn't vacuous. F3 (daily renewal) is not encoded as a test, because the period is still open (D4). F5, F7, F9 and F10
+are source-level findings.
+
 The probe queries:
 
 ```sql
@@ -113,11 +143,14 @@ targeted customer, and faster with more accounts. So "can't work out any one per
 honest current statement is the one `docs/ARCHITECTURE.md` already makes: noisy aggregates, **not yet** a formal DP
 guarantee.
 
-Claims to correct once a decision is taken (not edited in this proposal):
-- `README.md` §"What it does" item 5;
-- `docs/EVALUATION.md` §5 (budget wording);
+Claims corrected on 2026-10-17 after D2 and D11 (§0.1). Each now says "experimental, not a formal DP guarantee,
+disabled in production":
+- `README.md` §"What it does" item 5 and the role table;
+- `docs/ARCHITECTURE.md`;
+- `docs/EVALUATION.md` §5 (status note added; measurements unchanged);
 - `docs/ROADMAP.md`;
-- `pia.py` (the generated PIA prints ε figures).
+- `docs/DEPLOYMENT.md`;
+- the generated PIA (`pia.py`), which no longer lists DP as a "control in place".
 
 `docs/APPLICATION_TalentAP.md` stays as the record of what was submitted.
 
@@ -386,6 +419,23 @@ makes DP fail closed.
 - **Step 4 fails.** The result is still returned. A later retry with the same key can't be served from cache
   (409), so it never produces a second free release.
 
+### 9.5 Things that must never reset the budget
+
+A lifetime (or any long-period) budget is only as strong as its weakest recovery procedure. The rule for every case
+below: **spending about a population never goes down while the same people remain in scope.** Each case has an
+acceptance test (§13 item 11).
+
+| Case | Hazard | Rule |
+|---|---|---|
+| **Dataset identity** | A new connection URL, host, replica or database rebuild looks like a "new" dataset and gets a fresh scope | The scope is keyed by a configured `dataset_id`, never derived from the URL, host or database OID. `maskguard db-install` writes the `dataset_id` into a marker table in the protected database (owner account). The gateway reads the marker at startup, and refuses DP if it is missing or differs from the configured scope |
+| **Dataset replacement or migration** (same customers, new database) | Treated as new data, so the budget restarts | The marker and `dataset_id` move with the data, so the same scope continues. A new scope over the same population needs an explicit admin action, a reason, a privacy-officer sign-off and a conservative carry-over of the old spending (§11) |
+| **Customer deletion** | Deleting customers "frees" budget, or a re-onboarded customer starts fresh | `epsilon_spent` never decreases: no per-customer refunds. Deleted customers' past exposure stays recorded, and a returning customer is covered by the same scope |
+| **Protected-database backup restore** | Older data plus an unchanged ledger | Safe: the ledger is separate and keeps every charge. The restore must keep the marker table |
+| **Ledger restore or point-in-time recovery to an earlier moment** | `epsilon_spent` rolls back, which is a silent refund | Every charge is also appended to the hash-chained audit log (it already records `dp_epsilon`) and, optionally, to an external append-only sink. At startup and periodically, the gateway compares each scope's ledger total with the audit-derived total. If the audit total is higher, DP fails closed until an admin reconciles **upwards** (reconciliation never lowers spending). The recovery runbook rolls the ledger forward before reconciling |
+| **Ledger lost** (empty state database) | Scopes recreated at zero | Scopes are never created implicitly on a first query. `maskguard dp-scope create` is an admin command, refused when the audit log shows charges for that `dataset_id` unless an initial spending at least equal to the audit-derived total is supplied |
+| **Ledger and audit log both lost** | No record of past exposure | No automatic recovery. DP stays off until a privacy officer either retires the dataset or opens a new scope with a documented conservative carry-over |
+| **Clock** | A wrong gateway clock moves period boundaries | Lifetime scopes don't use dates. If renewing periods are chosen (D4), boundaries come from the state database's clock, never the gateway's |
+
 ## 10. Failure behaviour
 
 | Situation | Behaviour |
@@ -458,12 +508,23 @@ rests on items 1 and 2.
 9. **Failover**, if HA is in scope: promote the standby under load and confirm no committed charge is lost.
 10. **Reproducible evaluation.** Extend `bench/eval_dp.py` to the full lifetime budget with several colluding
     analysts, and report the differencing-attack error as in §1.3. Seeds are used only in test mode.
+11. **Reset-hazard tests** (§9.5):
+    - restore the ledger from an older dump, and check DP is refused until reconciled upwards;
+    - delete customers, and check `epsilon_spent` is unchanged;
+    - start against a protected database whose marker is missing or different, and check DP is refused;
+    - empty the state database while the audit log has charges, and check `dp-scope create` without a sufficient
+      carry-over is refused;
+    - restart, and check spending persists.
+12. **Budget-store failure tests**:
+    - state database unreachable, read-only or slow, and the ledger invariant deliberately broken: DP is refused,
+      masking keeps working;
+    - concurrent consumption across processes and servers (item 7) never exceeds the cap.
 
 ## 14. Migration plan
 
 | Phase | Content | Gate to the next phase |
 |---|---|---|
-| 0 | Decisions D1–D12. Correct the claims in §1.3. Optionally adopt the interim production stance (D11): refuse `aggregate` in production until phase 4 | Decisions recorded |
+| 0 | **Done 2026-10-17:** D1, D2, D3 and D11 decided; D11 enforced; claims in README, ARCHITECTURE, EVALUATION, ROADMAP, DEPLOYMENT and the generated PIA corrected; findings encoded as strict-`xfail` tests. **Open:** D4–D10, D12 | Remaining decisions recorded |
 | 1 | Mechanism fixes without persistence: F2, F1 (join rule), F7 (sensitivity by relation), F10 (discrete sampler), §6.1 contribution bounding with a declared unit | Verification items 3–6 pass |
 | 2 | Accountant interface; PostgreSQL implementation (§9); in-memory implementation for tests only; production requires `MASKGUARD_STATE_DB`. **Backfill:** initialise each scope's `epsilon_spent` from the audit log's `dp_epsilon` entries, summed across all analysts (conservative) | Items 7–9 pass |
 | 3 | Suppression change (§7) and AVG-with-public-count | Items 3–6 rerun |
@@ -481,24 +542,28 @@ rests on items 1 and 2.
    one does).
 5. With the accountant unavailable, DP queries are refused and everything else keeps working.
 6. Production refuses to start with `aggregate` in policy and no state DB.
-7. Statistical tests find no violation for supported mechanisms, and do flag every known-bad control.
-8. An independent DP reviewer signs off the derivation. Public claims say exactly what was signed off.
+7. Every reset hazard in §9.5 has a passing acceptance test (§13 item 11), and the budget-store failure tests pass
+   (item 12).
+8. Statistical tests find no violation for supported mechanisms, and do flag every known-bad control.
+9. Every strict `xfail` in `tests/test_dp_findings.py` has become a passing test (its marker removed).
+10. An independent DP reviewer signs off the derivation. Public claims say exactly what was signed off. Only then is
+    the production refusal (D11) lifted.
 
 ## 16. Decisions needed before implementation
 
 | # | Decision | Recommendation |
 |---|---|---|
-| D1 | Privacy unit: customer or account | Customer (`users.id`) |
-| D2 | Neighbouring relation: replace-one values (B) or add/remove membership (C) | B, keeping analyst row-level access. C only if analysts lose row access to the protected population |
-| D3 | Budget scope: shared per dataset, or per analyst assuming no collusion | Shared per dataset, optional quotas |
-| D4 | Period and ε cap: lifetime or renewing; the value | Lifetime cap; value set by the data owner and privacy officer |
-| D5 | ε per query and per-output split | Keep 0.5 per protected output as the starting point; revisit after phase 1 utility numbers |
+| D1 | Privacy unit: customer or account | **Decided**: customer (`users.id`), with D2 |
+| D2 | Neighbouring relation: replace-one values (B) or add/remove membership (C) | **Decided**: B. Membership and row existence are not protected, and the product says so |
+| D3 | Budget scope: shared per dataset, or per analyst assuming no collusion | **Decided**: shared per dataset, enforced atomically; optional quotas still open |
+| D4 | Period and ε cap: lifetime or renewing; the value | **Deferred to the data owner** after review; lifetime only with §9.5 in place |
+| D5 | ε per query and per-output split | **Deferred to the data owner**; 0.5 is a candidate, not a validated default |
 | D6 | Suppression approach | Public domains for low-cardinality keys, noisy threshold otherwise |
 | D7 | Joins: many-to-one only, per-unit stage, or elastic sensitivity | Many-to-one only, plus the per-unit stage |
 | D8 | Noise primitives: in-house discrete sampler or a vetted library dependency | Vetted library if the dependency is acceptable |
 | D9 | When the accountant is down: refuse DP only, or suspend the analyst role | Refuse DP only |
 | D10 | HA requirement for the state DB (synchronous standby) | Required if the gateway is HA |
-| D11 | Interim production stance until phase 4 | Refuse `aggregate` in production; keep it in demo with "not formal DP" labelling |
+| D11 | Interim production stance until phase 4 | **Decided and implemented**: noisy aggregates refused in production; development keeps them, labelled "not a formal DP guarantee" |
 | D12 | Who reviews the derivation | An independent reviewer with DP expertise, outside the team |
 
 ## 17. References

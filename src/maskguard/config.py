@@ -215,7 +215,7 @@ def build(settings=None, start_worker=False):
     registry = scan(backend, overrides=overrides)
     if s.registry_out:
         save_registry(registry, s.registry_out)
-    gateway = Gateway(backend, registry, policy, auth, s.audit)
+    gateway = Gateway(backend, registry, policy, auth, s.audit, allow_dp=not production)
     integrity = IntegrityStore(backend, s.db, s.state("integrity_baseline.json"), s.state("integrity_history.jsonl"))
     integrity.ensure_baseline()
     app = App(s, backend, gateway, auth, store, integrity)

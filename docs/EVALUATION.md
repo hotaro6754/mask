@@ -80,6 +80,12 @@ Cells: share of attack sessions alerted (median queries until the first alert). 
 
 ## 5. Differential privacy for analysts
 
+> **Status (2026-10-17).** These measurements describe the experimental noisy-aggregate mechanism, which is **not** a
+> differential-privacy guarantee. Its budget renews daily and is per analyst account, and joins and ordering can leak
+> more than the ε charged. Each gap is reproduced in `tests/test_dp_findings.py` and analysed in
+> `docs/design/PRIVACY_ACCOUNTING.md`. The feature is disabled in production until that design is implemented and
+> reviewed. The differencing-attack figures below cover **one day** of one analyst's budget only.
+
 Policy action `aggregate`: a protected number is usable only as SUM/AVG/COUNT, clipped to [0, 10 lakh], with Laplace
 noise and a daily ε budget of 10 per user.
 
