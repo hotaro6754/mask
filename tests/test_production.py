@@ -345,9 +345,9 @@ def test_production_compose_renders_only_with_every_secret(tmp_path):
 
 # ---------------------------------------------------------------- least-privilege database account (PostgreSQL)
 
-def _with_user(url, user, dbname=None):
+def _with_user(url, user, dbname=None, password=None):
     u = urlparse(url)
-    netloc = f"{user}@{u.hostname}" + (f":{u.port}" if u.port else "")
+    netloc = f"{user}{f':{password}' if password else ''}@{u.hostname}" + (f":{u.port}" if u.port else "")
     return urlunparse(u._replace(netloc=netloc, path=f"/{dbname}" if dbname else u.path))
 
 
@@ -357,18 +357,18 @@ def pg_prod_db():
     if not PG_URL:
         pytest.skip("MASKGUARD_TEST_PG not set")
     import psycopg
-    name, role = f"mg_prod_{secrets.token_hex(4)}", f"mg_gw_{secrets.token_hex(4)}"
+    name, role, pw = f"mg_prod_{secrets.token_hex(4)}", f"mg_gw_{secrets.token_hex(4)}", secrets.token_hex(16)
     with psycopg.connect(PG_URL, autocommit=True) as c:
         c.execute(f'CREATE DATABASE "{name}"')
-        c.execute(f'CREATE ROLE "{role}" LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE')
-    admin = _with_user(PG_URL, urlparse(PG_URL).username, name)
+        c.execute(f"CREATE ROLE \"{role}\" LOGIN PASSWORD '{pw}' NOSUPERUSER NOCREATEDB NOCREATEROLE")
+    admin = _with_user(PG_URL, urlparse(PG_URL).username, name, urlparse(PG_URL).password)  # CI uses password auth
     with psycopg.connect(admin, autocommit=True) as c:
         c.execute("REVOKE CREATE ON SCHEMA public FROM PUBLIC")
         c.execute("CREATE TABLE customers (id int PRIMARY KEY, name text, ssn text)")
         c.execute("INSERT INTO customers VALUES (1, 'Asha Rao', '901-23-4501'), (2, 'Ben Okafor', '902-34-5602')")
         c.execute(f'GRANT USAGE ON SCHEMA public TO "{role}"')
         c.execute(f'GRANT SELECT ON ALL TABLES IN SCHEMA public TO "{role}"')
-    yield {"admin": admin, "gateway": _with_user(PG_URL, role, name), "role": role}
+    yield {"admin": admin, "gateway": _with_user(PG_URL, role, name, pw), "role": role}
     with psycopg.connect(PG_URL, autocommit=True) as c:
         c.execute(f'DROP DATABASE IF EXISTS "{name}" WITH (FORCE)')
         c.execute(f'DROP ROLE IF EXISTS "{role}"')
