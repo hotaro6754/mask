@@ -1077,7 +1077,7 @@ def _menu():
     g = Table.grid(padding=(0, 2))
     g.add_column(style=f"bold {C['accent']}"); g.add_column()
     for k, label in MENU:
-        g.add_row(f"[{k}]", label)
+        g.add_row(Text(f"[{k}]"), label)  # Text: Rich would read "[c]" as a style tag and drop it
     out.print(Panel(g, title="[bold]actions[/]", title_align="left", border_style=C["muted"], box=box.ROUNDED, expand=False))
 
 
