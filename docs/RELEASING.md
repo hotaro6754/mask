@@ -48,7 +48,15 @@ runs when a version tag such as `v1.0.0` is pushed.
    - publishes to PyPI. With a required reviewer, it waits for your approval first.
 4. **Check it**: `pip install maskguard` in a fresh environment, then `maskguard version`.
 
-A version can be published only once. To fix a released version, bump the number and release again.
+A version can be published only once. PyPI never lets a version's files be replaced, even after deleting them, so
+to fix a released version, bump the number and release again. Optionally **yank** the old version on PyPI
+(project → Manage → the version → Options → Yank): `pip install maskguard` then skips it, but anyone who pinned it
+can still install it.
+
+| Version | Date | What changed |
+|---|---|---|
+| 1.0.0 | 18 Oct 2026 | First release |
+| 1.0.1 | 18 Oct 2026 | Security fixes from an external source audit: unreviewed columns fail closed, SQL comments and MySQL hints stripped, no database error text through the proxy or dashboard, `query` capability enforced on every path |
 
 ## Installing unreleased changes from GitHub
 
