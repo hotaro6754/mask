@@ -211,26 +211,80 @@ Pick one way to install:
 | **From source** (to develop or run the tests) | `git clone https://github.com/hotaro6754/mask && cd mask && uv sync` | Works now; prefix commands with `uv run` |
 | **Docker** (demo stack with PostgreSQL) | `docker compose up --build` in the cloned repository | Works now |
 
-Then set the HMAC key ([next section](#set-the-hmac-key)) and start it:
+Then set the HMAC key and start it. Until the key is set, `maskguard status` shows `HMAC KEY FAIL`; Windows commands
+and the full explanation are in [Set the HMAC key](#set-the-hmac-key) below.
 
 ```bash
+export MASKGUARD_HMAC_KEY=dev-only-hmac-key-change-me      # turns the HMAC KEY check green (macOS / Linux)
 maskguard                                                  # interactive security console (banner, live checks, playground)
 maskguard serve                                            # REST API + Control Room dashboard: http://127.0.0.1:8000/ui/
 ```
 
 A pip install keeps its demo database, audit log and scanner registry in `./data/` of the folder you run it from.
 
+Or `docker compose up --build`. That starts PostgreSQL 16, the API and Control Room on :8000, the classic Streamlit
+dashboard on :8501, and the PostgreSQL wire proxy on :6543. That Compose file is a **demo profile** for synthetic
+data only. For real data, see [Production profile](#production-profile).
+
+[docs/DEMO_RUNBOOK.md](docs/DEMO_RUNBOOK.md) walks through the whole demo with exact commands and expected output.
+
+Demo identities (`policies/users.demo.yaml`, synthetic):
+- `admin.ann`, `support.sam`, `analyst.ali` and `auditor.aud`, with passwords `<role>123`;
+- `intruder.ian` for the threat demo.
+
+| Interface | What it gives you |
+|---|---|
+| **CLI** `maskguard` | Interactive console, plus `doctor`, `status`, `db inspect`, `scan --dry-run`, `pii list`, `roles show`, `policy explain`, `query --role/--table`, `compare`, `audit list`, `integrity proof`, `test` and more. `--json` output, stable exit codes, and `--api URL` to run through the REST API |
+| **Control Room** `/ui/` | Overview, live role playground, PII discovery, policy studio (validated, audited edits), role explorer, audit explorer, integrity proofs, API lab, CLI guide |
+| **REST API** `/docs` | Health and readiness, query and query builder, policy explain, matrix and edits, scan, audit search, integrity baseline, verify and proof. Capability-checked |
+| **Postman** `postman/` | 55 requests and 121 body assertions, including 26 negative and security cases. `npx newman run …` |
+| **PostgreSQL proxy** :6543 | `psql "host=localhost port=6543 user=support.sam dbname=bank"`: any PostgreSQL client, masked |
+| **Python SDK** | `MaskGuardClient.demo(url, "support").query_df("SELECT name, ssn FROM users LIMIT 5")` |
+
 ### Set the HMAC key
 
-Set one secret before you use MaskGuard: `MASKGUARD_HMAC_KEY`. It is the key for the analyst tokens (the
-`c6fbcaadd92f426e`-style values that replace a phone number or card number). The same input and the same key always
-give the same token, so analysts can still join and count, but nobody can turn a token back into the value without
-the key. MaskGuard has **no built-in default key** on purpose. Without one, analyst tokens refuse to work and
-`maskguard status` shows:
+**`maskguard status` shows `HMAC KEY FAIL` until you set your own key, on purpose.** Nothing is broken: MaskGuard
+ships without a key, and only turns this check green once you choose one.
 
-```
-HMAC KEY             FAIL    MISSING
-```
+| Before: no key set | After: key set in the same terminal |
+|---|---|
+| ![HMAC KEY FAIL MISSING](docs/img/hmac-key-fail.png) | ![HMAC KEY PASS set](docs/img/hmac-key-pass.png) |
+| `status` exits with code 4; analyst tokens refuse to work | `status` exits with code 0; everything is ready |
+
+#### What it is
+
+`MASKGUARD_HMAC_KEY` is a secret string you choose. When the policy says a role sees a column as a **token**,
+MaskGuard runs each value through HMAC-SHA256 with this key and keeps the first 16 hex characters. Real output from
+the demo (`maskguard compare "SELECT ssn FROM users LIMIT 1" --roles admin,analyst`):
+
+| Stored value (what Admin sees) | Key | What the Analyst sees |
+|---|---|---|
+| `205-84-4078` | `dev-only-hmac-key-change-me` | `58fd7cb2ac03875b` |
+| `205-84-4078` again, in any row or table | same key | `58fd7cb2ac03875b` (same value + same key = same token) |
+| `205-84-4078` | `a-different-key-0123456789` | `52cb704a817fb775` (new key, new token) |
+
+#### Why it is needed
+
+- **Analysts can still do their job.** The same value always gives the same token, so they can join tables, count
+  distinct customers and spot duplicates without ever seeing the real value.
+- **A key stops guessing.** A plain hash without a key can be reversed by brute force: there are only about a
+  billion SSNs or ten billion phone numbers, so an attacker hashes them all and looks for a match. With a secret key,
+  nobody without the key can make the tokens to compare.
+- **No default key, so FAIL first.** A built-in key would be published on GitHub and PyPI for everyone to read, and
+  then anyone could reverse your tokens. So MaskGuard fails closed: no key, no tokens, and `status` says `FAIL` until
+  you set yours.
+
+#### Where it is used
+
+- **In query results:** for every column whose policy action is `hmac`. In the default policy that is the Analyst
+  role on `PII_HIGH` columns, for example the demo's SSN column.
+- **Inside the database:** on PostgreSQL and MySQL, the token is computed in SQL (`mg_hmac`, installed by
+  `maskguard db-install`). The gateway passes the key to its own database session when it connects, so the key is
+  not stored in any table.
+- **Not used for:** logins (signed with the separate `MASKGUARD_JWT_SECRET`), user passwords (hashed in the user
+  store) or the audit log.
+
+#### How to set it
 
 **1. Set it in the terminal you will run MaskGuard from.** Pick the line for your shell:
 
@@ -240,10 +294,10 @@ HMAC KEY             FAIL    MISSING
 | Windows PowerShell | `$env:MASKGUARD_HMAC_KEY="dev-only-hmac-key-change-me"` |
 | Windows Command Prompt (cmd) | `set MASKGUARD_HMAC_KEY=dev-only-hmac-key-change-me` |
 
-Any value works for the demo. This only lasts for that terminal window: a new window needs it again.
+Any value works for the demo. It only lasts for that terminal window: a new window needs it again.
 
-**2. Check it.** `maskguard status` should now show `HMAC KEY  PASS  set`. `maskguard doctor` also checks the
-length (at least 16 bytes).
+**2. Check it.** Run `maskguard status`: the `HMAC KEY` row turns from red `FAIL MISSING` to green `PASS set`, as
+in the screenshots above. `maskguard doctor` also checks the length (at least 16 bytes).
 
 **3. Optional: keep it for every new terminal.**
 
@@ -264,6 +318,8 @@ python -c "import secrets; print(secrets.token_hex(32))"
 - Keep it the same over time: a new key gives every value a new token, so old tokens no longer match new ones.
 - Anyone with the key can test guesses against tokens (for example, every phone number), so treat it like a password.
 
+#### When something is wrong
+
 | You see | Why | Fix |
 |---|---|---|
 | `HMAC KEY  FAIL  MISSING` in `maskguard status` | The variable isn't set in this terminal | Run the line for your shell above, in the same window |
@@ -271,25 +327,6 @@ python -c "import secrets; print(secrets.token_hex(32))"
 | `'export' is not recognized` (Windows) | `export` is for macOS/Linux | Use the PowerShell or cmd line |
 | `doctor`: `too short: use ≥ 16 random bytes` | The key is too short | Use a longer key, or generate one as in step 4 |
 | Production startup: `MASKGUARD_HMAC_KEY looks like a placeholder` or `is shorter than 32 characters` | Demo value used in production | Generate a random key as in step 4 |
-
-Or `docker compose up --build`. That starts PostgreSQL 16, the API and Control Room on :8000, the classic Streamlit
-dashboard on :8501, and the PostgreSQL wire proxy on :6543. That Compose file is a **demo profile** for synthetic
-data only. For real data, see [Production profile](#production-profile).
-
-[docs/DEMO_RUNBOOK.md](docs/DEMO_RUNBOOK.md) walks through the whole demo with exact commands and expected output.
-
-Demo identities (`policies/users.demo.yaml`, synthetic):
-- `admin.ann`, `support.sam`, `analyst.ali` and `auditor.aud`, with passwords `<role>123`;
-- `intruder.ian` for the threat demo.
-
-| Interface | What it gives you |
-|---|---|
-| **CLI** `maskguard` | Interactive console, plus `doctor`, `status`, `db inspect`, `scan --dry-run`, `pii list`, `roles show`, `policy explain`, `query --role/--table`, `compare`, `audit list`, `integrity proof`, `test` and more. `--json` output, stable exit codes, and `--api URL` to run through the REST API |
-| **Control Room** `/ui/` | Overview, live role playground, PII discovery, policy studio (validated, audited edits), role explorer, audit explorer, integrity proofs, API lab, CLI guide |
-| **REST API** `/docs` | Health and readiness, query and query builder, policy explain, matrix and edits, scan, audit search, integrity baseline, verify and proof. Capability-checked |
-| **Postman** `postman/` | 55 requests and 121 body assertions, including 26 negative and security cases. `npx newman run …` |
-| **PostgreSQL proxy** :6543 | `psql "host=localhost port=6543 user=support.sam dbname=bank"`: any PostgreSQL client, masked |
-| **Python SDK** | `MaskGuardClient.demo(url, "support").query_df("SELECT name, ssn FROM users LIMIT 5")` |
 
 ## Production profile
 
