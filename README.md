@@ -211,15 +211,66 @@ Pick one way to install:
 | **From source** (to develop or run the tests) | `git clone https://github.com/hotaro6754/mask && cd mask && uv sync` | Works now; prefix commands with `uv run` |
 | **Docker** (demo stack with PostgreSQL) | `docker compose up --build` in the cloned repository | Works now |
 
-Then:
+Then set the HMAC key ([next section](#set-the-hmac-key)) and start it:
 
 ```bash
-export MASKGUARD_HMAC_KEY=dev-only-hmac-key-change-me      # PowerShell: $env:MASKGUARD_HMAC_KEY="dev-only-hmac-key-change-me"
 maskguard                                                  # interactive security console (banner, live checks, playground)
 maskguard serve                                            # REST API + Control Room dashboard: http://127.0.0.1:8000/ui/
 ```
 
 A pip install keeps its demo database, audit log and scanner registry in `./data/` of the folder you run it from.
+
+### Set the HMAC key
+
+Set one secret before you use MaskGuard: `MASKGUARD_HMAC_KEY`. It is the key for the analyst tokens (the
+`c6fbcaadd92f426e`-style values that replace a phone number or card number). The same input and the same key always
+give the same token, so analysts can still join and count, but nobody can turn a token back into the value without
+the key. MaskGuard has **no built-in default key** on purpose. Without one, analyst tokens refuse to work and
+`maskguard status` shows:
+
+```
+HMAC KEY             FAIL    MISSING
+```
+
+**1. Set it in the terminal you will run MaskGuard from.** Pick the line for your shell:
+
+| Your terminal | Command |
+|---|---|
+| macOS / Linux (bash, zsh) | `export MASKGUARD_HMAC_KEY=dev-only-hmac-key-change-me` |
+| Windows PowerShell | `$env:MASKGUARD_HMAC_KEY="dev-only-hmac-key-change-me"` |
+| Windows Command Prompt (cmd) | `set MASKGUARD_HMAC_KEY=dev-only-hmac-key-change-me` |
+
+Any value works for the demo. This only lasts for that terminal window: a new window needs it again.
+
+**2. Check it.** `maskguard status` should now show `HMAC KEY  PASS  set`. `maskguard doctor` also checks the
+length (at least 16 bytes).
+
+**3. Optional: keep it for every new terminal.**
+
+| System | How |
+|---|---|
+| macOS / Linux | Add the `export` line to `~/.bashrc` (bash) or `~/.zshrc` (zsh), then open a new terminal |
+| Windows | Run `setx MASKGUARD_HMAC_KEY "dev-only-hmac-key-change-me"` once, then open a new terminal |
+| Docker demo | Nothing to do: `docker-compose.yml` sets a demo key. Override it with `MASKGUARD_HMAC_KEY=... docker compose up` |
+
+**4. For real data, use a random key.** Generate one:
+
+```bash
+python -c "import secrets; print(secrets.token_hex(32))"
+```
+
+- Production refuses keys shorter than 32 characters and placeholder values such as `dev-only-…` or `change-me`.
+- Store it in a secret manager or the deployment's environment file (`deploy/production.env.example`), never in git.
+- Keep it the same over time: a new key gives every value a new token, so old tokens no longer match new ones.
+- Anyone with the key can test guesses against tokens (for example, every phone number), so treat it like a password.
+
+| You see | Why | Fix |
+|---|---|---|
+| `HMAC KEY  FAIL  MISSING` in `maskguard status` | The variable isn't set in this terminal | Run the line for your shell above, in the same window |
+| `query failed: OperationalError` (or `MASKGUARD_HMAC_KEY is not set`) on an analyst query | The token function has no key, so it refuses | Same |
+| `'export' is not recognized` (Windows) | `export` is for macOS/Linux | Use the PowerShell or cmd line |
+| `doctor`: `too short: use ≥ 16 random bytes` | The key is too short | Use a longer key, or generate one as in step 4 |
+| Production startup: `MASKGUARD_HMAC_KEY looks like a placeholder` or `is shorter than 32 characters` | Demo value used in production | Generate a random key as in step 4 |
 
 Or `docker compose up --build`. That starts PostgreSQL 16, the API and Control Room on :8000, the classic Streamlit
 dashboard on :8501, and the PostgreSQL wire proxy on :6543. That Compose file is a **demo profile** for synthetic
@@ -307,7 +358,7 @@ production only after the decisions, an implementation, recovery tests and indep
 |---|---|---|
 | `MASKGUARD_ENV` | `development` | `production` turns on every check above; any other value is refused |
 | `MASKGUARD_DB` | `sqlite:///data/bank.db` | `postgresql://…` or `mysql://…` (MySQL needs `log_bin_trust_function_creators=1` for its masking functions) |
-| `MASKGUARD_HMAC_KEY` | required | key for Analyst tokens; missing → error (fail closed) |
+| `MASKGUARD_HMAC_KEY` | required | key for Analyst tokens; missing → error (fail closed). Production: ≥ 32 characters, no placeholder. See [Set the HMAC key](#set-the-hmac-key) |
 | `MASKGUARD_JWT_SECRET` | random per process | set it so tokens survive restarts and work across workers; required in production |
 | `MASKGUARD_POLICY` | `policies/default.yaml` | role × tag → `allow` / `partial` / `hmac` / `redact` / `redact_text` / `aggregate` / `deny`; row filters; row caps; group floor; threat thresholds |
 | `MASKGUARD_USERS` | `policies/users.demo.yaml` | users, roles, PBKDF2 hashes (`maskguard hash-password`); production needs its own file |
@@ -461,7 +512,7 @@ You need Python 3.10 or newer:
 
 ```bash
 pip install maskguard
-export MASKGUARD_HMAC_KEY=dev-only-hmac-key-change-me   # Windows PowerShell: $env:MASKGUARD_HMAC_KEY="dev-only-hmac-key-change-me"
+export MASKGUARD_HMAC_KEY=dev-only-hmac-key-change-me   # PowerShell: $env:MASKGUARD_HMAC_KEY="..."   cmd: set MASKGUARD_HMAC_KEY=...
 maskguard                 # console with synthetic demo data
 maskguard serve           # dashboard at http://127.0.0.1:8000/ui/
 ```
@@ -470,6 +521,15 @@ To develop or run the tests, clone the repository and use `uv sync`. For the dem
 `docker compose up --build`. There is no npm package or `.exe`: MaskGuard is a Python server that runs next to a
 database. It is developed and tested on Linux. Windows and
 macOS should work with Python 3.10+, but CI doesn't cover them. Step by step: [GUIDE §18](docs/GUIDE.md#18-installing-maskguard-on-your-computer).
+</details>
+
+<details>
+<summary><b><code>maskguard status</code> says <code>HMAC KEY FAIL MISSING</code>. What's wrong?</b></summary>
+
+Nothing is broken: the token key isn't set in that terminal, and MaskGuard has no default key on purpose. Set
+`MASKGUARD_HMAC_KEY` in the same window (`export` on macOS/Linux, `$env:` in PowerShell, `set` in cmd) and run
+`maskguard status` again. All the commands, how to make it permanent and how to pick a real key are in
+[Set the HMAC key](#set-the-hmac-key).
 </details>
 
 <details>
