@@ -67,7 +67,11 @@ the gateway.
 ## Policy semantics
 
 - **Classification.** The scanner tags columns `PII_HIGH`, `FINANCIAL_CONFIDENTIAL`, `PII_MEDIUM`, `PII_IN_TEXT`, or
-  nothing (`PUBLIC`). Manual tags in `overrides.yaml` win over the scanner.
+  nothing. Nothing found is `UNREVIEWED`, not safe: it has its own rule per role (default policy: admin `allow`,
+  everyone else `redact`; no rule falls back to `default_action`). Only `PUBLIC`, set by a person in
+  `overrides.yaml`, means "approved, not personal" and is always allowed. Manual tags in `overrides.yaml` win over the
+  scanner. Demo mode adds `policies/public.demo.yaml` (the demo schema's ids, statuses and cities), and only for
+  columns the scanner left untagged; production never loads it.
 - **Rule lookup.** `roles.<role>.<tag>` gives the action. A tag with no rule gets `default_action`, which must be
   `deny` or `redact`; validation refuses anything else. An unknown role is rejected. An unknown action becomes a
   NULL column (deny).

@@ -37,7 +37,7 @@ mode (`MASKGUARD_ENV=production`): it refuses to start on any unsafe setting.
 - **PII discovery:** 0.965 F1 with misleading column names and 5 sample values per column; the benchmark baseline
   scores 0.844.
 - **Attack suite:** 0 of 17 bypass and inference attacks leak, against 14–15 of 17 for output-only masking.
-- **Tests:** 476 tests on SQLite, PostgreSQL 16 and MySQL 8.4.
+- **Tests:** 498 tests on SQLite, PostgreSQL 16 and MySQL 8.4.
 - **Latency:** about 8 ms added per query.
 
 ## Learn more

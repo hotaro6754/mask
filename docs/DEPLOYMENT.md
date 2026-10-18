@@ -42,6 +42,28 @@ To use an existing database instead of the bundled one, run `maskguard db-instal
 once, grant the gateway account read access (below), and point `MASKGUARD_DB` at it in a Compose override that
 removes the `db` service.
 
+## Review the columns before real users
+
+The scanner tags the columns it recognises. A column it finds nothing in is `UNREVIEWED`: in the default policy, admin
+sees it and every other role gets `REDACTED` (no rule for `UNREVIEWED` falls back to `default_action`, so even admin
+gets nothing). That includes ids and join keys, so until they are reviewed, joins and filters on them match nothing
+for those roles. Production never loads the demo approvals (`policies/public.demo.yaml`).
+
+1. `maskguard pii list` lists the sensitive columns and every `UNREVIEWED` one, with the scanner's evidence (never
+   values).
+2. Look at each unreviewed column. Approve the ones that are not personal data in your overrides file, and tag the
+   ones that are:
+
+   ```yaml
+   accounts:
+     id: {tag: PUBLIC}            # reviewed: an internal number
+     status: {tag: PUBLIC}
+     nickname: {tag: PII_MEDIUM}  # the scanner missed it
+   ```
+
+3. Mount that file read-only and point `MASKGUARD_OVERRIDES` at it (a Compose override adding a volume, for the
+   reference stack). Review changes to it like code: a column wrongly approved as `PUBLIC` is shown to every role.
+
 ## What production checks at startup
 
 `maskguard serve` (and every other command that starts the engine) stops with exit code 4 and a list of problems
@@ -115,6 +137,7 @@ dataset that has the same schema.
 | `MASKGUARD_TLS_CERT`, `MASKGUARD_TLS_KEY` | when the API leaves loopback | PEM chain and key (or `--ssl-certfile`/`--ssl-keyfile`) |
 | `MASKGUARD_DEMO`, `MASKGUARD_SEED_IF_EMPTY` | no | Must be `0` if set |
 | `MASKGUARD_DB_ADMIN` | `db-install` only | Owner URL. Give it to the install job, never to the gateway |
+| `MASKGUARD_OVERRIDES` | recommended | Your reviewed overrides file: `PUBLIC` approvals and forced tags (above). Without it, every column the scanner found nothing in stays masked for non-admin roles |
 
 The Compose file takes the same values from `deploy/production.env` (see `deploy/production.env.example`) and
 refuses to render if any required one is empty: `docker compose config` fails with "required variable … is

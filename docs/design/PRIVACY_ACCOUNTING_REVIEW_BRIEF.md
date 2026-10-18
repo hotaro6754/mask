@@ -286,7 +286,7 @@ C2 inventory above is historical: it describes the code at `a6891fd`.
 |---|---|---|
 | F1–F10: gaps in today's noisy-aggregate mechanism (fan-out, ordering on true values, budget scope, per-row clipping, sensitivity, exact counts, floor on true counts, float sampler) | Design §1.2; F1, F2, F4, F6 reproduced in `tests/test_dp_findings.py` | **Not fixed.** Contained in production by D11. The accountant and mechanism changes are not implemented |
 | The proxy's `Describe` runs rewritten SQL outside the gateway | C2 (bypass table) | **Unresolved.** See §5.3 |
-| The proxy's extended-protocol errors echo exception text | C2 (error handlers row) | **Unresolved.** See §5.3 |
+| The proxy's extended-protocol errors echo exception text | C2 (error handlers row) | **Remediated** in `1bc8cba` (§5.2), after an external source audit asked for it. The rest of the error-path review in §6 item 2 stays open |
 
 ### 5.2 Remediated since `a6891fd`
 
@@ -294,6 +294,8 @@ C2 inventory above is historical: it describes the code at `a6891fd`.
 |---|---|---|
 | **Attack self-test served in production.** `GET /attacks`, open to any role, read every protected column in full and sent crafted SQL straight to the database | `63b0c25` | **The fix:** `GET /attacks` returns 403 with a generic message for every role and any parameters. `maskguard attack`, `test` and `simulate-attack` exit 3. The dashboard tabs show a notice. The check runs inside the runners before the first read, fails closed unless the environment is development both now and at build time, and is audited without SQL, schema or results. **Regression tests:** listed in evidence §4; all fail with the guard disabled. **Live production run on PostgreSQL 16:** six 403s, and the scan counters did not move (evidence §3) |
 | **CI was red for two reasons unrelated to the product.** (1) The test fixture dropped database passwords, and CI requires them, so the PostgreSQL production tests had never passed in CI. (2) The Newman step left a `uv run` server holding uv's cache lock, so the post-job prune timed out. Neither is a product vulnerability, but together they meant CI evidence was missing | `988271d`, `29f6ba1` | **(1)** Reproduced on a password-authenticated PostgreSQL 16: 4 errors before the fix, 4 passed after; full suite there 474 passed. **(2)** Reproduced from the CI log and locally with a scratch uv cache. Details in evidence §2.3 |
+
+| **External source audit, 18 Oct 2026** (owner-supplied, read-only review of the branch). Four implementation findings, each reproduced on the code before fixing: (1) a column the scanner found nothing in was returned to every role unmasked; (2) SQL comments, and MySQL `/*+ */` hints, survived into audit fingerprints and the SQL sent to the database (`SELECT id /* sentinel@example.com */ FROM users` was logged with the email); (3) the proxy's extended protocol and the classic dashboard returned database error text; (4) no path checked the `query` capability | `1bc8cba` | **(1)** No tag now means `UNREVIEWED`, with its own rule per role (default policy: admin `allow`, others `redact`; no rule falls back to `default_action`). Only `PUBLIC` set by a person is allowed for everyone. Demo approvals (`policies/public.demo.yaml`) load only in demo mode and only for columns the scanner left untagged. **(2)** Fingerprints and rewritten SQL are generated without comments; hints are removed (hints with functions were already refused). **(3)** The proxy (both protocols) and the dashboard use `safe_error`, like the API. **(4)** `rewrite()` refuses a role without `query`, so every path is covered, including the proxy's `Describe`; the API's query routes also return 403. **Tests:** `tests/test_hardening.py`, 22 on SQLite, PostgreSQL 16 and MySQL 8.4, each failing with its fix reverted. Full suite at `1bc8cba`: 498 passed, 6 xfailed, 1 skipped. This is an implementation change outside the protocol; `a6891fd` is unchanged |
 
 ### 5.3 Unresolved risks (for the reviewer; nothing has been fixed or tested beyond what is stated)
 
@@ -308,10 +310,11 @@ Each risk comes with its basis and with what has not been done.
   - the audit record.
 
   *Basis:* code reading at `32ed792`. *Not done:* any live test of planning-time effects, errors or timing.
-- **Extended-protocol error text.** `pgwire.extended` returns `"{type}: {message}"`, up to 200 characters, for any
-  exception during Parse, Bind, Describe or Execute. That includes database errors raised while Bind runs the
-  query through the gateway. The simple protocol returns only the type; the API uses `safe_error`.
-  *Basis:* code reading, plus the two probe cases in evidence §5. *Not done:* a general assessment.
+- **Extended-protocol error text** (remediated in `1bc8cba`, kept here for the record). `pgwire.extended`
+  returned `"{type}: {message}"`, up to 200 characters, for any exception during Parse, Bind, Describe or Execute.
+  It now returns `safe_error` text, as the simple protocol, API and dashboard do. *Not done:* the general
+  error-path assessment in §6 item 2; `safe_error` passes through a few fixed, identifier-only messages, and the
+  messages MaskGuard writes itself (`Rejected`) are not reviewed for inference.
 - **Row-filter enforcement under errors and alternative query shapes.** The rewriter places each row filter
   inside a derived table that PostgreSQL may flatten. It is not declared as a security barrier, so whether a
   user's own expressions can be evaluated on rows the filter excludes, and what an error would then reveal, is

@@ -10,7 +10,7 @@ every query so each role sees only what its policy allows. Stored data never cha
 [![CI](https://github.com/hotaro6754/mask/actions/workflows/ci.yml/badge.svg?branch=claude/zealous-bell-me62fn)](https://github.com/hotaro6754/mask/actions/workflows/ci.yml?query=branch%3Aclaude%2Fzealous-bell-me62fn)
 ![Python](https://img.shields.io/badge/python-3.10%2B-3776AB)
 ![Databases](https://img.shields.io/badge/databases-SQLite%20%C2%B7%20PostgreSQL%20%C2%B7%20MySQL-4c8)
-![Tests](https://img.shields.io/badge/tests-476%20passed-brightgreen)
+![Tests](https://img.shields.io/badge/tests-498%20passed-brightgreen)
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue)](LICENSE)
 [![PyPI](https://img.shields.io/pypi/v/maskguard)](https://pypi.org/project/maskguard/)
 
@@ -195,7 +195,7 @@ repository and a JSON file in `docs/eval/`.
 | PII leaks across 17 bypass and inference attacks | **0 / 17** | 15 / 17 on PostgreSQL, 14 / 17 on SQLite and MySQL (naive masking) |
 | Simulated insider attacks detected (normal users blocked) | **95–100% (0%)** | — |
 | Added latency per query, p50, all features on | ~8 ms (SQLite, PostgreSQL), ~21 ms (MySQL) | — |
-| Tests | **476 passed** on SQLite, PostgreSQL 16 and MySQL 8.4, plus 121 Postman assertions | — |
+| Tests | **498 passed** on SQLite, PostgreSQL 16 and MySQL 8.4, plus 121 Postman assertions | — |
 
 The attack suite is evidence for those 17 attack shapes, not a proof against every possible query. The threat
 engine was evaluated on simulated sessions.
@@ -429,8 +429,8 @@ The suite also includes:
 
 - HMAC tokens still allow equality joins and frequency analysis. Partial masks reveal the characters they leave
   visible.
-- A column the scanner misses stays exposed until it's tagged. Uncertain columns are masked for review, and
-  `overrides.yaml` lets you force a tag. Untagged columns are returned as they are.
+- A column the scanner finds nothing in is `UNREVIEWED` and masked for every role except admin until a person
+  approves it as `PUBLIC` in `overrides.yaml`. A column wrongly approved is exposed, so review approvals like code.
 - The threat engine was evaluated on simulated sessions; recalibrate it on real normal traffic. Its state is per
   process.
 - Names and addresses inside free text need NER, which isn't integrated yet.
@@ -439,8 +439,9 @@ The suite also includes:
 - The audit hash chain is unkeyed and local. It catches accidental or partial edits, not someone who can rewrite the
   whole file on the host. It also assumes **one writing process**: if the API and CLI commands (or several workers)
   append to the same audit file, the chain forks and verification reports it broken.
-- The PostgreSQL proxy has no TLS of its own, so production keeps it on loopback. Its `Describe` path and its
-  error messages are open items for the independent review.
+- The PostgreSQL proxy has no TLS of its own, so production keeps it on loopback. Its `Describe` path (which skips
+  some gateway checks) and row filters under unusual query shapes are open items for the independent review. Its
+  error messages no longer carry database text (fixed after an external source audit, 18 Oct 2026).
 
 ## Research context
 
@@ -510,7 +511,7 @@ the columns itself, masks inside the query, and applies one policy across databa
 They can get masking code quickly; MaskGuard itself was built with AI assistance. Getting code is the easy part.
 Knowing it can't be bypassed is the hard part:
 - the obvious version masks the output, which leaks 14–15 of our 17 attacks;
-- MaskGuard is checked on every push by an attack suite, 476 tests on three databases and 121 API assertions;
+- MaskGuard is checked on every push by an attack suite, 498 tests on three databases and 121 API assertions;
 - a security bug doesn't crash, it silently leaks, so untested security code is a liability.
 
 The value is the tested, verified behaviour, not the lines of code.
@@ -577,6 +578,7 @@ Point `MASKGUARD_DB` at it and start MaskGuard:
 ```bash
 export MASKGUARD_DB='postgresql://user:password@db-host:5432/yourdb'     # or mysql://user:password@host:3306/yourdb
 export MASKGUARD_SEED_IF_EMPTY=0                                           # never add demo data to your database
+export MASKGUARD_DEMO=0                                                    # no demo logins or demo approvals
 uv run maskguard status
 ```
 
@@ -585,7 +587,8 @@ On first start it:
 2. scans every table and tags sensitive columns;
 3. records an integrity baseline.
 
-Review the tags with `maskguard pii list`, adjust the policy, create users, then point people and tools at
+Columns it finds nothing in are `UNREVIEWED`: masked for everyone but admin until a person approves them as
+`PUBLIC` in `policies/overrides.yaml`. Review the tags and those columns with `maskguard pii list`, adjust the policy, create users, then point people and tools at
 MaskGuard. **Try it on a staging copy first.** For production, install the functions once with the owner account
 (`maskguard db-install`) and run the gateway through a read-only account. Full walkthrough:
 [GUIDE §19](docs/GUIDE.md#19-connecting-your-existing-database), production: [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md).
@@ -646,8 +649,8 @@ needed. Making a rule weaker requires a reason and confirmation, and every chang
 <summary><b>What happens when a new table or column appears?</b></summary>
 
 A background worker rescans every 5 minutes (configurable). A new table is blocked until it has been scanned. You
-can force a tag in `policies/overrides.yaml`. A column the scanner tags as `PUBLIC` is returned as it is, so review
-new tags.
+can force a tag in `policies/overrides.yaml`. A new column the scanner finds nothing in is `UNREVIEWED`: masked
+for every role except admin until you approve it as `PUBLIC` there (`maskguard pii list` shows what's waiting).
 </details>
 
 ### Running it

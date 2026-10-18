@@ -219,7 +219,7 @@ Partly, yes, and MaskGuard itself was built with an AI assistant. An AI can writ
 
 - **The quick version is usually display masking**, which our attack suite breaks in 14–15 of 17 attacks.
 - **Security bugs are silent.** Broken masking doesn't crash; it leaks, and nobody notices until data is gone.
-- **The value is the checking:** an attack suite, 476 tests on three databases, 121 API checks, a security
+- **The value is the checking:** an attack suite, 498 tests on three databases, 121 API checks, a security
   comparison with an existing product, a production profile verified live, and a privacy audit that found and
   documented its own gaps.
 
@@ -428,10 +428,18 @@ made of many small decision trees; trained on labelled examples, it predicts the
 | `FINANCIAL_CONFIDENTIAL` | Money and accounts | balances, card numbers, IBAN, account numbers |
 | `PII_MEDIUM` | Quasi-identifiers: harmless alone, identifying together | name, date of birth, address, PIN code |
 | `PII_IN_TEXT` | Identifiers inside free text | support notes mentioning a phone number |
-| `PUBLIC` | No PII found | ids, statuses, cities |
+| `UNREVIEWED` | The scanner found nothing, and nobody has checked it yet. **Not the same as safe** | any column of a new database, until reviewed |
+| `PUBLIC` | A person reviewed it and approved it as not personal | ids, statuses, cities |
 
-**Uncertain columns** are still tagged and masked, marked for human review. **Overrides** (`policies/overrides.yaml`)
-let a person force a tag. A **background worker** rescans every few minutes (`MASKGUARD_SCAN_INTERVAL`), and a new
+**Unreviewed columns** are masked for every role except admin, because a scanner finding nothing is not proof there
+is nothing. **Uncertain columns** are still tagged and masked, marked for human review. **Overrides**
+(`policies/overrides.yaml`) let a person force a tag, including `PUBLIC` to approve a column:
+
+```yaml
+users:
+  id: {tag: PUBLIC}        # reviewed: an internal number, not personal data
+  city: {tag: PUBLIC}
+``` A **background worker** rescans every few minutes (`MASKGUARD_SCAN_INTERVAL`), and a new
 table is blocked until it has been scanned.
 
 How well does it work? On an independent Indian-PII benchmark with deliberately misleading column names, it scores
@@ -791,8 +799,9 @@ database.
 export MASKGUARD_DB='postgresql://user:password@staging-host:5432/yourdb'
 export MASKGUARD_HMAC_KEY='a-long-random-secret'
 export MASKGUARD_SEED_IF_EMPTY=0          # never add demo data to your database
+export MASKGUARD_DEMO=0                   # no demo logins, and no demo approvals applied to your tables
 uv run maskguard status                   # connects, installs functions, scans, records a baseline
-uv run maskguard pii list                 # what the scanner found, with evidence (never values)
+uv run maskguard pii list                 # what the scanner found, with evidence (never values), and what's UNREVIEWED
 ```
 
 ### What happens on first connection
@@ -816,8 +825,10 @@ sequenceDiagram
 
 ### Then make it yours
 
-1. **Check the tags.** `maskguard pii list`, or Control Room → PII discovery. Wrong tag? Force it in
-   `policies/overrides.yaml`.
+1. **Check the tags and review the rest.** `maskguard pii list`, or Control Room → PII discovery. Wrong tag? Force it
+   in `policies/overrides.yaml`. Every column the scanner found nothing in is `UNREVIEWED` and masked for everyone
+   but admin, ids and keys included, so joins on them won't match yet. Look at each one, and approve the ones that
+   really aren't personal (`id: {tag: PUBLIC}`); tag the rest.
 2. **Set the rules.** Edit `policies/default.yaml`: roles, what each sees per tag, row filters, row limits.
    `maskguard policy explain --role support --table accounts` shows the result.
 3. **Create real users.** `maskguard hash-password` for each, into your own users file; set `MASKGUARD_USERS`.
@@ -1015,7 +1026,7 @@ production aggregates.
 
 | Check | What it proves | Command |
 |---|---|---|
-| **Test suite** (pytest) | 476 tests on SQLite, PostgreSQL 16 and MySQL 8.4: masking, firewall, roles, scanner, threat engine, API, CLI, production refusals, DP findings | `uv run pytest -q` |
+| **Test suite** (pytest) | 498 tests on SQLite, PostgreSQL 16 and MySQL 8.4: masking, firewall, roles, scanner, threat engine, API, CLI, production refusals, DP findings, audit hardening | `uv run pytest -q` |
 | **Attack suite** | 0 of 17 PII attacks leak; 4 of 4 unsafe statements rejected | `uv run maskguard attack --role support` |
 | **Security regression** | Attack suite as every role + audit chain + integrity proof | `uv run maskguard test` |
 | **Postman / Newman** | 55 API requests, 121 assertions, including 26 negative and security cases | `make postman` |
@@ -1073,7 +1084,8 @@ flowchart LR
 2. Until the background scanner has seen it, queries on it are blocked.
 3. The scanner samples it and tags its columns (or run it now: `maskguard scan`).
 4. Check the result: `maskguard pii list`, or Control Room → PII discovery.
-5. If a column is wrong, force its tag in `policies/overrides.yaml`.
+5. If a column is wrong, force its tag in `policies/overrides.yaml`. Columns it found nothing in are `UNREVIEWED`
+   (masked for everyone but admin) until you approve them there as `PUBLIC`.
 6. Queries now work, masked by policy.
 
 ### 24.4 Change the policy safely
@@ -1176,7 +1188,7 @@ request id you can look up in the audit log.
 |---|---|---|
 | HMAC tokens allow equality joins and frequency analysis | Same input → same token, so analysts can join on it (the point) and can count how often each token appears | A trade-off. Per-analyst keys stop cross-analyst joins; suppressing rare values limits frequency analysis |
 | Partial masks reveal the characters they keep | `XXX-XX-4078` shows the last 4 digits | By policy: keep fewer characters |
-| A column the scanner misses stays exposed | Untagged columns are returned as they are | Fixable: a policy option to redact untagged columns for non-admin roles |
+| A column wrongly approved as `PUBLIC` is exposed | Columns the scanner finds nothing in are masked (`UNREVIEWED`) until a person approves them; a wrong approval shows the column to everyone | Process: review approvals like code. (Fixed on 18 Oct 2026: before that, unreviewed columns were returned as they were) |
 | Threat engine evaluated on simulated sessions | Real traffic may look different | Needs real normal traffic to recalibrate |
 | Threat-engine state is per process | Restarts forget blocks; two instances don't share | Fixable: keep state in a shared database |
 | Names and addresses inside free text | Need a named-entity recognition (NER) model | Needs a new ML dependency |
@@ -1184,7 +1196,7 @@ request id you can look up in the audit log.
 | Noisy aggregates are experimental | Section 16 | After independent review and implementation |
 | Audit chain is unkeyed and local | Someone with full file access can rewrite it | Fixable: key the chain; ship to an external store |
 | Audit log assumes one writing process | API + CLI writing the same file break the chain (false alarm) | Fixable: lock the file and re-read the last entry before each write |
-| PostgreSQL proxy has no TLS; `Describe` and error messages under review | Production keeps the proxy on loopback | TLS is fixable; the other two wait for the independent review |
+| PostgreSQL proxy has no TLS; `Describe` under review | Production keeps the proxy on loopback. Its error messages no longer carry database text (fixed 18 Oct 2026) | TLS is fixable; `Describe` waits for the independent review |
 
 ## 28. Glossary A–Z
 
@@ -1287,7 +1299,7 @@ request id you can look up in the audit log.
 | **Strict xfail** | A test expected to fail today that fails the build once the bug is fixed |
 | **Synthetic data** | Realistic but fake data, safe for demos |
 | **Table** | A set of rows and columns |
-| **Tag** | A column's category: PII_HIGH, FINANCIAL_CONFIDENTIAL, PII_MEDIUM, PII_IN_TEXT, PUBLIC |
+| **Tag** | A column's category: PII_HIGH, FINANCIAL_CONFIDENTIAL, PII_MEDIUM, PII_IN_TEXT, UNREVIEWED (nothing found, not yet checked) or PUBLIC (approved by a person) |
 | **Threat engine** | The part that detects and blocks attack patterns across queries |
 | **TLS** | The encryption behind `https://` |
 | **Token (auth)** | The signed JWT you get at login |

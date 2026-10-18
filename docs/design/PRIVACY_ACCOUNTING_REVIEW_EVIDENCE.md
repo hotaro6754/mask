@@ -52,6 +52,9 @@ The masking functions fail closed without `MASKGUARD_HMAC_KEY`. Running `maskgua
 | `maskguard attack -u analyst.ali -p analyst123` | `988271d` | `PII leaks: naive 14/17 · MaskGuard 0/17 · firewall rejected 4/4`, exit 0 |
 | `maskguard test` | `988271d` | every row PASS, exit 0 |
 | Newman, Postman collection | `988271d` | 55 requests, 121 assertions, 0 failures |
+| Full suite, PostgreSQL with `trust` auth, after the external-audit fixes | `1bc8cba` | 498 passed, 6 xfailed, 1 skipped (the same skip) |
+| `maskguard attack -u analyst.ali -p analyst123`, `maskguard test`, Newman | `1bc8cba` | `0/17` leaks (naive 14/17), firewall 4/4; every row PASS; 121 assertions, 0 failures |
+| Negative controls for `tests/test_hardening.py`: each of the six fixes reverted in a scratch copy, one at a time | `1bc8cba` | every reversal makes its tests fail (3, 4, 3, 1, 1 and 2 failures); nothing committed |
 
 - **The skipped test:** `tests/test_production.py::test_mysql_read_only_runtime_end_to_end` needs
   `MASKGUARD_TEST_MYSQL_ADMIN`, an account allowed to create users. Neither these runs nor CI set it.

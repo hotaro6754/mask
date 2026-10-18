@@ -63,7 +63,7 @@ uv run maskguard policy explain --role analyst --table users
 ```
 
 Expected for the analyst on `users`: `name PII_MEDIUM → REDACT`, `email/phone/aadhaar/pan/ssn PII_HIGH → HMAC`,
-`id/city PUBLIC → ALLOW`, each with the rule that decided it (`rule analyst.PII_HIGH`) and a synthetic example
+`id/city PUBLIC → ALLOW` (approved in `policies/public.demo.yaml`), each with the rule that decided it (`rule analyst.PII_HIGH`) and a synthetic example
 (`123-45-6789 → <16-hex token>`). No database values appear.
 
 ## 4–8. Same query, three roles

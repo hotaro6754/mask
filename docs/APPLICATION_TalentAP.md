@@ -3,6 +3,12 @@
 Paste-ready answers for the InnoSmart application form. Applications close **15 Oct 2026**. Every number below is
 reproducible from this repository (`docs/EVALUATION.md`, `docs/IMPLEMENTATION_REPORT.md`).
 
+> **Corrected on 18 Oct 2026, after the application closed, following an external source audit.** Three claims were
+> narrowed to what the evidence supports: "leak-proof masking" now names the attack suite it was measured on;
+> "differentially private averages" now says the noisy aggregates are experimental, off in production and not a
+> differential-privacy guarantee; and the test count is current. The scanner bullet also describes the new
+> fail-closed handling of columns it finds nothing in. The submitted deck was not changed.
+
 ## Problem Understanding
 Banks give support, analytics and operations staff SQL access to tables of card numbers, Aadhaar/SSN, PAN and
 balances, usually with no per-role control over what each person sees. Two gaps make this dangerous:
@@ -17,7 +23,8 @@ one database engine, without changing the stored data and with evidence that it 
 MaskGuard is a privacy gateway in front of SQLite, PostgreSQL and MySQL.
 - **Scanner:** a background scanner samples each column. A LightGBM classifier plus checksum validators (Luhn,
   Verhoeff, PAN, IBAN) tag it PII_HIGH, FINANCIAL_CONFIDENTIAL, PII_MEDIUM or PII_IN_TEXT, with the evidence
-  recorded.
+  recorded. A column it finds nothing in is not assumed safe: it stays masked for every role except admin until a
+  person approves it as public.
 - **Masking:** every query is parsed and each table is rewritten into a masked view, so filters, joins and
   aggregates only ever see masked values.
   - Admin sees real values.
@@ -30,8 +37,8 @@ MaskGuard is a privacy gateway in front of SQLite, PostgreSQL and MySQL.
   proof showing the source tables are byte-for-byte unchanged.
 
 ## Innovation / Differentiation
-- **Leak-proof masking:** masking is applied inside the SQL, not on the output. 0 of 17 bypass and inference
-  attacks leak, against 15 of 17 for column-level masking.
+- **Masking inside the SQL, not on the output:** in the defined suite of 17 bypass and inference attacks, 0 leak,
+  against 15 of 17 for column-level masking. That is evidence for those attack shapes, not a proof for every query.
 - **AI discovery that beats a public benchmark:** 0.965 macro-F1 on bharat-pii-bench with misleading column names,
   from only 5 sample values per column (benchmark baseline 0.844). False alarms are cut from 22.2% to 6.3%; with 20
   values per column the scores are 0.999 and 1.5%. It is built for Indian identifiers: Aadhaar, PAN, GSTIN, UPI and
@@ -39,7 +46,8 @@ MaskGuard is a privacy gateway in front of SQLite, PostgreSQL and MySQL.
 - **Provable integrity:** a one-click proof hashes the tables, runs the same query as every role, attempts six
   kinds of write, then hashes again.
 - **Beyond masking:**
-  - differentially private averages for analysts;
+  - experimental noisy aggregates for analysts (development only, refused in production, and not yet a
+    differential-privacy guarantee: see `docs/EVALUATION.md` §5);
   - an insider-threat engine that catches 95–100% of simulated attacks without blocking normal users;
   - a validated, versioned and audited policy editor;
   - an automated Privacy Impact Assessment report.
@@ -51,7 +59,7 @@ MaskGuard is a privacy gateway in front of SQLite, PostgreSQL and MySQL.
 - **Security:** JWT and PBKDF2 authentication, HMAC-SHA256 tokens, SHA-256 hash chain.
 - **Interfaces:** Typer/Rich CLI, a plain HTML/JS dashboard under a strict Content Security Policy, and a
   PostgreSQL wire-protocol proxy.
-- **Testing:** pytest (416 tests on 3 databases), Postman/Newman (121 assertions), Playwright, GitHub Actions,
+- **Testing:** pytest (498 tests on 3 databases), Postman/Newman (121 assertions), Playwright, GitHub Actions,
   Docker.
 - **Data:** synthetic only, generated with Faker.
 - **Disclosure:** open-source libraries as listed, and the public bharat-pii-bench benchmark (Apache-2.0) for

@@ -131,8 +131,9 @@ against the API on SQLite, PostgreSQL 16 and MySQL 8.4.
 ## Known limits
 
 - HMAC tokens still allow equality joins and frequency analysis; partial masks reveal their visible characters.
-- A column the scanner misses stays exposed until tagged; uncertain columns are masked for review, and
-  `policies/overrides.yaml` forces tags.
+- A column the scanner finds nothing in is `UNREVIEWED`: masked for every role except admin until a person approves
+  it as `PUBLIC` in `policies/overrides.yaml` (since 18 Oct 2026; before that it was returned as it was). A
+  personal-data column wrongly approved as `PUBLIC` is exposed, so approvals need review like code.
 - Threat-engine numbers are from simulated sessions; real deployments should recalibrate on their own normal traffic.
 - Names/addresses inside free text need NER (not yet integrated).
 - Applications must not hold direct database credentials, or they bypass the gateway; give MaskGuard a
