@@ -1,9 +1,31 @@
 [project]
 name = "maskguard"
-version = "0.1.0"
-description = "Query-time PII masking gateway"
+version = "1.0.0"
+description = "AI-powered PII discovery and query-time, role-based masking gateway for PostgreSQL, MySQL and SQLite"
+readme = "docs/PYPI.md"
 requires-python = ">=3.10"
 license = { text = "Apache-2.0" }
+authors = [
+    { name = "G. Harshith" },
+    { name = "G. Praneeth" },
+    { name = "D. Mandeep" },
+    { name = "K. Surya Srinivas" },
+]
+keywords = ["pii", "data-masking", "privacy", "dpdp", "postgresql", "mysql", "security", "gateway", "aadhaar"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Information Technology",
+    "Intended Audience :: Financial and Insurance Industry",
+    "License :: OSI Approved :: Apache Software License",
+    "Operating System :: POSIX :: Linux",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Database",
+    "Topic :: Security",
+]
 dependencies = [
     "sqlglot",
     "pyyaml",
@@ -31,8 +53,19 @@ maskguard = "maskguard.cli:main"
 requires = ["hatchling"]
 build-backend = "hatchling.build"
 
+[project.urls]
+Homepage = "https://github.com/hotaro6754/mask"
+Documentation = "https://github.com/hotaro6754/mask/blob/claude/zealous-bell-me62fn/docs/GUIDE.md"
+Source = "https://github.com/hotaro6754/mask"
+
 [tool.hatch.build.targets.wheel]
 packages = ["src/maskguard"]
+
+# The default policy, overrides and demo users ship inside the package so `pip install maskguard` runs anywhere.
+[tool.hatch.build.targets.wheel.force-include]
+"policies/default.yaml" = "maskguard/policies/default.yaml"
+"policies/overrides.yaml" = "maskguard/policies/overrides.yaml"
+"policies/users.demo.yaml" = "maskguard/policies/users.demo.yaml"
 
 [dependency-groups]
 dev = [

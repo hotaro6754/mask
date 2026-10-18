@@ -219,7 +219,7 @@ Partly, yes, and MaskGuard itself was built with an AI assistant. An AI can writ
 
 - **The quick version is usually display masking**, which our attack suite breaks in 14–15 of 17 attacks.
 - **Security bugs are silent.** Broken masking doesn't crash; it leaks, and nobody notices until data is gone.
-- **The value is the checking:** an attack suite, 474 tests on three databases, 121 API checks, a security
+- **The value is the checking:** an attack suite, 476 tests on three databases, 121 API checks, a security
   comparison with an existing product, a production profile verified live, and a privacy audit that found and
   documented its own gaps.
 
@@ -685,7 +685,25 @@ database.
 
 MaskGuard is developed and tested on Linux. Windows and macOS should work with Python 3.10+, but CI doesn't test them.
 
-### Steps (Linux or macOS)
+### The quickest way: pip
+
+```bash
+pip install "git+https://github.com/hotaro6754/mask@claude/zealous-bell-me62fn"   # after the first PyPI release: pip install maskguard
+export MASKGUARD_HMAC_KEY=dev-only-hmac-key-change-me      # Windows PowerShell: $env:MASKGUARD_HMAC_KEY="..."
+maskguard
+```
+
+**pip** is Python's package installer. It downloads MaskGuard and everything it needs, and adds a `maskguard`
+command. The demo database, audit log and scanner registry are created in `./data/` in the folder you run it from.
+`pip install maskguard` (from PyPI, the public Python package index) works once the project publishes its first
+release ([RELEASING.md](RELEASING.md)).
+
+There is no npm package and no `.exe`. MaskGuard is a Python server that runs next to a database, and a bundled
+`.exe` would be hundreds of megabytes of ML libraries.
+
+### From the source code (Linux or macOS)
+
+Use this to develop MaskGuard or run its tests.
 
 ```bash
 git clone https://github.com/hotaro6754/mask
@@ -695,7 +713,7 @@ export MASKGUARD_HMAC_KEY=dev-only-hmac-key-change-me     # the key for analyst 
 uv run maskguard                                          # opens the console
 ```
 
-### Steps (Windows PowerShell)
+### From the source code (Windows PowerShell)
 
 ```powershell
 git clone https://github.com/hotaro6754/mask
@@ -996,7 +1014,7 @@ production aggregates.
 
 | Check | What it proves | Command |
 |---|---|---|
-| **Test suite** (pytest) | 474 tests on SQLite, PostgreSQL 16 and MySQL 8.4: masking, firewall, roles, scanner, threat engine, API, CLI, production refusals, DP findings | `uv run pytest -q` |
+| **Test suite** (pytest) | 476 tests on SQLite, PostgreSQL 16 and MySQL 8.4: masking, firewall, roles, scanner, threat engine, API, CLI, production refusals, DP findings | `uv run pytest -q` |
 | **Attack suite** | 0 of 17 PII attacks leak; 4 of 4 unsafe statements rejected | `uv run maskguard attack --role support` |
 | **Security regression** | Attack suite as every role + audit chain + integrity proof | `uv run maskguard test` |
 | **Postman / Newman** | 55 API requests, 121 assertions, including 26 negative and security cases | `make postman` |

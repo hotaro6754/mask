@@ -10,7 +10,7 @@ every query so each role sees only what its policy allows. Stored data never cha
 [![CI](https://github.com/hotaro6754/mask/actions/workflows/ci.yml/badge.svg?branch=claude/zealous-bell-me62fn)](https://github.com/hotaro6754/mask/actions/workflows/ci.yml?query=branch%3Aclaude%2Fzealous-bell-me62fn)
 ![Python](https://img.shields.io/badge/python-3.10%2B-3776AB)
 ![Databases](https://img.shields.io/badge/databases-SQLite%20%C2%B7%20PostgreSQL%20%C2%B7%20MySQL-4c8)
-![Tests](https://img.shields.io/badge/tests-474%20passed-brightgreen)
+![Tests](https://img.shields.io/badge/tests-476%20passed-brightgreen)
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue)](LICENSE)
 
 [Demo video](docs/demo_full.mp4) · [Beginner's guide](docs/GUIDE.md) · [The problem](#the-problem-we-solve) · [Quick start](#quick-start) · [How it works](#how-it-works) ·
@@ -194,19 +194,31 @@ repository and a JSON file in `docs/eval/`.
 | PII leaks across 17 bypass and inference attacks | **0 / 17** | 15 / 17 on PostgreSQL, 14 / 17 on SQLite and MySQL (naive masking) |
 | Simulated insider attacks detected (normal users blocked) | **95–100% (0%)** | — |
 | Added latency per query, p50, all features on | ~8 ms (SQLite, PostgreSQL), ~21 ms (MySQL) | — |
-| Tests | **474 passed** on SQLite, PostgreSQL 16 and MySQL 8.4, plus 121 Postman assertions | — |
+| Tests | **476 passed** on SQLite, PostgreSQL 16 and MySQL 8.4, plus 121 Postman assertions | — |
 
 The attack suite is evidence for those 17 attack shapes, not a proof against every possible query. The threat
 engine was evaluated on simulated sessions.
 
 ## Quick start
 
+Pick one way to install:
+
+| Way | Command | Status |
+|---|---|---|
+| **pip, from PyPI** | `pip install maskguard` | Available once the first release is published ([docs/RELEASING.md](docs/RELEASING.md)) |
+| **pip, straight from GitHub** | `pip install "git+https://github.com/hotaro6754/mask@claude/zealous-bell-me62fn"` | Works now |
+| **From source** (to develop or run the tests) | `git clone https://github.com/hotaro6754/mask && cd mask && uv sync` | Works now; prefix commands with `uv run` |
+| **Docker** (demo stack with PostgreSQL) | `docker compose up --build` in the cloned repository | Works now |
+
+Then:
+
 ```bash
-uv sync
 export MASKGUARD_HMAC_KEY=dev-only-hmac-key-change-me      # PowerShell: $env:MASKGUARD_HMAC_KEY="dev-only-hmac-key-change-me"
-uv run maskguard                                           # interactive security console (banner, live checks, playground)
-uv run maskguard serve                                     # REST API + Control Room dashboard: http://127.0.0.1:8000/ui/
+maskguard                                                  # interactive security console (banner, live checks, playground)
+maskguard serve                                            # REST API + Control Room dashboard: http://127.0.0.1:8000/ui/
 ```
+
+A pip install keeps its demo database, audit log and scanner registry in `./data/` of the folder you run it from.
 
 Or `docker compose up --build`. That starts PostgreSQL 16, the API and Control Room on :8000, the classic Streamlit
 dashboard on :8501, and the PostgreSQL wire proxy on :6543. That Compose file is a **demo profile** for synthetic
@@ -409,7 +421,7 @@ the columns itself, masks inside the query, and applies one policy across databa
 They can get masking code quickly; MaskGuard itself was built with AI assistance. Getting code is the easy part.
 Knowing it can't be bypassed is the hard part:
 - the obvious version masks the output, which leaks 14–15 of our 17 attacks;
-- MaskGuard is checked on every push by an attack suite, 474 tests on three databases and 121 API assertions;
+- MaskGuard is checked on every push by an attack suite, 476 tests on three databases and 121 API assertions;
 - a security bug doesn't crash, it silently leaks, so untested security code is a liability.
 
 The value is the tested, verified behaviour, not the lines of code.
@@ -442,19 +454,20 @@ notices, retention, breach reporting and more.
 ### Installing and connecting
 
 <details>
-<summary><b>How do I try it on my own computer?</b></summary>
+<summary><b>How do I install it? Is there a pip package, an npm command or an .exe?</b></summary>
 
-You need Python 3.10+, [uv](https://docs.astral.sh/uv/) and git:
+You need Python 3.10 or newer:
 
 ```bash
-git clone https://github.com/hotaro6754/mask && cd mask
-uv sync
+pip install "git+https://github.com/hotaro6754/mask@claude/zealous-bell-me62fn"   # after the first release: pip install maskguard
 export MASKGUARD_HMAC_KEY=dev-only-hmac-key-change-me   # Windows PowerShell: $env:MASKGUARD_HMAC_KEY="dev-only-hmac-key-change-me"
-uv run maskguard          # console with synthetic demo data
-uv run maskguard serve    # dashboard at http://127.0.0.1:8000/ui/
+maskguard                 # console with synthetic demo data
+maskguard serve           # dashboard at http://127.0.0.1:8000/ui/
 ```
 
-Or `docker compose up --build` for the demo stack with PostgreSQL. It is developed and tested on Linux. Windows and
+To develop or run the tests, clone the repository and use `uv sync`. For the demo stack with PostgreSQL, run
+`docker compose up --build`. There is no npm package or `.exe`: MaskGuard is a Python server that runs next to a
+database. It is developed and tested on Linux. Windows and
 macOS should work with Python 3.10+, but CI doesn't cover them. Step by step: [GUIDE §18](docs/GUIDE.md#18-installing-maskguard-on-your-computer).
 </details>
 

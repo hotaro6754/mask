@@ -44,6 +44,34 @@ def test_complete_production_configuration_has_no_problems(prod):
     assert config.production_problems(config.Settings()) == []
 
 
+def test_installed_package_uses_bundled_policies_and_production_still_refuses_their_demo_users(prod, monkeypatch, tmp_path):
+    """`pip install maskguard` has no source tree: policies come from maskguard/policies/ inside the package. The
+    bundled demo user store must be refused in production exactly like the source tree's copy."""
+    root, pkg = tmp_path / "no-source-tree", tmp_path / "site-packages" / "maskguard"
+    shutil.copytree(os.path.join(ROOT, "policies"), pkg / "policies")
+    root.mkdir()
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(config, "ROOT", str(root))
+    monkeypatch.setattr(config, "PACKAGE_DIR", str(pkg))
+    monkeypatch.setattr(config, "DEMO_USERS_FILES", (str(root / "policies" / "users.demo.yaml"),
+                                                     str(pkg / "policies" / "users.demo.yaml")))
+    monkeypatch.delenv("MASKGUARD_USERS")
+    monkeypatch.delenv("MASKGUARD_POLICY", raising=False)
+    s = config.Settings()
+    assert s.users == str(pkg / "policies" / "users.demo.yaml")
+    assert s.policy == str(pkg / "policies" / "default.yaml")
+    assert any("demo user store" in p for p in config.production_problems(s))
+
+
+def test_the_wheel_bundles_every_policy_file():
+    tomllib = pytest.importorskip("tomllib")  # Python 3.11+
+    with open(os.path.join(ROOT, "pyproject.toml"), "rb") as f:
+        bundled = tomllib.load(f)["tool"]["hatch"]["build"]["targets"]["wheel"]["force-include"]
+    shipped = {f"policies/{n}" for n in os.listdir(os.path.join(ROOT, "policies")) if n.endswith(".yaml")}
+    assert shipped and shipped == set(bundled)
+    assert all(dest == f"maskguard/{src}" for src, dest in bundled.items())
+
+
 def test_unknown_environment_is_refused_not_treated_as_development(monkeypatch):
     monkeypatch.setenv("MASKGUARD_ENV", "prod")
     with pytest.raises(config.UnsafeConfiguration, match="not one of"):

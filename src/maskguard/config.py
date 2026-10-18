@@ -94,7 +94,7 @@ def production_problems(settings):
     problems = []
     if os.environ.get("MASKGUARD_DEMO", "0") != "0":
         problems.append("MASKGUARD_DEMO must be 0: demo identities and /auth/demo stay off in production")
-    if _same_file(settings.users, DEMO_USERS_FILE):
+    if any(_same_file(settings.users, f) for f in DEMO_USERS_FILES):
         problems.append("MASKGUARD_USERS is unset or points at the demo user store: production needs its own user file")
     elif not os.path.isfile(settings.users):
         problems.append(f"MASKGUARD_USERS file not found: {settings.users}")
@@ -138,15 +138,21 @@ def _env(name, default):
 
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+PACKAGE_DIR = os.path.dirname(os.path.abspath(__file__))  # pip installs ship policies/ inside the package
 DEMO_USERS_FILE = os.path.join(ROOT, "policies", "users.demo.yaml")
+# Every copy of the demo user store: the source tree's and the one bundled in an installed package.
+DEMO_USERS_FILES = (DEMO_USERS_FILE, os.path.join(PACKAGE_DIR, "policies", "users.demo.yaml"))
 
 
 def _cfg(name, default):
-    """Config file path: env var, else ./default, else the copy shipped next to the source tree."""
+    """Config file path: env var, else ./default, else the copy in the source tree, else the copy in the package."""
     v = os.environ.get(name)
     if v:
         return v
-    return default if os.path.exists(default) or not os.path.exists(os.path.join(ROOT, default)) else os.path.join(ROOT, default)
+    for path in (default, os.path.join(ROOT, default), os.path.join(PACKAGE_DIR, default)):
+        if os.path.exists(path):
+            return path
+    return default
 
 
 @dataclass

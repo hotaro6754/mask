@@ -1,0 +1,46 @@
+name: Release
+
+# Publishes to PyPI when a version tag (v1.0.0, v1.0.1, …) is pushed. Uses PyPI Trusted Publishing: PyPI trusts this
+# repository's workflow directly, so no API token is stored anywhere. One-time setup is in docs/RELEASING.md.
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:          # manual run: builds and smoke-tests, publishes only for a tag
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - name: Tag matches the package version
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: test "${GITHUB_REF_NAME#v}" = "$(uv version --short)"
+      - name: Build wheel and sdist
+        run: uv build
+      - name: Install the wheel in a clean environment and run it from an empty folder
+        run: |
+          uv venv /tmp/smoke
+          VIRTUAL_ENV=/tmp/smoke uv pip install dist/*.whl
+          cd "$(mktemp -d)"
+          MASKGUARD_HMAC_KEY=release-smoke-key /tmp/smoke/bin/maskguard status
+          MASKGUARD_HMAC_KEY=release-smoke-key /tmp/smoke/bin/maskguard compare "SELECT name, ssn FROM users LIMIT 1" --roles admin,support
+          # production must refuse the demo user store bundled in the package (exit code 4)
+          set +e
+          MASKGUARD_ENV=production MASKGUARD_JWT_SECRET="$(openssl rand -hex 32)" MASKGUARD_HMAC_KEY="$(openssl rand -hex 32)" \
+            MASKGUARD_DB=postgresql://x@127.0.0.1:1/x /tmp/smoke/bin/maskguard status
+          test $? -eq 4
+      - uses: actions/upload-artifact@v4
+        with: {name: dist, path: dist/}
+
+  publish:
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    environment: pypi
+    permissions:
+      id-token: write         # lets PyPI verify this workflow (Trusted Publishing)
+    steps:
+      - uses: actions/download-artifact@v4
+        with: {name: dist, path: dist/}
+      - uses: pypa/gh-action-pypi-publish@release/v1

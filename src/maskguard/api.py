@@ -28,13 +28,13 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 from sqlglot import exp
 
-from . import config, policy as P
+from . import __version__, config, policy as P
 from .attacks import SELF_TEST_REFUSAL, SelfTestDisabled, run_suite, score
 from .gateway import safe_error
 from .rewriter import Rejected
 from .scanner import scan, summary
 
-VERSION = "1.0.0"
+VERSION = __version__
 state = {}
 bearer = HTTPBearer(auto_error=False)
 WEB = os.path.join(os.path.dirname(__file__), "web")

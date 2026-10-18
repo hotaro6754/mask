@@ -19,12 +19,12 @@ from rich.syntax import Syntax
 from rich.table import Table
 from rich.text import Text
 
-from . import config
+from . import __version__, config
 from .attacks import SelfTestDisabled, require_self_test
 from .service import Denied, Unavailable, connect
 
 OK, ERROR, USAGE, DENIED, UNAVAILABLE, INTEGRITY_FAILED, SECURITY_FAILED = 0, 1, 2, 3, 4, 5, 6
-VERSION = "1.0.0"
+VERSION = __version__
 
 # palette: cyan = system info, green = verified, amber = warning, red = denied/failure. Every status also has a word.
 C = {"info": "cyan", "ok": "green3", "warn": "dark_orange", "bad": "red1", "muted": "grey58", "accent": "chartreuse3"}
