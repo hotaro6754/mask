@@ -276,8 +276,8 @@ def connect_database(url=None, demo=False):
     path = config.save_settings(values)
     state["service"] = None
     try:
-        with err.status("[cyan]connecting, installing the masking functions and scanning…[/]", spinner="dots"):
-            st = svc().status()
+        err.print(Text("connecting, installing the masking functions and scanning…", style=C["info"]))
+        st = svc().status()
     except Unavailable as e:
         config.save_settings(before)  # keep the previous working setup
         state["service"] = None
@@ -293,6 +293,10 @@ def connect_db(url: Optional[str] = typer.Argument(None, help="postgresql://…,
                json_out: bool = typer.Option(False, "--json")):
     """Use your own database (or go back to the demo). Saved for this folder in maskguard.yaml; no demo data is added."""
     path, st = connect_database(url, demo)
+    _connect_summary(path, st, demo, json_out)
+
+
+def _connect_summary(path, st, demo=False, json_out=False):
     inv = svc().inventory()
     sensitive = [r for r in inv if r["tag"] not in ("PUBLIC", "UNREVIEWED")]
     pending = [r for r in inv if r["tag"] == "UNREVIEWED"]
@@ -1146,7 +1150,7 @@ def _choose_database():
                     border_style=C["info"], box=box.ROUNDED, expand=False))
     while _pick("start with", ["demo data", "my own database"]) == "my own database":
         try:
-            connect_database()
+            _connect_summary(*connect_database())
             return
         except (Unavailable, typer.BadParameter) as e:
             out.print(Text(f"could not connect: {e}", style=C["bad"]))
