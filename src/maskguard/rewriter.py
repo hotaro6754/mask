@@ -225,15 +225,28 @@ def _row_filter(policy, role, table, real_table, columns):
     return cond
 
 
+PUBLIC = "PUBLIC"          # a person reviewed the column and approved it as non-personal (overrides.yaml)
+UNREVIEWED = "UNREVIEWED"  # the scanner found nothing, and nobody has approved it: not the same as safe
+
+
+def tag_of(meta):
+    return meta.get("tag") or UNREVIEWED
+
+
 def action_for(meta, role, policy):
-    if not meta.get("tag"):
+    tag = tag_of(meta)
+    if tag == PUBLIC:
         return "allow"
-    return policy["roles"][role].get(meta["tag"], policy["default_action"])
+    return policy["roles"][role].get(tag, policy["default_action"])  # no rule for UNREVIEWED -> default (fail closed)
 
 
 def rewrite(sql, role, registry, policy, dialect="sqlite", schema=None):
     if role not in policy["roles"]:
         raise Rejected(f"unknown role: {role}")
+    # every path (API, CLI, SDK, proxy, dashboards) reaches the data through here; a role with no role_info
+    # entry keeps policy.DEFAULT_CAPABILITIES, which is ["query"]
+    if "query" not in ((policy.get("role_info") or {}).get(role) or {}).get("capabilities", ["query"]):
+        raise Rejected(f"role '{role}' lacks capability 'query'")
     try:
         stmts = sqlglot.parse(sql, dialect=dialect)
     except Exception as e:  # sqlglot's message quotes the SQL, which can contain personal data: report position only
@@ -244,6 +257,8 @@ def rewrite(sql, role, registry, policy, dialect="sqlite", schema=None):
         raise Rejected("exactly one statement is required")
     tree = stmts[0]
     _validate(tree)
+    for hint in list(tree.find_all(exp.Hint)):  # MySQL /*+ ... */ hints could lift the time limit (MAX_EXECUTION_TIME,
+        hint.pop()                               # SET_VAR) or change the plan; the client gets none of them
 
     schema = (schema or DEFAULT_SCHEMA.get(dialect, "public")).lower()
     k = (policy.get("min_group_size") or {}).get(role)
@@ -299,4 +314,5 @@ def rewrite(sql, role, registry, policy, dialect="sqlite", schema=None):
                 tree = tree.limit(cap)
         else:
             tree = exp.select("*").from_(tree.subquery("q")).limit(cap)
-    return Result(tree.sql(dialect=dialect), sorted(set(masked)), shape, dp_plan)
+    # comments never reach the database: nothing a client writes in one can be executed there (e.g. MySQL /*! */)
+    return Result(tree.sql(dialect=dialect, comments=False), sorted(set(masked)), shape, dp_plan)

@@ -62,7 +62,7 @@ def test_postgres_redaction_is_byte_identical_to_python():
 def test_scanner_tags_free_text_with_identifiers_only(env):
     reg = env.gw.registry["support_tickets"]
     assert reg["message"]["tag"] == "PII_IN_TEXT" and "PHONE" in reg["message"]["evidence"]
-    assert "tag" not in reg["notes"]  # short category labels, no identifiers
+    assert reg["notes"]["source"] == "approval"  # short category labels, no identifiers: only the demo approval applies
 
 
 def test_roles_see_free_text_correctly_and_filters_see_redacted_text(env):

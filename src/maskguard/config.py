@@ -155,6 +155,23 @@ def _cfg(name, default):
     return default
 
 
+# The bundled demo schema's non-personal columns (ids, status, city, ...), reviewed and approved as PUBLIC.
+DEMO_PUBLIC_FILE = "policies/public.demo.yaml"
+
+
+def load_overrides(settings):
+    """Manual tags from the overrides file. In demo mode the demo schema's approved-public columns are added too, but
+    only where the scanner found nothing (an approval never hides a detection). Production never loads them."""
+    overrides = {t: dict(c or {}) for t, c in (_load_yaml(settings.overrides) or {}).items()}
+    if demo_enabled():
+        for table, cols in (_load_yaml(_cfg("", DEMO_PUBLIC_FILE)) or {}).items():
+            for col in cols or []:
+                overrides.setdefault(table, {}).setdefault(col, {
+                    "tag": "PUBLIC", "if_untagged": True, "source": "approval",
+                    "evidence": "demo schema: reviewed and approved as non-personal (policies/public.demo.yaml)"})
+    return overrides
+
+
 @dataclass
 class Settings:
     db: str = field(default_factory=lambda: _env("MASKGUARD_DB", "sqlite:///data/bank.db"))
@@ -214,7 +231,7 @@ def build(settings=None, start_worker=False):
             raise UnsafeConfiguration(problems)
     if s.seed_if_empty and not backend.tables():
         make_db(backend)
-    policy, overrides = _load_yaml(s.policy), _load_yaml(s.overrides)
+    policy, overrides = _load_yaml(s.policy), load_overrides(s)
     store = PolicyStore(policy, s.state("policy_history.jsonl"))  # validates; refuses an unsafe policy
     auth = Authenticator.from_file(s.users)
     check_production_identity(auth)

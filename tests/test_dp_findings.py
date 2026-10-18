@@ -17,10 +17,11 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DESIGN = "docs/design/PRIVACY_ACCOUNTING.md"
 BOUND = 1_000_000.0  # default dp.bounds for balance: [0, 10 lakh]
 
+PUBLIC = {"tag": "PUBLIC"}  # keys approved as non-personal: an UNREVIEWED key is redacted and no join would match
 REGISTRY = {
-    "accounts": {"id": {"type": "num"}, "user_id": {"type": "num"}, "status": {"type": "text"},
+    "accounts": {"id": {"type": "num", **PUBLIC}, "user_id": {"type": "num", **PUBLIC}, "status": {"type": "text", **PUBLIC},
                  "balance": {"type": "num", "tag": "FINANCIAL_CONFIDENTIAL", "kind": "amount"}},
-    "tickets": {"id": {"type": "num"}, "user_id": {"type": "num"}},
+    "tickets": {"id": {"type": "num", **PUBLIC}, "user_id": {"type": "num", **PUBLIC}},
 }
 
 

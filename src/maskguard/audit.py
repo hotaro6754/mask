@@ -1,4 +1,4 @@
-"""Append-only, hash-chained audit log (JSON lines). Literals are stripped so PII never reaches the log."""
+"""Append-only, hash-chained audit log (JSON lines). Literals and comments are stripped so PII never reaches the log."""
 import collections, hashlib, json, os, threading, time
 import sqlglot
 from sqlglot import exp
@@ -9,7 +9,10 @@ GENESIS = "0" * 64
 def fingerprint(sql, dialect=None):
     try:
         tree = sqlglot.parse_one(sql, dialect=dialect)
-        return tree.transform(lambda n: exp.Placeholder() if isinstance(n, exp.Literal) else n).sql(dialect=dialect)
+        for hint in list(tree.find_all(exp.Hint)):  # MySQL /*+ ... */ is parsed as a hint, not a comment
+            hint.pop()
+        tree = tree.transform(lambda n: exp.Placeholder() if isinstance(n, exp.Literal) else n)
+        return tree.sql(dialect=dialect, comments=False)  # a comment can carry anything, e.g. an email address
     except Exception:
         return "<unparseable>"
 

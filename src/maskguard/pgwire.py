@@ -13,6 +13,7 @@ introspection (pg_catalog, information_schema) is refused by the gateway like an
 """
 import asyncio, decimal, datetime, re, struct
 
+from .gateway import safe_error
 from .rewriter import Rejected, rewrite
 
 SERVER_PARAMS = {"server_version": "16.0 (MaskGuard)", "server_encoding": "UTF8", "client_encoding": "UTF8",
@@ -219,7 +220,7 @@ class Connection:
         except PermissionError as e:
             out = _error(f"MaskGuard: {e}", "28000")
         except Exception as e:
-            out = _error(f"query failed: {type(e).__name__}", "XX000")
+            out = _error(safe_error(e), "XX000")
         self.w.write(out + _msg(b"Z", b"I")); await self.w.drain()
 
     async def extended(self, t, body):
@@ -281,7 +282,7 @@ class Connection:
         except Rejected as e:
             self.w.write(_error(f"MaskGuard: {e}")); self.skip_until_sync = True
         except Exception as e:
-            self.w.write(_error(f"query failed: {type(e).__name__}: {e}"[:200], "XX000")); self.skip_until_sync = True
+            self.w.write(_error(safe_error(e), "XX000")); self.skip_until_sync = True  # never the database's text
         await self.w.drain()
 
     async def serve(self):

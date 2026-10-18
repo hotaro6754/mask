@@ -31,7 +31,7 @@ from sqlglot import exp
 from . import __version__, config, policy as P
 from .attacks import SELF_TEST_REFUSAL, SelfTestDisabled, run_suite, score
 from .gateway import safe_error
-from .rewriter import Rejected
+from .rewriter import Rejected, tag_of
 from .scanner import scan, summary
 
 VERSION = __version__
@@ -285,18 +285,18 @@ def tables(s=Depends(session)):
     out = []
     for t, cols in sorted(a.gateway.registry.items()):
         out.append({"table": t, "row_filter": ((pol.get("row_filters") or {}).get(s.role) or {}).get(t),
-                    "columns": [{"column": c, "sql_type": m.get("sql_type"), "tag": m.get("tag") or "PUBLIC",
+                    "columns": [{"column": c, "sql_type": m.get("sql_type"), "tag": tag_of(m),
                                  "kind": m.get("kind"), "action": action_for(m, s.role, pol)} for c, m in cols.items()]})
     return {"role": s.role, "backend": a.backend.dialect, "tables": out}
 
 
 @app.post("/query", tags=["data"])
-def query(body: Query, s=Depends(session)):
+def query(body: Query, s=Depends(require("query"))):
     return _run(s, body.sql)
 
 
 @app.post("/query/table", tags=["data"])
-def query_table(body: TableQuery, s=Depends(session)):
+def query_table(body: TableQuery, s=Depends(require("query"))):
     """Query builder: table + columns + limit. Identifiers are checked against the scanned schema, then the
     generated SELECT goes through the same gateway as /query."""
     reg = {t.lower(): cols for t, cols in get_app().gateway.registry.items()}
@@ -418,7 +418,7 @@ def rescan(body: Optional[ScanRequest] = None, s=Depends(require("scan.run"))):
     if body.tables and not set(body.tables) <= known:
         raise HTTPException(404, f"unknown table(s): {', '.join(sorted(set(body.tables) - known))}")
     t0 = time.perf_counter()
-    reg = scan(a.backend, tables=body.tables, overrides=config._load_yaml(a.settings.overrides),
+    reg = scan(a.backend, tables=body.tables, overrides=config.load_overrides(a.settings),
                sample_size=body.sample_limit)
     if not body.dry_run:
         merged = dict(a.gateway.registry); merged.update(reg)

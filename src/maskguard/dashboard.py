@@ -7,6 +7,7 @@ import streamlit as st
 from maskguard import config
 from maskguard.attacks import (SELF_TEST_REFUSAL, SelfTestDisabled, require_self_test, run_suite, score,
                                self_test_allowed)
+from maskguard.gateway import safe_error
 from maskguard.rewriter import Rejected
 from maskguard.scanner import scan, summary
 
@@ -112,7 +113,7 @@ with t_query:
                     except Rejected as e:
                         st.error(f"Rejected: {e}")
                     except Exception as e:
-                        st.error(f"Query failed: {type(e).__name__}: {e}")
+                        st.error(safe_error(e))  # never the database's own text
         else:
             try:
                 r = gw.query(s, sql, channel="dashboard")
@@ -123,7 +124,7 @@ with t_query:
             except Rejected as e:
                 st.error(f"Rejected: {e}")
             except Exception as e:
-                st.error(f"Query failed: {type(e).__name__}: {e}")
+                st.error(safe_error(e))  # never the database's own text
 
 # ---- scanner --------------------------------------------------------------------------------------------
 with t_scan:
@@ -132,7 +133,7 @@ with t_scan:
              "A background worker rescans every "
              f"{app.settings.scan_interval}s; unscanned tables are rejected until tagged.")
     if s.role == "admin" and st.button("Rescan now"):
-        gw.update_registry(scan(backend, overrides=config._load_yaml(app.settings.overrides)))
+        gw.update_registry(scan(backend, overrides=config.load_overrides(app.settings)))
         st.success("Rescanned")
     st.dataframe(pd.DataFrame(summary(gw.registry)), width="stretch", hide_index=True)
     if app.worker:

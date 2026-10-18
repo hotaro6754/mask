@@ -1,12 +1,13 @@
 version: 1
 default_action: deny            # unknown tag -> deny (fail closed); unknown role is rejected outright
+# UNREVIEWED = the scanner found nothing and nobody approved the column (PUBLIC, in overrides.yaml): not proven safe
 # actions: allow | partial | hmac | redact | redact_text (identifiers inside free text)
 #        | aggregate (numbers usable only via noisy SUM/AVG/COUNT, see dp:; text is redacted) | deny
 roles:
-  admin:   {PII_HIGH: allow,   FINANCIAL_CONFIDENTIAL: allow,   PII_MEDIUM: allow,  PII_IN_TEXT: allow}
-  support: {PII_HIGH: partial, FINANCIAL_CONFIDENTIAL: partial, PII_MEDIUM: allow,  PII_IN_TEXT: redact_text}
-  analyst: {PII_HIGH: hmac,    FINANCIAL_CONFIDENTIAL: aggregate, PII_MEDIUM: redact, PII_IN_TEXT: redact}
-  auditor: {PII_HIGH: redact,  FINANCIAL_CONFIDENTIAL: redact,  PII_MEDIUM: redact, PII_IN_TEXT: redact}
+  admin:   {PII_HIGH: allow,   FINANCIAL_CONFIDENTIAL: allow,   PII_MEDIUM: allow,  PII_IN_TEXT: allow,       UNREVIEWED: allow}
+  support: {PII_HIGH: partial, FINANCIAL_CONFIDENTIAL: partial, PII_MEDIUM: allow,  PII_IN_TEXT: redact_text, UNREVIEWED: redact}
+  analyst: {PII_HIGH: hmac,    FINANCIAL_CONFIDENTIAL: aggregate, PII_MEDIUM: redact, PII_IN_TEXT: redact,    UNREVIEWED: redact}
+  auditor: {PII_HIGH: redact,  FINANCIAL_CONFIDENTIAL: redact,  PII_MEDIUM: redact, PII_IN_TEXT: redact,      UNREVIEWED: redact}
 # What each role may do besides querying. The API and CLI check these; nothing here can unmask data.
 role_info:
   admin:

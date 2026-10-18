@@ -12,10 +12,11 @@ def test_tags_from_values_even_with_misleading_headers(env):
     reg = env.gw.registry
     assert reg["support_tickets"]["contact"]["kind"] == "phone"
     assert reg["support_tickets"]["payment_ref"]["tag"] == "FINANCIAL_CONFIDENTIAL"
-    assert "tag" not in reg["support_tickets"]["order_ref"]  # 12 digits but fails the Aadhaar checksum
+    # demo approvals apply only where the scanner found nothing, so "approval" proves it left these columns alone
+    assert reg["support_tickets"]["order_ref"]["source"] == "approval"  # 12 digits but fails the Aadhaar checksum
     assert reg["users"]["aadhaar"]["kind"] == "aadhaar" and reg["users"]["pan"]["kind"] == "pan"
     assert reg["accounts"]["iban"]["confidence"] == "high"
-    assert "tag" not in reg["users"]["city"] and "tag" not in reg["accounts"]["status"]
+    assert reg["users"]["city"]["source"] == "approval" and reg["accounts"]["status"]["source"] == "approval"
 
 
 def test_rules_scanner_scrambled_header_and_low_ratio_goes_to_review():

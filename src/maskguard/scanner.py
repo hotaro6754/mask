@@ -144,7 +144,10 @@ def scan(backend, tables=None, overrides=None, sample_size=200):
     for table, cols in (overrides or {}).items():
         for col, meta in (cols or {}).items():
             if table in registry and col in registry[table]:
-                registry[table][col].update(meta, confidence="override", evidence="manual override")
+                meta = dict(meta)
+                if meta.pop("if_untagged", False) and registry[table][col].get("tag"):
+                    continue  # a conditional approval never hides something the scanner found
+                registry[table][col].update({"confidence": "override", "evidence": "manual override", **meta})
     return registry
 
 
@@ -159,10 +162,15 @@ def load_registry(path):
 
 
 def summary(registry):
-    """Flat list of tagged columns for display."""
+    """Flat list of sensitive columns for display (not the approved-public or unreviewed ones)."""
     return [{"table": t, "column": c, "tag": m.get("tag"), "kind": m.get("kind"), "source": m.get("source"),
              "confidence": m.get("confidence"), "evidence": m.get("evidence")}
-            for t, cols in registry.items() for c, m in cols.items() if m.get("tag")]
+            for t, cols in registry.items() for c, m in cols.items() if m.get("tag") not in (None, "PUBLIC")]
+
+
+def unreviewed(registry):
+    """Columns the scanner found nothing in and no person has approved: masked for non-admin roles until reviewed."""
+    return [(t, c) for t, cols in registry.items() for c, m in cols.items() if not m.get("tag")]
 
 
 class ScanWorker(threading.Thread):

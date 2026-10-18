@@ -62,7 +62,7 @@ def build(app, since_days=30):
     risks = [
         "Keyed tokens allow equality joins and frequency analysis by roles that receive them.",
         "Partial masks reveal the characters they keep (e.g. last four digits).",
-        "A personal-data column the scanner misses stays exposed until tagged; scheduled rescans and manual overrides mitigate this.",
+        "A column the scanner finds nothing in is UNREVIEWED: masked for every role except admin until a person approves it as PUBLIC. A personal-data column wrongly approved as PUBLIC is exposed; review approvals like code.",
         "Applications or people holding direct database credentials bypass MaskGuard; restrict them to the gateway's role.",
         "Names and addresses embedded in free text are not yet detected (structured identifiers are).",
     ]

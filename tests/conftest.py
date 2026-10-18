@@ -48,7 +48,7 @@ def env(request, tmp_path):
     app = config.build(make_settings(tmp_path, request.param))
     make_db(app.backend)  # fresh, deterministic data for every test (also resets a shared Postgres DB)
     from maskguard.scanner import scan
-    app.gateway.update_registry(scan(app.backend))  # tag the freshly seeded schema, not the one found at startup
+    app.gateway.update_registry(scan(app.backend, overrides=config.load_overrides(app.settings)))  # the freshly seeded schema
     return Env(app)
 
 

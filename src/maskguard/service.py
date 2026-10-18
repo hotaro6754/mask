@@ -12,7 +12,7 @@ Both return plain dicts shaped like the REST responses, so the CLI renders them 
 import datetime, decimal, os, time
 
 from . import config, policy as P
-from .rewriter import Rejected
+from .rewriter import Rejected, tag_of
 
 
 class Denied(Exception):
@@ -67,10 +67,11 @@ class LocalService:
             checks.append(("Database", True, f"{a.backend.dialect} · {n} tables"))
         except Exception as e:
             checks.append(("Database", False, type(e).__name__))
-        from .scanner import ml_available, summary
-        tagged = summary(gw.registry)
+        from .scanner import ml_available, summary, unreviewed
+        tagged, pending = summary(gw.registry), unreviewed(gw.registry)
         checks.append(("PII scanner", True, f"{len(tagged)} sensitive columns · "
-                                            f"{'LightGBM + checksums' if ml_available() else 'rules only'}"))
+                                            + (f"{len(pending)} unreviewed (masked) · " if pending else "")
+                                            + f"{'LightGBM + checksums' if ml_available() else 'rules only'}"))
         errs = P.validate(gw.policy)
         checks.append(("Policy engine", not errs, f"{P.version(gw.policy)} · default {gw.policy.get('default_action', 'deny')}"
                                                   + (f" · {errs[0]}" if errs else "")))
@@ -90,7 +91,7 @@ class LocalService:
         out = []
         for t, cols in sorted(self.gw.registry.items()):
             for c, m in cols.items():
-                out.append({"table": t, "column": c, "sql_type": m.get("sql_type"), "tag": m.get("tag") or "PUBLIC",
+                out.append({"table": t, "column": c, "sql_type": m.get("sql_type"), "tag": tag_of(m),
                             "kind": m.get("kind"), "confidence": m.get("confidence"), "source": m.get("source"),
                             "evidence": m.get("evidence")})
         return out
@@ -106,7 +107,7 @@ class LocalService:
         if tables and not set(tables) <= known:
             raise Denied(f"unknown table(s): {', '.join(sorted(set(tables) - known))}")
         t0 = time.perf_counter()
-        reg = scan(self.app.backend, tables=tables, overrides=config._load_yaml(self.app.settings.overrides),
+        reg = scan(self.app.backend, tables=tables, overrides=config.load_overrides(self.app.settings),
                    sample_size=sample_limit)
         if not dry_run:
             merged = dict(self.gw.registry); merged.update(reg)

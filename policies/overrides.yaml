@@ -1,4 +1,6 @@
 # Manual tags that win over the scanner, e.g. to tag a column it missed or downgrade a false positive.
+# A column the scanner finds nothing in is UNREVIEWED (masked for non-admin roles) until you approve it here as PUBLIC.
 # table:
 #   column: {tag: PII_HIGH, kind: phone}
+#   other_column: {tag: PUBLIC}      # reviewed: not personal data, every role sees it
 {}

@@ -361,7 +361,7 @@ def db_inspect(table: Optional[str] = typer.Argument(None), json_out: bool = typ
 # ---------------------------------------------------------------- scanner
 
 TAG_STYLE = {"PII_HIGH": C["bad"], "FINANCIAL_CONFIDENTIAL": "gold3", "PII_MEDIUM": C["warn"], "PII_IN_TEXT": "medium_purple1",
-             "PUBLIC": C["muted"]}
+             "PUBLIC": C["muted"], "UNREVIEWED": C["warn"]}
 
 
 def pii_table(rows, show_public=False):
@@ -370,7 +370,7 @@ def pii_table(rows, show_public=False):
         t.add_column(h, no_wrap=True)
     t.add_column("Signals (no values)", overflow="fold", ratio=1)
     for r in rows:
-        tag = r.get("tag") or "PUBLIC"
+        tag = r.get("tag") or "UNREVIEWED"
         if tag == "PUBLIC" and not show_public:
             continue
         t.add_row(r["table"], r["column"], Text(tag, style=f"bold {TAG_STYLE.get(tag, '')}"), r.get("kind") or "—",
@@ -415,7 +415,7 @@ def scan(table: Optional[List[str]] = typer.Option(None, "--table", "-t", help="
 @guarded
 def pii_list(tag: Optional[str] = typer.Option(None, help="Only this classification."),
              json_out: bool = typer.Option(False, "--json")):
-    """Every column classified as sensitive."""
+    """Every column classified as sensitive, plus unreviewed columns (masked until approved as PUBLIC)."""
     rows = [r for r in svc().inventory() if r["tag"] != "PUBLIC" and (not tag or r["tag"] == tag.upper())]
     if json_out:
         return emit_json(rows)
@@ -494,7 +494,8 @@ def policy_list(json_out: bool = typer.Option(False, "--json")):
                   *[Text(row[r].upper(), style=ACTION_STYLE.get(row[r], "")) for r in m["roles"]])
     out.print(t)
     out.print(Text("Strictness: allow < partial < redact_text < hmac < aggregate < redact < deny. "
-                   "Untagged columns are PUBLIC; tags without a rule fall back to default_action (deny).", style=C["muted"]))
+                   "PUBLIC columns were approved by a person and are always allowed; columns the scanner found nothing in "
+                   "are UNREVIEWED until approved; tags without a rule fall back to default_action (deny).", style=C["muted"]))
 
 
 @policy_app.command("explain")
@@ -917,7 +918,7 @@ def train_scanner(per_kind: int = 300, seed_: int = typer.Option(7, "--seed")):
 def classify(column: str, values: List[str]):
     """Classify one column from sample values (values are only used in memory)."""
     from .scanner import classify_column
-    r = classify_column(column, values) or {"tag": "PUBLIC"}
+    r = classify_column(column, values) or {"tag": "UNREVIEWED", "evidence": "no PII found; approve as PUBLIC after review"}
     sys.stdout.write(json.dumps({k: v for k, v in r.items() if k != "probs"}, default=str) + "\n")
 
 

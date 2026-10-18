@@ -65,6 +65,7 @@ packages = ["src/maskguard"]
 [tool.hatch.build.targets.wheel.force-include]
 "policies/default.yaml" = "maskguard/policies/default.yaml"
 "policies/overrides.yaml" = "maskguard/policies/overrides.yaml"
+"policies/public.demo.yaml" = "maskguard/policies/public.demo.yaml"
 "policies/users.demo.yaml" = "maskguard/policies/users.demo.yaml"
 
 [dependency-groups]

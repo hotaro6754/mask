@@ -56,7 +56,7 @@ function toast(msg, kind = "info") {
 
 function badge(text, cls) { return h("span", { class: `badge ${cls}` }, text); }
 const actionBadge = (a) => badge(a, `a-${a}`);
-const tagBadge = (t) => badge(t || "PUBLIC", `t-${t || "PUBLIC"}`);
+const tagBadge = (t) => badge(t || "UNREVIEWED", `t-${t || "UNREVIEWED"}`);
 const okBadge = (ok, yes = "PASS", no = "FAIL") => badge(ok ? yes : no, ok ? "b-ok" : "b-bad");
 
 function card(title, body, ...tools) {
@@ -250,7 +250,7 @@ function hbars(rows, colorFor) {
     h("span", {}, tagBadge(label)), h("div", { class: "track" }, h("div", { class: "fill", style: { width: `${(n / max) * 100}%`, background: colorFor(label) } })),
     h("span", { class: "mono" }, n))));
 }
-const TAG_COLOR = { PII_HIGH: "#ff8f8f", FINANCIAL_CONFIDENTIAL: "#e9c46a", PII_MEDIUM: "#f2b84b", PII_IN_TEXT: "#b59cff", PUBLIC: "#6b7684" };
+const TAG_COLOR = { PII_HIGH: "#ff8f8f", FINANCIAL_CONFIDENTIAL: "#e9c46a", PII_MEDIUM: "#f2b84b", PII_IN_TEXT: "#b59cff", UNREVIEWED: "#d9a05b", PUBLIC: "#6b7684" };
 
 // ------------------------------------------------------------------ result + explain tables
 
@@ -300,7 +300,7 @@ PAGES.overview = async (main) => {
     can("audit.read") ? api("GET", "/audit?n=400") : null]);
   S.ready = ready.data; renderIdentity();
   const cols = tbl.ok ? tbl.data.tables.flatMap((t) => t.columns) : [];
-  const sensitive = cols.filter((c) => c.tag !== "PUBLIC");
+  const sensitive = cols.filter((c) => c.tag !== "PUBLIC" && c.tag !== "UNREVIEWED");
   const tiles = h("div", { class: "grid cols-4" },
     card(null, h("div", { class: "stat" }, h("div", { class: "label" }, "Tables protected"), h("div", { class: "value" }, tbl.ok ? tbl.data.tables.length : "—"), h("div", { class: "hint" }, tbl.ok ? `${tbl.data.backend} · synthetic demo data` : ""))),
     card(null, h("div", { class: "stat" }, h("div", { class: "label" }, "Sensitive columns"), h("div", { class: "value" }, tbl.ok ? sensitive.length : "—"), h("div", { class: "hint" }, `of ${cols.length} columns, found by the scanner`))),
@@ -541,7 +541,7 @@ PAGES.discovery = async (main) => {
   const body = h("div", {});
   function renderTable() {
     const ev = Object.fromEntries(tagged.map((t) => [`${t.table}.${t.column}`, t]));
-    const rows = tbl.flatMap((t) => t.columns.map((c) => ({ table: t.table, column: c.column, sql_type: c.sql_type, ...(ev[`${t.table}.${c.column}`] || { tag: "PUBLIC" }) })))
+    const rows = tbl.flatMap((t) => t.columns.map((c) => ({ table: t.table, column: c.column, sql_type: c.sql_type, ...(ev[`${t.table}.${c.column}`] || { tag: c.tag }) })))
       .filter((r) => (!filt.tag || r.tag === filt.tag) && (!filt.table || r.table === filt.table) && (!filt.q || `${r.column} ${r.evidence || ""} ${r.kind || ""}`.toLowerCase().includes(filt.q)));
     tableList.replaceChildren(h("button", { class: `chip`, "aria-pressed": String(!filt.table), onclick: () => { filt.table = ""; renderTable(); } }, "All tables"),
       ...tbl.map((t) => h("button", { class: "chip", "aria-pressed": String(filt.table === t.table), onclick: () => { filt.table = t.table; renderTable(); } },

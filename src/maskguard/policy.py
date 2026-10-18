@@ -12,7 +12,7 @@ everything around it a single source of truth:
 import copy, hashlib, json, os, threading, time
 
 from . import masks
-from .rewriter import action_for, compile_row_filter
+from .rewriter import PUBLIC, UNREVIEWED, action_for, compile_row_filter, tag_of
 
 # Strictness order: higher = more protective. Conflicts resolve to the strictest action.
 ACTIONS = {
@@ -97,14 +97,14 @@ def view_within(role, caller, policy):
 def known_tags(policy, registry=None):
     tags = {t for rules in policy["roles"].values() for t in rules}
     for cols in (registry or {}).values():
-        tags |= {m["tag"] for m in cols.values() if m.get("tag")}
-    return sorted(tags)
+        tags |= {tag_of(m) for m in cols.values()}
+    return sorted(tags - {PUBLIC})  # PUBLIC is always allowed: there is no rule to set for it
 
 
 def _rule_source(meta, role, policy):
-    tag = meta.get("tag")
-    if not tag:
-        return "untagged: no PII found"
+    tag = tag_of(meta)
+    if tag == PUBLIC:
+        return "approved PUBLIC by a person (overrides)"
     if tag in policy["roles"][role]:
         return f"roles.{role}.{tag}"
     return f"default_action={policy.get('default_action', 'deny')} (no rule for {tag})"
@@ -152,7 +152,7 @@ def explain(role, table, registry, policy):
         action = action_for(meta, role, policy)
         ex_in, ex_out = preview(meta, action, policy)
         _, name, detail = ACTIONS.get(action, ACTIONS["deny"])
-        cols.append({"column": col, "sql_type": meta.get("sql_type"), "tag": meta.get("tag") or "PUBLIC",
+        cols.append({"column": col, "sql_type": meta.get("sql_type"), "tag": tag_of(meta),
                      "kind": meta.get("kind"), "confidence": meta.get("confidence"), "source": meta.get("source"),
                      "evidence": meta.get("evidence"), "action": action, "action_label": name,
                      "transformation": detail, "rule": _rule_source(meta, role, policy),
@@ -164,11 +164,11 @@ def explain(role, table, registry, policy):
 
 
 def matrix(registry, policy):
-    """Every tagged column x every role -> action."""
+    """Every column x every role -> action."""
     rows = []
     for t, cols in sorted(registry.items()):
         for c, m in cols.items():
-            rows.append({"table": t, "column": c, "tag": m.get("tag") or "PUBLIC", "kind": m.get("kind"),
+            rows.append({"table": t, "column": c, "tag": tag_of(m), "kind": m.get("kind"),
                          **{r: action_for(m, r, policy) for r in policy["roles"]}})
     return {"roles": list(policy["roles"]), "policy_version": version(policy), "rows": rows}
 
@@ -182,6 +182,8 @@ def validate(policy):
         for tag, a in (rules or {}).items():
             if a not in ACTIONS:
                 errs.append(f"roles.{r}.{tag}: unknown action {a!r}")
+            if tag == PUBLIC:
+                errs.append(f"roles.{r}.PUBLIC: PUBLIC columns are always allowed; approve columns in overrides.yaml")
     for r, tables in (policy.get("row_filters") or {}).items():
         if r not in policy.get("roles", {}):
             errs.append(f"row_filters.{r}: unknown role")
@@ -241,6 +243,9 @@ class PolicyStore:
             warnings.append(f"weakens {role}/{tag}: {current} -> {action}")
         if action == "allow" and tag in ("PII_HIGH", "FINANCIAL_CONFIDENTIAL") and role != "admin":
             warnings.append(f"grants raw {tag} values to non-admin role {role}")
+        if action == "allow" and tag == UNREVIEWED and role != "admin":
+            warnings.append(f"shows {role} every column nobody has reviewed; the scanner finding nothing is not proof "
+                            "of no personal data. Prefer approving columns as PUBLIC in overrides.yaml")
         if action == "aggregate" and tag != "FINANCIAL_CONFIDENTIAL":
             warnings.append("aggregate only adds noise to numeric columns; text columns under this tag are redacted")
         return current, warnings, weaker

@@ -1,0 +1,8 @@
+# Columns of the bundled demo schema that were reviewed and approved as non-personal (PUBLIC).
+#
+# Loaded only in demo mode (MASKGUARD_DEMO=1, development), never in production, and only for columns the scanner left
+# untagged: an approval here can never hide something the scanner found. Any other untagged column is UNREVIEWED and
+# masked for non-admin roles until a person approves it in overrides.yaml ({tag: PUBLIC}).
+users: [id, city]
+accounts: [id, user_id, status]
+support_tickets: [id, user_id, order_ref, notes, status]
