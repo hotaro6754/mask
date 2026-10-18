@@ -150,6 +150,7 @@ legend { font-size: 12px; color: var(--text-2); padding: 0 6px; }
 .t-PII_MEDIUM { color: var(--warn); border-color: #5b4520; background: #1d170c; }
 .t-PII_IN_TEXT { color: var(--violet); border-color: #43386b; background: #15122a; }
 .t-PUBLIC { color: var(--muted); border-color: var(--border-strong); background: var(--surface-2); }
+.t-HEALTH { color: #ff8fc7; border-color: #5a2b48; background: #1d1018; }
 .t-UNREVIEWED { color: #d9a05b; border-color: #5a4426; background: #1c160e; border-style: dashed; }
 
 /* tables */

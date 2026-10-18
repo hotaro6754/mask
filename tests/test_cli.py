@@ -9,6 +9,7 @@ from maskguard import cli
 @pytest.fixture
 def run(tmp_path, monkeypatch, capsys):
     monkeypatch.setenv("MASKGUARD_DB", f"sqlite:///{tmp_path}/cli.db")
+    monkeypatch.setenv("MASKGUARD_SEED_IF_EMPTY", "1")  # a database named in MASKGUARD_DB only gets demo data on request
     monkeypatch.setenv("MASKGUARD_AUDIT", str(tmp_path / "audit.jsonl"))
     monkeypatch.setenv("MASKGUARD_REGISTRY", str(tmp_path / "registry.yaml"))
     monkeypatch.setenv("COLUMNS", "120")

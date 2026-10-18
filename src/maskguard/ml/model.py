@@ -20,7 +20,10 @@ META_PATH = os.path.join(os.path.dirname(__file__), "pii_lgbm.json")
 STRONG_RULES = {"aadhaar": lambda v: VALIDATORS["aadhaar"](v) or bool(_PATTERNS["aadhaar_masked"].match(v.strip())),
                 "gstin": VALIDATORS["gstin"], "card": VALIDATORS["card"], "iban": VALIDATORS["iban"],
                 "pan": VALIDATORS["pan"], "voter_id": VALIDATORS["voter_epic"]}
-SENSITIVE_AMOUNT_HEADERS = {"balance", "salary", "income", "outstanding", "networth", "credit_limit", "loan", "emi"}
+# Headers that tie money-like values to a person (substring match). Not prices or costs of things (unit_price is not
+# personal), and not "bill": bill_id is money-like.
+SENSITIVE_AMOUNT_HEADERS = {"balance", "salary", "income", "outstanding", "networth", "credit_limit", "loan", "emi",
+                            "amount", "fee", "payment", "premium", "wage", "payout", "refund", "deposit", "withdrawal"}
 
 
 def train(n_per_kind=300, seed=7, rounds=400, verbose=True):

@@ -39,10 +39,21 @@ jobs:
         # Start the API from the synced venv, not `uv run`: a live `uv run` holds uv's cache lock, and setup-uv's
         # post-job `uv cache prune` then waits on it until it times out and fails the job. Stop it on exit too.
         run: |
-          MASKGUARD_DB=sqlite:///$RUNNER_TEMP/newman.db MASKGUARD_AUDIT=$RUNNER_TEMP/a.jsonl MASKGUARD_REGISTRY=$RUNNER_TEMP/r.yaml \
+          MASKGUARD_DB=sqlite:///$RUNNER_TEMP/newman.db MASKGUARD_SEED_IF_EMPTY=1 MASKGUARD_AUDIT=$RUNNER_TEMP/a.jsonl MASKGUARD_REGISTRY=$RUNNER_TEMP/r.yaml \
             .venv/bin/maskguard serve --port 8000 > $RUNNER_TEMP/api.log 2>&1 &
           API_PID=$!
           trap 'kill $API_PID 2>/dev/null || true' EXIT
           for i in $(seq 1 60); do curl -sf http://127.0.0.1:8000/health && break; sleep 1; done
           npx -y newman@6 run postman/Smart-Data-Masking.postman_collection.json -e postman/Local.postman_environment.json \
             --reporters cli,junit --reporter-junit-export newman.xml
+
+  e2e:
+    # The built wheel in fresh containers (PostgreSQL 16 + python:3.12), on a database that isn't the demo, in
+    # production mode: discovery, review, masking per role, bypass attempts, refusals, proofs, HTTPS API, restarts.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - run: uv build --wheel -o dist
+      - name: End-to-end in isolated containers
+        run: scripts/e2e/run.sh dist/maskguard-*-py3-none-any.whl

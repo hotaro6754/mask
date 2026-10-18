@@ -79,7 +79,9 @@ class LocalService:
         checks.append(("Audit trail", gw.audit.verify(), "hash chain intact" if gw.audit.verify() else "CHAIN BROKEN"))
         base = a.integrity.baseline()
         checks.append(("Integrity baseline", base is not None, base["taken_at"] if base else "none recorded"))
-        checks.append(("HMAC key", bool(os.environ.get("MASKGUARD_HMAC_KEY")), "set" if os.environ.get("MASKGUARD_HMAC_KEY") else "MISSING"))
+        gen = config.GENERATED.get("MASKGUARD_HMAC_KEY")
+        checks.append(("HMAC key", bool(os.environ.get("MASKGUARD_HMAC_KEY")),
+                       f"generated for this machine ({gen})" if gen else "set" if os.environ.get("MASKGUARD_HMAC_KEY") else "MISSING"))
         checks.append(("Threat engine", gw.threat is not None, "rules + IsolationForest" if gw.threat else "off"))
         checks.append(("Noisy aggregates", True, "enabled (development only; not a formal DP guarantee)" if gw.allow_dp
                        else "disabled in production (design review pending)"))
@@ -95,13 +97,48 @@ class LocalService:
             for c, m in cols.items():
                 out.append({"table": t, "column": c, "sql_type": m.get("sql_type"), "tag": tag_of(m),
                             "kind": m.get("kind"), "confidence": m.get("confidence"), "source": m.get("source"),
-                            "evidence": m.get("evidence")})
+                            "evidence": m.get("evidence"), **({"suggest": "PUBLIC"} if not m.get("tag") and m.get("suggest") else {})})
         return out
 
     def tables(self):
         b = self.app.backend
         return [{"table": t, "columns": len(b.columns(t)), "rows": b.admin_query(f"SELECT count(*) FROM {b._qualified(t)}")[1][0][0],
                  "scanned": t in self.gw.registry} for t in b.tables()]
+
+    def review(self, columns, tag="PUBLIC", kind=None):
+        """Record a person's decision for columns (PUBLIC = not personal data, or a classification) in the overrides
+        file, then rescan so it applies at once. Writes MASKGUARD_OVERRIDES if set, else ./policies/overrides.yaml."""
+        import yaml
+        from .scanner import save_registry, scan
+        tag = tag.upper()
+        known = set(P.known_tags(self.gw.policy, self.gw.registry)) | {"PUBLIC"}
+        if tag not in known or tag == "UNREVIEWED":
+            raise Denied(f"unknown classification {tag}; use PUBLIC or one of: {', '.join(sorted(known - {'PUBLIC', 'UNREVIEWED'}))}")
+        reg = {t.lower(): (t, {c.lower(): c for c in cols}) for t, cols in self.gw.registry.items()}
+        picked = []
+        for name in columns:
+            t, _, c = name.partition(".")
+            if t.lower() not in reg or c.lower() not in reg[t.lower()][1]:
+                raise Denied(f"unknown column {name}: use TABLE.COLUMN as `maskguard pii list` shows it")
+            picked.append((reg[t.lower()][0], reg[t.lower()][1][c.lower()]))
+        target = config._env("MASKGUARD_OVERRIDES", "") or os.path.join("policies", "overrides.yaml")
+        current = config._load_yaml(target if os.path.exists(target) else self.app.settings.overrides) or {}
+        for t, c in picked:
+            current.setdefault(t, {})[c] = {"tag": tag, **({"kind": kind} if kind else {})}
+        os.makedirs(os.path.dirname(target) or ".", exist_ok=True)
+        with open(target, "w") as f:
+            f.write("# Reviewed classifications (maskguard pii approve / pii tag). They win over the scanner.\n"
+                    "# PUBLIC = a person checked the column and it is not personal data: every role sees it.\n")
+            yaml.safe_dump(current, f, sort_keys=True)
+        os.environ.setdefault("MASKGUARD_OVERRIDES", target)  # this process rescans with it; later runs find it in ./
+        self.app.settings.overrides = target
+        new = scan(self.app.backend, overrides=config.load_overrides(self.app.settings))
+        self.gw.update_registry(new)
+        if self.app.settings.registry_out:
+            save_registry(new, self.app.settings.registry_out)
+        self.gw.audit.append(user="cli-operator", role="operator", decision="pii_review", channel="cli",
+                             target=",".join(f"{t}.{c}" for t, c in picked), reason=f"tag={tag}")
+        return {"file": target, "tag": tag, "columns": [f"{t}.{c}" for t, c in picked]}
 
     def scan(self, tables=None, sample_limit=200, dry_run=False):
         from .scanner import save_registry, scan, summary
@@ -207,12 +244,22 @@ class LocalService:
                              reason=reason[:160])
         return snap
 
-    def integrity_proof(self, sql=None):
+    def integrity_proof(self, sql=None, user=None, password=None):
+        """As every demo identity in demo mode; otherwise as the account given, which needs integrity.verify."""
         from .integrity import proof
-        sessions = {r: self.app.auth.login(u, p) for r, (u, p) in config.demo_accounts().items()} or None
-        if sessions is None:
-            raise Denied("integrity proof needs demo identities (MASKGUARD_DEMO=1) or the API")
-        return proof(self.app, sql or "SELECT * FROM users ORDER BY id LIMIT 5", sessions, actor="cli-operator")
+        if user:
+            s = self.session(None, user, password)
+            if not P.can(s.role, "integrity.verify", self.gw.policy):
+                raise Denied(f"role '{s.role}' lacks capability 'integrity.verify'")
+            sessions, actor = {s.role: s}, s.user
+        else:
+            sessions, actor = {r: self.app.auth.login(u, p) for r, (u, p) in config.demo_accounts().items()}, "cli-operator"
+            if not sessions:
+                raise Denied("outside demo mode, run the proof as an account with integrity.verify: --user and --password")
+        if not sql:
+            first = sorted(self.gw.registry)[0] if self.gw.registry else "users"
+            sql = f"SELECT * FROM {first} LIMIT 5"
+        return proof(self.app, sql, sessions, actor=actor)
 
     def integrity_history(self):
         return self.app.integrity.history()
@@ -282,6 +329,9 @@ class RemoteService:
         return [{"table": t["table"], "columns": len(t["columns"]), "rows": None, "scanned": True}
                 for t in self._call(self._op().tables)]
 
+    def review(self, columns, tag="PUBLIC", kind=None):
+        raise Denied("reviews are saved to the overrides file on the MaskGuard host: run this command there, without --api")
+
     def scan(self, tables=None, sample_limit=200, dry_run=False):
         return self._call(self._op()._call, "POST", "/scan", {"tables": tables, "sample_limit": sample_limit, "dry_run": dry_run})
 
@@ -322,7 +372,7 @@ class RemoteService:
     def integrity_baseline(self, reason=""):
         return self._call(self._op()._call, "POST", "/integrity/baseline", {"reason": reason})
 
-    def integrity_proof(self, sql=None):
+    def integrity_proof(self, sql=None, user=None, password=None):
         return self._call(self._op().integrity_proof, sql)
 
     def integrity_history(self):

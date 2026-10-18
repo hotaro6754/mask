@@ -9,6 +9,7 @@ x-maskguard: &maskguard
   build: .
   environment:
     MASKGUARD_DB: postgresql://maskguard:maskguard@postgres:5432/bank
+    MASKGUARD_SEED_IF_EMPTY: "1"   # this stack is the demo: fill the empty database with synthetic data
     MASKGUARD_HMAC_KEY: ${MASKGUARD_HMAC_KEY:-dev-only-hmac-key-change-me}
     MASKGUARD_JWT_SECRET: ${MASKGUARD_JWT_SECRET:-dev-only-jwt-secret-change-me-0123456789}
     MASKGUARD_SCAN_INTERVAL: "300"

@@ -244,7 +244,7 @@ def ready():
 def meta():
     a = get_app()
     return {"name": "MaskGuard", "version": VERSION, "environment": config.environment(),
-            "demo_mode": config.demo_enabled(), "backend": a.backend.dialect,
+            "demo_mode": config.demo_enabled(), "demo_data": a.settings.seed_if_empty, "backend": a.backend.dialect,
             "demo_identities": [{"role": r, "user": u} for r, (u, _) in config.demo_accounts().items()],
             "policy_version": P.version(a.gateway.policy), "uptime_s": round(time.time() - a.started)}
 

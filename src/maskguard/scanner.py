@@ -22,10 +22,31 @@ KIND_TAG = {
     "vehicle_reg": "PII_MEDIUM", "ifsc": "PII_MEDIUM",
     # identifiers embedded in free text (notes, comments)
     "free_text_pii": "PII_IN_TEXT",
+    # health data: a special category (GDPR art. 9, DPDP), sensitive even without a name next to it
+    "health": "HEALTH",
+    # personal attributes that look harmless as values (M/F, a short list): masked from the header alone
+    "demographic": "PII_MEDIUM",
 }
 HEADER_WORDS = {"email": "email", "mail": "email", "phone": "phone", "mobile": "phone", "msisdn": "phone",
                 "ssn": "ssn", "aadhaar": "aadhaar", "aadhar": "aadhaar", "pan": "pan", "card": "card", "cc": "card",
-                "iban": "iban", "balance": "balance", "name": "name", "address": "address", "dob": "dob", "birth": "dob"}
+                "iban": "iban", "balance": "balance", "name": "name", "address": "address", "dob": "dob", "birth": "dob",
+                "amount": "amount", "fee": "amount", "fees": "amount", "salary": "amount",
+                "premium": "amount", "wage": "amount", "refund": "amount",
+                "doctor": "name", "physician": "name", "nurse": "name", "surgeon": "name",
+                "diagnosis": "health", "icd": "health", "blood": "health", "allergy": "health", "allergies": "health",
+                "medication": "health", "medicine": "health", "prescription": "health", "disease": "health",
+                "symptom": "health", "symptoms": "health", "treatment": "health", "therapy": "health",
+                "illness": "health", "disability": "health", "medical": "health", "clinical": "health",
+                "gender": "demographic", "sex": "demographic", "religion": "demographic", "caste": "demographic",
+                "ethnicity": "demographic", "marital": "demographic", "nationality": "demographic"}
+# Kinds whose header alone is enough to mask a non-numeric column, even when the values look harmless
+STRONG_HEADER_KINDS = {"health", "demographic"}
+TEXT_ONLY_HEADER_KINDS = {"name", "health", "demographic"}  # a header like these on whole numbers is a key, not the data
+KEY_WORDS = {"id", "no", "num", "number", "key", "ref", "seq"}
+
+ICD10 = re.compile(r"[A-TV-Z][0-9][0-9A-Z](?:\.[0-9A-Z]{1,4})?")
+BLOOD_GROUP = re.compile(r"(?:A|B|AB|O)\s?(?:\+|-|POS(?:ITIVE)?|NEG(?:ATIVE)?)")
+HONORIFIC_NAME = re.compile(r"(?:Dr|Mr|Mrs|Ms|Miss|Prof|Shri|Smt|Sri|Kumari)\.?\s+[A-Z][\w'.-]+(?:\s+[A-Z][\w'.-]+)*")
 
 
 def _digits(v):
@@ -46,6 +67,41 @@ VALIDATORS = {
     "phone": lambda v: re.fullmatch(r"(?:\+?91)?[6-9]\d{9}", _digits(v)) is not None,
     "ssn": lambda v: re.fullmatch(r"\d{3}-?\d{2}-?\d{4}", str(v)) is not None,
 }
+
+
+def _numeric(sample):
+    return bool(sample) and all(isinstance(v, (int, float)) or re.fullmatch(r"-?\d+(?:\.\d+)?", str(v).strip())
+                                for v in sample[:50])
+
+
+def value_kind(sample):
+    """Kinds recognised from the values alone that the classifier wasn't trained on: diagnosis codes (ICD-10), blood
+    groups, and names with a title (Dr., Mrs., Shri …). Returns (kind, evidence) or (None, None)."""
+    vals = [str(v).strip() for v in sample[:200] if v is not None and str(v).strip()]
+    if len(vals) < 3:
+        return None, None
+    for kind, rx, what, need in (("health", ICD10, "ICD-10 diagnosis codes", 0.9),
+                                 ("health", BLOOD_GROUP, "blood groups", 0.9),
+                                 ("name", HONORIFIC_NAME, "names with a title (Dr., Mrs. …)", 0.8)):
+        hits = [v for v in vals if rx.fullmatch(v if kind == "name" else v.upper())]
+        if len(hits) / len(vals) >= need and len(set(hits)) >= 2:
+            return kind, f"{len(hits) / len(vals):.0%} of values look like {what}"
+    return None, None
+
+
+def suggest_public(column, sample):
+    """For a column the scanner found nothing in: why it probably isn't personal data, or None. Only a suggestion:
+    nothing is approved until a person runs `maskguard pii approve` (--suggested takes these)."""
+    vals = [v for v in sample if v is not None]
+    if len(vals) < 5:
+        return None
+    tokens = re.split(r"[^a-z0-9]+", re.sub(r"([a-z])([A-Z])", r"\1_\2", column).lower())
+    if tokens[-1] in KEY_WORDS and all(isinstance(v, int) or re.fullmatch(r"\d+", str(v).strip()) for v in vals):
+        return "looks like an id or key (whole numbers)"
+    distinct = {str(v).strip().lower() for v in vals}
+    if len(vals) >= 20 and len(distinct) <= 12 and all(len(d) <= 20 for d in distinct) and not _numeric(vals):
+        return f"short list of values ({len(distinct)} distinct), like a status or type"
+    return None
 
 
 def header_kind(column):
@@ -79,12 +135,15 @@ def classify_column_rules(column, values, hi=0.8, lo=0.3):
         return _out(best_kind, "high", f"{best_ratio:.0%} pass {best_kind} validator; header={hk}", source="rules")
     if best_kind and best_ratio >= lo:
         return _out(best_kind, "review", f"only {best_ratio:.0%} pass {best_kind} validator; header={hk}", source="rules")
+    vk, vev = value_kind(sample)
+    if vk:
+        return _out(vk, "high", vev, source="patterns")
     if _texty(sample):  # identifiers inside free text, as the ML path does
         from .textpii import scan_values
         has, ev = scan_values(sample)
         if has:
             return _out("free_text_pii", "high", f"free text; {ev}", source="rules+patterns")
-    if hk:  # header-only evidence: tag anyway (fail closed)
+    if hk and not (hk in TEXT_ONLY_HEADER_KINDS and _numeric(sample)):  # header-only evidence: tag anyway (fail closed)
         return _out(hk, "medium", f"header token matched {hk}; no validator match", source="rules")
     return None
 
@@ -122,6 +181,9 @@ def classify_column(column, values):
     kind = d["kind"]
     if kind in KIND_TAG:
         return _out(kind, d["confidence"], d["evidence"], source=d["source"], probs=d["probs"])
+    vk, vev = value_kind(sample)
+    if vk:
+        return _out(vk, "high", vev, source="patterns", probs=d["probs"])
     if kind == "free_text" or _texty(sample):
         from .textpii import scan_values
         has, ev = scan_values(sample)
@@ -130,6 +192,10 @@ def classify_column(column, values):
         if kind == "free_text":
             return None
     hk = header_kind(column)  # ML says not PII; a PII header with a non-confident model still masks (fail closed)
+    if hk in TEXT_ONLY_HEADER_KINDS and _numeric(sample):  # doctor_id, blood_test_no: numbers, not names or health
+        return None
+    if hk in STRONG_HEADER_KINDS:
+        return _out(hk, "medium", f"header says {hk} data; {d['evidence']}", source="header", probs=d["probs"])
     if hk and d["confidence"] != "high":
         return _out(hk, "review", f"header says {hk}; {d['evidence']}", source="header", probs=d["probs"])
     return None
@@ -140,8 +206,11 @@ def scan_table(backend, table, sample_size=200):
     entry = {}
     for name, sql_type in backend.columns(table):
         vals = backend.sample(table, name, sample_size)
-        entry[name] = {"type": "num" if is_numeric(sql_type) else "text", "sql_type": sql_type,
-                       **(classify_column(name, vals) or {})}
+        found = classify_column(name, vals)
+        entry[name] = {"type": "num" if is_numeric(sql_type) else "text", "sql_type": sql_type, **(found or {})}
+        hint = None if found else suggest_public(name, vals)
+        if hint:
+            entry[name].update(suggest="PUBLIC", evidence=f"{hint}: suggested PUBLIC")
     return entry
 
 
@@ -192,7 +261,8 @@ class ScanWorker(threading.Thread):
 
     def run_once(self):
         try:
-            self.on_update(scan(self.backend, overrides=self.overrides))
+            overrides = self.overrides() if callable(self.overrides) else self.overrides  # re-read: reviews apply
+            self.on_update(scan(self.backend, overrides=overrides))
             self.last_run, self.last_error = time.time(), None
         except Exception as e:  # keep the old registry; a failed scan must not unmask anything
             self.last_error = repr(e)

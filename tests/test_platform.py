@@ -79,6 +79,7 @@ def test_audit_chain_survives_restart_and_detects_tampering(tmp_path):
 def test_cli_roles_and_attack(sqlite_env, capsys, monkeypatch, tmp_path):
     from maskguard import cli
     monkeypatch.setenv("MASKGUARD_DB", f"sqlite:///{tmp_path}/cli.db")
+    monkeypatch.setenv("MASKGUARD_SEED_IF_EMPTY", "1")
     monkeypatch.setenv("MASKGUARD_AUDIT", str(tmp_path / "cli-audit.jsonl"))
     monkeypatch.setenv("MASKGUARD_REGISTRY", str(tmp_path / "cli-reg.yaml"))
     assert cli.main(["roles", "SELECT ssn FROM users ORDER BY id LIMIT 1"]) == 0
@@ -105,6 +106,7 @@ def test_postgres_functions_match_python():
 def test_dashboard_renders_for_every_role(tmp_path, monkeypatch):
     from streamlit.testing.v1 import AppTest
     monkeypatch.setenv("MASKGUARD_DB", f"sqlite:///{tmp_path}/dash.db")
+    monkeypatch.setenv("MASKGUARD_SEED_IF_EMPTY", "1")
     monkeypatch.setenv("MASKGUARD_AUDIT", str(tmp_path / "dash-audit.jsonl"))
     monkeypatch.setenv("MASKGUARD_REGISTRY", str(tmp_path / "dash-reg.yaml"))
     at = AppTest.from_file("../src/maskguard/dashboard.py", default_timeout=60).run()

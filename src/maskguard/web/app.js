@@ -250,7 +250,7 @@ function hbars(rows, colorFor) {
     h("span", {}, tagBadge(label)), h("div", { class: "track" }, h("div", { class: "fill", style: { width: `${(n / max) * 100}%`, background: colorFor(label) } })),
     h("span", { class: "mono" }, n))));
 }
-const TAG_COLOR = { PII_HIGH: "#ff8f8f", FINANCIAL_CONFIDENTIAL: "#e9c46a", PII_MEDIUM: "#f2b84b", PII_IN_TEXT: "#b59cff", UNREVIEWED: "#d9a05b", PUBLIC: "#6b7684" };
+const TAG_COLOR = { PII_HIGH: "#ff8f8f", FINANCIAL_CONFIDENTIAL: "#e9c46a", PII_MEDIUM: "#f2b84b", PII_IN_TEXT: "#b59cff", HEALTH: "#ff8fc7", UNREVIEWED: "#d9a05b", PUBLIC: "#6b7684" };
 
 // ------------------------------------------------------------------ result + explain tables
 
@@ -302,7 +302,7 @@ PAGES.overview = async (main) => {
   const cols = tbl.ok ? tbl.data.tables.flatMap((t) => t.columns) : [];
   const sensitive = cols.filter((c) => c.tag !== "PUBLIC" && c.tag !== "UNREVIEWED");
   const tiles = h("div", { class: "grid cols-4" },
-    card(null, h("div", { class: "stat" }, h("div", { class: "label" }, "Tables protected"), h("div", { class: "value" }, tbl.ok ? tbl.data.tables.length : "—"), h("div", { class: "hint" }, tbl.ok ? `${tbl.data.backend} · synthetic demo data` : ""))),
+    card(null, h("div", { class: "stat" }, h("div", { class: "label" }, "Tables protected"), h("div", { class: "value" }, tbl.ok ? tbl.data.tables.length : "—"), h("div", { class: "hint" }, tbl.ok ? `${tbl.data.backend} · ${S.meta && S.meta.demo_data ? "synthetic demo data" : "your database"}` : ""))),
     card(null, h("div", { class: "stat" }, h("div", { class: "label" }, "Sensitive columns"), h("div", { class: "value" }, tbl.ok ? sensitive.length : "—"), h("div", { class: "hint" }, `of ${cols.length} columns, found by the scanner`))),
     card(null, h("div", { class: "stat" }, h("div", { class: "label" }, "Roles"), h("div", { class: "value" }, roles.ok ? roles.data.roles.length : "—"), h("div", { class: "hint" }, "default action: deny"))),
     card(null, h("div", { class: "stat" }, h("div", { class: "label" }, "Policy version"), h("div", { class: "value", style: { fontSize: "18px", marginTop: "12px" } }, S.meta.policy_version), h("div", { class: "hint" }, "written into every audit entry"))));

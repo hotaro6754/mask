@@ -1,5 +1,5 @@
 """Builds a running MaskGuard (backend, scanner, gateway, auth) from environment settings."""
-import ipaddress, os, time
+import ipaddress, os, secrets, time
 from dataclasses import dataclass, field
 from urllib.parse import urlparse
 
@@ -34,7 +34,7 @@ class UnsafeConfiguration(RuntimeError):
 
 
 def environment():
-    env = os.environ.get("MASKGUARD_ENV", "development").strip().lower()
+    env = _env("MASKGUARD_ENV", "development").strip().lower()
     if env not in ENVIRONMENTS:  # a typo such as "prod" must not quietly mean development (demo identities on)
         raise UnsafeConfiguration([f"MASKGUARD_ENV={env!r} is not one of: {', '.join(ENVIRONMENTS)}"])
     return env
@@ -42,7 +42,7 @@ def environment():
 
 def demo_enabled():
     default = "0" if environment() == "production" else "1"
-    on = os.environ.get("MASKGUARD_DEMO", default) == "1"
+    on = _env("MASKGUARD_DEMO", default) == "1"
     if on and environment() == "production":
         raise RuntimeError("MASKGUARD_DEMO=1 is not allowed when MASKGUARD_ENV=production")
     return on
@@ -133,8 +133,40 @@ def listen_problems(service, host, tls=False):
     return [f"the {service} would listen on {host!r}: production allows it on loopback only (its TLS is untested)"]
 
 
+# Settings saved by `maskguard connect` (or written by hand): MASKGUARD_* names and values, in the folder you run
+# MaskGuard from. Environment variables win over it. Secrets never go in it.
+SETTINGS_FILE = "maskguard.yaml"
+SECRET_NAMES = ("MASKGUARD_HMAC_KEY", "MASKGUARD_JWT_SECRET")
+
+
+def settings_file():
+    return os.environ.get("MASKGUARD_CONFIG") or SETTINGS_FILE
+
+
+def file_settings():
+    try:
+        with open(settings_file()) as f:
+            data = yaml.safe_load(f) or {}
+    except FileNotFoundError:
+        return {}
+    return {k: str(v) for k, v in data.items() if k.startswith("MASKGUARD_") and k not in SECRET_NAMES}
+
+
+def save_settings(values):
+    """Merge MASKGUARD_* values into the settings file (None removes one). Readable only by you: it can hold a
+    database URL with a password."""
+    data = {**file_settings(), **values}
+    data = {k: v for k, v in data.items() if v is not None}
+    fd = os.open(settings_file(), os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    with os.fdopen(fd, "w") as f:
+        f.write("# MaskGuard settings for this folder (written by `maskguard connect`). Environment variables win.\n")
+        yaml.safe_dump(data, f, sort_keys=True)
+    return settings_file()
+
+
 def _env(name, default):
-    return os.environ.get(name, default)
+    v = os.environ.get(name)
+    return v if v is not None else file_settings().get(name, default)
 
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
@@ -145,8 +177,8 @@ DEMO_USERS_FILES = (DEMO_USERS_FILE, os.path.join(PACKAGE_DIR, "policies", "user
 
 
 def _cfg(name, default):
-    """Config file path: env var, else ./default, else the copy in the source tree, else the copy in the package."""
-    v = os.environ.get(name)
+    """Config file path: env var (or settings file), else ./default, else the source tree's copy, else the package's."""
+    v = os.environ.get(name) or (file_settings().get(name) if name else None)
     if v:
         return v
     for path in (default, os.path.join(ROOT, default), os.path.join(PACKAGE_DIR, default)):
@@ -160,10 +192,11 @@ DEMO_PUBLIC_FILE = "policies/public.demo.yaml"
 
 
 def load_overrides(settings):
-    """Manual tags from the overrides file. In demo mode the demo schema's approved-public columns are added too, but
-    only where the scanner found nothing (an approval never hides a detection). Production never loads them."""
+    """Manual tags from the overrides file. With demo data (demo mode, and a database MaskGuard may seed) the demo
+    schema's approved-public columns are added too, but only where the scanner found nothing (an approval never hides
+    a detection). Your own database and production never get them."""
     overrides = {t: dict(c or {}) for t, c in (_load_yaml(settings.overrides) or {}).items()}
-    if demo_enabled():
+    if demo_enabled() and settings.seed_if_empty:
         for table, cols in (_load_yaml(_cfg("", DEMO_PUBLIC_FILE)) or {}).items():
             for col in cols or []:
                 overrides.setdefault(table, {}).setdefault(col, {
@@ -181,12 +214,40 @@ class Settings:
     registry_out: str = field(default_factory=lambda: _env("MASKGUARD_REGISTRY", "data/registry.yaml"))
     audit: str = field(default_factory=lambda: _env("MASKGUARD_AUDIT", "data/audit.jsonl"))
     scan_interval: int = field(default_factory=lambda: int(_env("MASKGUARD_SCAN_INTERVAL", "300")))
-    seed_if_empty: bool = field(  # never on by default in production
-        default_factory=lambda: _env("MASKGUARD_SEED_IF_EMPTY", "0" if environment() == "production" else "1") == "1")
+    # Demo data goes only into the bundled demo database by default: never into a database you point MaskGuard at
+    # (set MASKGUARD_SEED_IF_EMPTY=1 to seed one on purpose), and never in production.
+    seed_if_empty: bool = field(default_factory=lambda: _env(
+        "MASKGUARD_SEED_IF_EMPTY", "1" if environment() != "production" and not _env("MASKGUARD_DB", "") else "0") == "1")
     state_dir: str = field(default_factory=lambda: _env("MASKGUARD_STATE_DIR", ""))  # default: next to the audit log
 
     def state(self, name):
         return os.path.join(self.state_dir or os.path.dirname(self.audit) or ".", name)
+
+
+GENERATED = {}  # secret name -> file it was generated into, this process (development only)
+
+
+def ensure_dev_secrets(settings):
+    """Development only: a random HMAC key and JWT secret, made once for this machine and kept in the state folder
+    (readable only by you), so tokens and logins survive restarts. Production never generates secrets."""
+    if environment() == "production":
+        return
+    missing = [n for n in SECRET_NAMES if not os.environ.get(n)]
+    if not missing:
+        return
+    path = _env("MASKGUARD_SECRETS_FILE", os.path.join("data", "secrets.yaml"))  # one per folder, whatever the database
+    stored = _load_yaml(path)
+    new = {n: secrets.token_hex(32) for n in missing if not stored.get(n)}
+    if new:
+        os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
+        fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+        with os.fdopen(fd, "w") as f:
+            f.write("# Generated by MaskGuard for development on this machine. Keep it private; never commit it.\n"
+                    "# Production needs its own secrets (MASKGUARD_HMAC_KEY, MASKGUARD_JWT_SECRET).\n")
+            yaml.safe_dump({**stored, **new}, f, sort_keys=True)
+    for n in missing:
+        os.environ[n] = stored.get(n) or new[n]
+        GENERATED[n] = path
 
 
 @dataclass
@@ -220,6 +281,7 @@ def build(settings=None, start_worker=False):
             os.makedirs(os.path.dirname(p), exist_ok=True)
     if s.db.startswith("sqlite:///") and s.db != "sqlite:///:memory:" and os.path.dirname(s.db[10:]):
         os.makedirs(os.path.dirname(s.db[10:]), exist_ok=True)
+    ensure_dev_secrets(s)  # before anything that issues tokens or computes them
     try:  # production runs on a read-only account: the masking functions come from `maskguard db-install`
         backend = connect(s.db, install=not production)
     except RuntimeError as e:
@@ -247,6 +309,6 @@ def build(settings=None, start_worker=False):
             gateway.update_registry(reg)
             if s.registry_out:
                 save_registry(reg, s.registry_out)
-        app.worker = ScanWorker(backend, on_update, s.scan_interval, overrides)
+        app.worker = ScanWorker(backend, on_update, s.scan_interval, lambda: load_overrides(s))
         app.worker.start()
     return app

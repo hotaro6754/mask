@@ -43,7 +43,7 @@ EXAMPLES = {
     "card": "4111-1111-1111-1111", "ssn": "123-45-6789", "aadhaar": "2345 6789 0123", "pan": "ABCPE1234F",
     "phone": "9876543210", "email": "riya.sharma@example.in", "upi": "riya.sharma@okaxis", "iban": "GB82WEST12345698765432",
     "gstin": "27ABCPE1234F1Z5", "passport": "K1234567", "voter_id": "ABC1234567", "bank_account": "123456789012",
-    "ifsc": "HDFC0001234", "pincode": "560001", "vehicle_reg": "KA01AB1234", "dob": "1990-04-17", "name": "Riya Sharma",
+    "ifsc": "HDFC0001234", "pincode": "560001", "vehicle_reg": "KA01AB1234", "dob": "1990-04-17", "name": "Riya Sharma", "health": "E11.9",
     "address": "12 MG Road, Bengaluru", "balance": 452310.75, "amount": 18250.00,
     "free_text_pii": "Customer called from 9876543210 about card 4111-1111-1111-1111.",
 }
@@ -241,7 +241,7 @@ class PolicyStore:
         warnings = []
         if weaker:
             warnings.append(f"weakens {role}/{tag}: {current} -> {action}")
-        if action == "allow" and tag in ("PII_HIGH", "FINANCIAL_CONFIDENTIAL") and role != "admin":
+        if action == "allow" and tag in ("PII_HIGH", "FINANCIAL_CONFIDENTIAL", "HEALTH") and role != "admin":
             warnings.append(f"grants raw {tag} values to non-admin role {role}")
         if action == "allow" and tag == UNREVIEWED and role != "admin":
             warnings.append(f"shows {role} every column nobody has reviewed; the scanner finding nothing is not proof "

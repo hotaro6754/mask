@@ -246,6 +246,68 @@ def version():
     sys.stdout.write(f"maskguard {VERSION}\n")
 
 
+DB_SCHEMES = ("postgresql", "postgres", "mysql", "sqlite")
+
+
+def _db_label(url):
+    from urllib.parse import urlparse
+    u = urlparse(url)
+    name = os.path.splitext(os.path.basename(u.path))[0] if u.scheme == "sqlite" else u.path.strip("/")
+    return "".join(ch if ch.isalnum() or ch in "-_" else "_" for ch in (name or u.hostname or "db"))[:40] or "db"
+
+
+def connect_database(url=None, demo=False):
+    """Point this folder at a database (saved in maskguard.yaml), start the engine on it and summarise the scan."""
+    if os.environ.get("MASKGUARD_DB"):
+        raise Unavailable("MASKGUARD_DB is set in your environment and wins over saved settings; unset it first")
+    keys = ("MASKGUARD_DB", "MASKGUARD_SEED_IF_EMPTY", "MASKGUARD_STATE_DIR", "MASKGUARD_AUDIT", "MASKGUARD_REGISTRY")
+    before = {k: config.file_settings().get(k) for k in keys}
+    if demo:
+        values = dict.fromkeys(keys)  # back to the defaults: the bundled demo database in ./data
+    else:
+        url = (url or Prompt.ask("database URL (postgresql://user:password@host:5432/db, mysql://…, or sqlite:///file.db)",
+                                 password=True)).strip()
+        if url.split(":", 1)[0].lower() not in DB_SCHEMES:
+            raise typer.BadParameter("use a postgresql://, mysql:// or sqlite:/// URL")
+        folder = os.path.join("data", _db_label(url))  # its own audit log, registry and baseline
+        values = {"MASKGUARD_DB": url, "MASKGUARD_SEED_IF_EMPTY": "0", "MASKGUARD_STATE_DIR": folder,
+                  "MASKGUARD_AUDIT": os.path.join(folder, "audit.jsonl"),
+                  "MASKGUARD_REGISTRY": os.path.join(folder, "registry.yaml")}
+    path = config.save_settings(values)
+    state["service"] = None
+    try:
+        with err.status("[cyan]connecting, installing the masking functions and scanning…[/]", spinner="dots"):
+            st = svc().status()
+    except Unavailable as e:
+        config.save_settings(before)  # keep the previous working setup
+        state["service"] = None
+        raise Unavailable(f"{e}. The account needs rights to create MaskGuard's mg_* functions once; otherwise run "
+                          "`maskguard db-install --db <owner URL>` and connect with a read-only account") from None
+    return path, st
+
+
+@app.command("connect")
+@guarded
+def connect_db(url: Optional[str] = typer.Argument(None, help="postgresql://…, mysql://… or sqlite:///file.db (asked if omitted)."),
+               demo: bool = typer.Option(False, "--demo", help="Go back to the bundled demo database."),
+               json_out: bool = typer.Option(False, "--json")):
+    """Use your own database (or go back to the demo). Saved for this folder in maskguard.yaml; no demo data is added."""
+    path, st = connect_database(url, demo)
+    inv = svc().inventory()
+    sensitive = [r for r in inv if r["tag"] not in ("PUBLIC", "UNREVIEWED")]
+    pending = [r for r in inv if r["tag"] == "UNREVIEWED"]
+    if json_out:
+        return emit_json({"settings_file": path, "backend": st["backend"], "columns": len(inv),
+                          "sensitive": len(sensitive), "unreviewed": len(pending)})
+    out.print(Text.assemble(("connected  ", f"bold {C['ok']}"), f"{st['backend']} · {len({r['table'] for r in inv})} tables · "
+                            f"{len(inv)} columns · saved in {path}"))
+    if not demo:
+        out.print(Text.assemble(("found  ", "bold"), f"{len(sensitive)} sensitive columns, masked by role · ",
+                                (f"{len(pending)} unreviewed", f"bold {C['warn']}"), " (masked for everyone but admin)"))
+        out.print(Text("next: maskguard pii list · maskguard pii approve TABLE.COLUMN … (not personal data) · "
+                       "maskguard compare \"SELECT …\" · maskguard connect --demo to go back", style=C["muted"]))
+
+
 @app.command()
 @guarded
 def status(json_out: bool = typer.Option(False, "--json")):
@@ -276,23 +338,27 @@ def doctor(json_out: bool = typer.Option(False, "--json")):
                                "detail": f"{type(e).__name__}: scanner uses rules only; {ML_HINT}"})
                 continue
             checks.append({"name": f"python: {mod}", "ok": mod in ("psycopg", "pymysql"), "detail": type(e).__name__})
+    try:  # starting the engine also generates the development keys on first run
+        st = svc().status()
+        engine = st["checks"]
+    except (Unavailable, RuntimeError) as e:
+        engine = [{"name": "engine", "ok": False, "detail": str(e)[:200]}]
     key = os.environ.get("MASKGUARD_HMAC_KEY", "")
+    gen = config.GENERATED
     checks.append({"name": "MASKGUARD_HMAC_KEY", "ok": len(key.encode()) >= 16,
-                   "detail": "set (≥ 16 bytes)" if len(key.encode()) >= 16 else
+                   "detail": f"generated for this machine ({gen['MASKGUARD_HMAC_KEY']})" if "MASKGUARD_HMAC_KEY" in gen else
+                             "set (≥ 16 bytes)" if len(key.encode()) >= 16 else
                              "too short: use ≥ 16 random bytes" if key else "missing: analyst tokens will fail closed"})
     checks.append({"name": "MASKGUARD_JWT_SECRET", "ok": True,
-                   "detail": "set" if os.environ.get("MASKGUARD_JWT_SECRET") else "not set: tokens reset on restart (warning)"})
+                   "detail": f"generated for this machine ({gen['MASKGUARD_JWT_SECRET']})" if "MASKGUARD_JWT_SECRET" in gen else
+                             "set" if os.environ.get("MASKGUARD_JWT_SECRET") else "not set: tokens reset on restart (warning)"})
     try:
         demo = config.demo_enabled()
         checks.append({"name": "demo identities", "ok": True,
                        "detail": f"{'enabled' if demo else 'disabled'} (environment {config.environment()})"})
     except RuntimeError as e:
         checks.append({"name": "demo identities", "ok": False, "detail": str(e)})
-    try:
-        st = svc().status()
-        checks += st["checks"]
-    except (Unavailable, RuntimeError) as e:
-        checks.append({"name": "engine", "ok": False, "detail": str(e)[:200]})
+    checks += engine
     if json_out:
         emit_json({"ok": all(c["ok"] for c in checks), "checks": checks})
     else:
@@ -368,7 +434,7 @@ def db_inspect(table: Optional[str] = typer.Argument(None), json_out: bool = typ
 # ---------------------------------------------------------------- scanner
 
 TAG_STYLE = {"PII_HIGH": C["bad"], "FINANCIAL_CONFIDENTIAL": "gold3", "PII_MEDIUM": C["warn"], "PII_IN_TEXT": "medium_purple1",
-             "PUBLIC": C["muted"], "UNREVIEWED": C["warn"]}
+             "HEALTH": "hot_pink", "PUBLIC": C["muted"], "UNREVIEWED": C["warn"]}
 
 
 def pii_table(rows, show_public=False):
@@ -418,6 +484,31 @@ def scan(table: Optional[List[str]] = typer.Option(None, "--table", "-t", help="
         time.sleep(watch)
 
 
+@pii_app.command("approve")
+@guarded
+def pii_approve(columns: Optional[List[str]] = typer.Argument(None, help="TABLE.COLUMN … that are not personal data."),
+                suggested: bool = typer.Option(False, "--suggested", help="Also approve every unreviewed column the scanner suggests (ids, keys, short value lists).")):
+    """Mark reviewed columns as PUBLIC (not personal data): every role then sees them. Saved in overrides.yaml."""
+    columns = list(columns or [])
+    if suggested:
+        columns += [f"{r['table']}.{r['column']}" for r in svc().inventory()
+                    if r["tag"] == "UNREVIEWED" and r.get("suggest") == "PUBLIC"]
+    if not columns:
+        fail("nothing to approve: name TABLE.COLUMN …, or use --suggested", USAGE)
+    r = svc().review(columns, "PUBLIC")
+    out.print(Text.assemble(("approved  ", f"bold {C['ok']}"), ", ".join(r["columns"]), (f"  → PUBLIC · saved in {r['file']}", C["muted"])))
+
+
+@pii_app.command("tag")
+@guarded
+def pii_tag(columns: List[str] = typer.Argument(..., help="TABLE.COLUMN …"),
+            tag: str = typer.Option(..., "--tag", help="Classification, e.g. PII_HIGH, PII_MEDIUM, FINANCIAL_CONFIDENTIAL, HEALTH."),
+            kind: Optional[str] = typer.Option(None, "--kind", help="Optional data kind, e.g. phone, name, amount.")):
+    """Classify columns yourself (the scanner missed or misjudged them). Saved in overrides.yaml."""
+    r = svc().review(columns, tag, kind)
+    out.print(Text.assemble(("tagged  ", f"bold {C['ok']}"), ", ".join(r["columns"]), (f"  → {r['tag']} · saved in {r['file']}", C["muted"])))
+
+
 @pii_app.command("list")
 @guarded
 def pii_list(tag: Optional[str] = typer.Option(None, help="Only this classification."),
@@ -431,6 +522,10 @@ def pii_list(tag: Optional[str] = typer.Option(None, help="Only this classificat
     for r in rows:
         by[r["tag"]] = by.get(r["tag"], 0) + 1
     out.print(Text(" · ".join(f"{k} {v}" for k, v in sorted(by.items())), style=C["muted"]))
+    if by.get("UNREVIEWED"):
+        out.print(Text("UNREVIEWED columns are masked for everyone but admin. Not personal data? "
+                       "maskguard pii approve TABLE.COLUMN … · personal? maskguard pii tag TABLE.COLUMN --tag …",
+                       style=C["warn"]))
 
 
 @pii_app.command("show")
@@ -776,10 +871,15 @@ def integrity_baseline(reason: str = typer.Option("", "--reason"), json_out: boo
 
 @integrity_app.command("proof")
 @guarded
-def integrity_proof(sql: Optional[str] = typer.Option(None, "--sql"), json_out: bool = typer.Option(False, "--json")):
-    """Digest → same query as every role → write attempts → digest. PASS only if nothing changed."""
+def integrity_proof(sql: Optional[str] = typer.Option(None, "--sql"),
+                    user: Optional[str] = typer.Option(None, "--user", "-u", help="Run as this account (needs integrity.verify); required outside demo mode."),
+                    password: Optional[str] = typer.Option(None, "--password", "-p"),
+                    json_out: bool = typer.Option(False, "--json")):
+    """Digest → same query as every role (or as you) → write attempts → digest. PASS only if nothing changed."""
+    if user and password is None:
+        password = getpass.getpass(f"password for {user}: ")
     with err.status("[cyan]running the immutability proof…[/]"):
-        p = svc().integrity_proof(sql)
+        p = svc().integrity_proof(sql, user, password)
     if json_out:
         emit_json(p)
     else:
@@ -966,7 +1066,7 @@ def simulate_attack(kind: str = typer.Option("enumeration", "--kind",
 MENU = [("1", "Scan database for sensitive fields"), ("2", "Inspect PII classifications"),
         ("3", "Masking playground"), ("4", "Compare results across roles"), ("5", "Inspect effective policies"),
         ("6", "View audit events"), ("7", "Verify database integrity"), ("8", "Run security regression tests"),
-        ("9", "Database and engine diagnostics"), ("0", "Exit")]
+        ("9", "Database and engine diagnostics"), ("c", "Connect your own database (or back to the demo)"), ("0", "Exit")]
 
 
 def _menu():
@@ -1032,8 +1132,40 @@ def playground():
             _run_safely(integrity_verify, json_out=False)
 
 
+def _first_run():
+    """Nothing chosen yet in this folder: no database configured, no API, and the demo database not created."""
+    if state.get("api") or config._env("MASKGUARD_DB", "") or config.environment() == "production":
+        return False
+    return not os.path.exists(os.path.join("data", "bank.db"))
+
+
+def _choose_database():
+    out.print(Panel(Text("MaskGuard sits between people and a database. Try it on demo data (a synthetic bank, created "
+                         "in ./data), or connect your own PostgreSQL, MySQL or SQLite database: nothing is written to it, "
+                         "and no demo data is added."), title="[bold]first run[/]", title_align="left",
+                    border_style=C["info"], box=box.ROUNDED, expand=False))
+    while _pick("start with", ["demo data", "my own database"]) == "my own database":
+        try:
+            connect_database()
+            return
+        except (Unavailable, typer.BadParameter) as e:
+            out.print(Text(f"could not connect: {e}", style=C["bad"]))
+
+
+def _connect_menu():
+    on_demo = not config._env("MASKGUARD_DB", "")
+    choice = _pick("database", ["connect my own database", "back to the demo database"] if not on_demo
+                   else ["connect my own database", "stay on the demo"])
+    if choice == "connect my own database":
+        _run_safely(connect_db, url=None, demo=False, json_out=False)
+    elif choice == "back to the demo database":
+        _run_safely(connect_db, url=None, demo=True, json_out=False)
+
+
 def interactive():
     banner(out)
+    if _first_run():
+        _choose_database()
     try:
         st = svc().status()
         status_panel(st, out)
@@ -1077,13 +1209,16 @@ def interactive():
                 _run_safely(audit_list, n=15, user=None, role=None, decision=None, search=None, request_id=None, json_out=False)
             elif choice == "7":
                 if Confirm.ask("run the full proof (same query as every role + write attempts)?", default=True):
-                    _run_safely(integrity_proof, sql=None, json_out=False)
+                    _run_safely(integrity_proof, sql=None, user=None, password=None, json_out=False)
                 else:
                     _run_safely(integrity_verify, json_out=False)
             elif choice == "8":
                 _run_safely(security_test, roles="support,analyst,auditor", json_out=False)
             elif choice == "9":
                 _run_safely(doctor, json_out=False)
+            elif choice == "c":
+                _connect_menu()
+                status_panel(svc().status(), out)
         except KeyboardInterrupt:
             out.print(Text("\n(cancelled)", style=C["muted"]))
 
