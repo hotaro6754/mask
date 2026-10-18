@@ -59,7 +59,7 @@ MaskGuard is a privacy gateway in front of SQLite, PostgreSQL and MySQL.
 - **Security:** JWT and PBKDF2 authentication, HMAC-SHA256 tokens, SHA-256 hash chain.
 - **Interfaces:** Typer/Rich CLI, a plain HTML/JS dashboard under a strict Content Security Policy, and a
   PostgreSQL wire-protocol proxy.
-- **Testing:** pytest (498 tests on 3 databases), Postman/Newman (121 assertions), Playwright, GitHub Actions,
+- **Testing:** pytest (500 tests on 3 databases), Postman/Newman (121 assertions), Playwright, GitHub Actions,
   Docker.
 - **Data:** synthetic only, generated with Faker.
 - **Disclosure:** open-source libraries as listed, and the public bharat-pii-bench benchmark (Apache-2.0) for

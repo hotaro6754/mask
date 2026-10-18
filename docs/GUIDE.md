@@ -219,7 +219,7 @@ Partly, yes, and MaskGuard itself was built with an AI assistant. An AI can writ
 
 - **The quick version is usually display masking**, which our attack suite breaks in 14–15 of 17 attacks.
 - **Security bugs are silent.** Broken masking doesn't crash; it leaks, and nobody notices until data is gone.
-- **The value is the checking:** an attack suite, 498 tests on three databases, 121 API checks, a security
+- **The value is the checking:** an attack suite, 500 tests on three databases, 121 API checks, a security
   comparison with an existing product, a production profile verified live, and a privacy audit that found and
   documented its own gaps.
 
@@ -773,6 +773,7 @@ and the PostgreSQL proxy on 6543. It is a **demo** stack (known passwords, open 
 | Message | Meaning | Fix |
 |---|---|---|
 | `MASKGUARD_HMAC_KEY is not set` | No token key (it fails closed on purpose) | Set the variable as above |
+| `PII SCANNER  WARN  … rules only: install the OpenMP runtime …` | LightGBM can't load because the system lacks the OpenMP runtime (common on slim Docker images and fresh Macs). MaskGuard still runs on its rule-based scanner, which finds fewer columns; anything it misses stays masked as `UNREVIEWED` | Debian/Ubuntu: `sudo apt-get install libgomp1` · Fedora: `sudo dnf install libgomp` · macOS: `brew install libomp`. Then restart MaskGuard |
 | `address already in use` | Port 8000 is taken | `uv run maskguard serve --port 8080` |
 | `UNAVAILABLE … unsafe configuration` | You set `MASKGUARD_ENV=production` | Remove it for a demo, or follow section 21 |
 | A command isn't found | You're outside the project folder, or `uv sync` didn't run | `cd mask && uv sync` |
@@ -1026,7 +1027,7 @@ production aggregates.
 
 | Check | What it proves | Command |
 |---|---|---|
-| **Test suite** (pytest) | 498 tests on SQLite, PostgreSQL 16 and MySQL 8.4: masking, firewall, roles, scanner, threat engine, API, CLI, production refusals, DP findings, audit hardening | `uv run pytest -q` |
+| **Test suite** (pytest) | 500 tests on SQLite, PostgreSQL 16 and MySQL 8.4: masking, firewall, roles, scanner, threat engine, API, CLI, production refusals, DP findings, audit hardening | `uv run pytest -q` |
 | **Attack suite** | 0 of 17 PII attacks leak; 4 of 4 unsafe statements rejected | `uv run maskguard attack --role support` |
 | **Security regression** | Attack suite as every role + audit chain + integrity proof | `uv run maskguard test` |
 | **Postman / Newman** | 55 API requests, 121 assertions, including 26 negative and security cases | `make postman` |

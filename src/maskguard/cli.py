@@ -92,7 +92,9 @@ def banner(console=err):
         console.print(t)
 
 
-def status_label(ok):
+def status_label(ok, warn=False):
+    if ok and warn:  # works, degraded: no change to the exit code
+        return Text("WARN", style=f"bold {C['warn']}")
     return Text("PASS", style=f"bold {C['ok']}") if ok else Text("FAIL", style=f"bold {C['bad']}")
 
 
@@ -101,7 +103,7 @@ def status_panel(st, console=err):
     g = Table.grid(padding=(0, 2))
     g.add_column(style="bold", min_width=19); g.add_column(min_width=6); g.add_column(style=C["muted"])
     for c in st["checks"]:
-        g.add_row(c["name"].upper(), status_label(c["ok"]), c["detail"])
+        g.add_row(c["name"].upper(), status_label(c["ok"], c.get("warn")), c["detail"])
     mode = f"{st['mode'].upper()} · {st['environment']} · demo identities {'ON' if st['demo_mode'] else 'OFF'}"
     if st.get("api"):
         mode += f" · {st['api']}"
@@ -268,6 +270,11 @@ def doctor(json_out: bool = typer.Option(False, "--json")):
             importlib.import_module(mod)
             checks.append({"name": f"python: {mod}", "ok": True, "detail": "importable"})
         except Exception as e:
+            if mod == "lightgbm":  # optional at run time: the scanner falls back to rules (and says so)
+                from .scanner import ML_HINT
+                checks.append({"name": "python: lightgbm", "ok": True, "warn": True,
+                               "detail": f"{type(e).__name__}: scanner uses rules only; {ML_HINT}"})
+                continue
             checks.append({"name": f"python: {mod}", "ok": mod in ("psycopg", "pymysql"), "detail": type(e).__name__})
     key = os.environ.get("MASKGUARD_HMAC_KEY", "")
     checks.append({"name": "MASKGUARD_HMAC_KEY", "ok": len(key.encode()) >= 16,
@@ -293,7 +300,7 @@ def doctor(json_out: bool = typer.Option(False, "--json")):
         t = Table(box=box.SIMPLE_HEAD, header_style="bold", pad_edge=False)
         t.add_column("Check"); t.add_column("Result"); t.add_column("Detail", style=C["muted"])
         for c in checks:
-            t.add_row(c["name"], status_label(c["ok"]), c["detail"])
+            t.add_row(c["name"], status_label(c["ok"], c.get("warn")), c["detail"])
         out.print(t)
     if not all(c["ok"] for c in checks):
         raise typer.Exit(UNAVAILABLE)

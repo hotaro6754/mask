@@ -67,11 +67,12 @@ class LocalService:
             checks.append(("Database", True, f"{a.backend.dialect} · {n} tables"))
         except Exception as e:
             checks.append(("Database", False, type(e).__name__))
-        from .scanner import ml_available, summary, unreviewed
-        tagged, pending = summary(gw.registry), unreviewed(gw.registry)
+        from .scanner import ML_HINT, ml_available, summary, unreviewed
+        tagged, pending, ml = summary(gw.registry), unreviewed(gw.registry), ml_available()
         checks.append(("PII scanner", True, f"{len(tagged)} sensitive columns · "
                                             + (f"{len(pending)} unreviewed (masked) · " if pending else "")
-                                            + f"{'LightGBM + checksums' if ml_available() else 'rules only'}"))
+                                            + ("LightGBM + checksums" if ml else f"rules only: {ML_HINT}")))
+        warn = set() if ml else {"PII scanner"}  # works, but finds less: unrecognised columns stay masked
         errs = P.validate(gw.policy)
         checks.append(("Policy engine", not errs, f"{P.version(gw.policy)} · default {gw.policy.get('default_action', 'deny')}"
                                                   + (f" · {errs[0]}" if errs else "")))
@@ -84,7 +85,8 @@ class LocalService:
                        else "disabled in production (design review pending)"))
         return {"mode": self.mode, "environment": config.environment(), "demo_mode": config.demo_enabled(),
                 "backend": a.backend.dialect, "policy_version": P.version(gw.policy),
-                "checks": [{"name": n, "ok": ok, "detail": d} for n, ok, d in checks]}
+                "checks": [{"name": n, "ok": ok, "detail": d, **({"warn": True} if n in warn else {})}
+                           for n, ok, d in checks]}
 
     # ---- schema & scanner ----
     def inventory(self):

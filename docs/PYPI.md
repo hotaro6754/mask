@@ -29,7 +29,9 @@ maskguard serve                                          # REST API + Control Ro
 Demo logins: `admin.ann`, `support.sam`, `analyst.ali` and `auditor.aud`, each with password `<role>123`. Data,
 the audit log and the scanner registry are written to `./data/` in the folder you run it from.
 
-`maskguard status` shows `HMAC KEY FAIL` until you set the key: there is deliberately no default key.
+`maskguard status` shows `HMAC KEY FAIL` until you set the key: there is deliberately no default key. If it shows
+`PII SCANNER WARN … rules only`, the system lacks the OpenMP runtime the ML scanner needs: install `libgomp1`
+(Debian/Ubuntu, including `python:*-slim` images) or `libomp` (macOS, with Homebrew).
 
 To use your own database, set `MASKGUARD_DB` (`postgresql://…` or `mysql://…`) and `MASKGUARD_DEMO=0`. Columns
 the scanner finds nothing in are `UNREVIEWED` and masked for every role except admin until you approve them as
@@ -42,8 +44,15 @@ the scanner finds nothing in are `UNREVIEWED` and masked for every role except a
   scores 0.844.
 - **Attack suite:** 0 of the 17 bypass and inference attacks in its suite leak, against 14–15 of 17 for output-only
   masking. That is evidence for those attack shapes, not a proof for every query.
-- **Tests:** 498 tests on SQLite, PostgreSQL 16 and MySQL 8.4.
+- **Tests:** 500 tests on SQLite, PostgreSQL 16 and MySQL 8.4.
 - **Latency:** about 8 ms added per query.
+
+## What's new in 1.0.2
+
+- **The rule-based scanner now finds identifiers inside free text.** It is the fallback when LightGBM can't load. In
+  1.0.1 it missed them, so such a column stayed masked as `UNREVIEWED` instead of being tagged.
+- **`maskguard status` warns** (`WARN`, exit code unchanged) when the scanner runs on rules only, and says what to
+  install; `maskguard doctor` no longer fails on it.
 
 ## What's new in 1.0.1
 

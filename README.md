@@ -10,7 +10,7 @@ every query so each role sees only what its policy allows. Stored data never cha
 [![CI](https://github.com/hotaro6754/mask/actions/workflows/ci.yml/badge.svg?branch=claude/zealous-bell-me62fn)](https://github.com/hotaro6754/mask/actions/workflows/ci.yml?query=branch%3Aclaude%2Fzealous-bell-me62fn)
 ![Python](https://img.shields.io/badge/python-3.10%2B-3776AB)
 ![Databases](https://img.shields.io/badge/databases-SQLite%20%C2%B7%20PostgreSQL%20%C2%B7%20MySQL-4c8)
-![Tests](https://img.shields.io/badge/tests-498%20passed-brightgreen)
+![Tests](https://img.shields.io/badge/tests-500%20passed-brightgreen)
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue)](LICENSE)
 [![PyPI](https://img.shields.io/pypi/v/maskguard)](https://pypi.org/project/maskguard/)
 
@@ -195,7 +195,7 @@ repository and a JSON file in `docs/eval/`.
 | PII leaks across 17 bypass and inference attacks | **0 / 17** | 15 / 17 on PostgreSQL, 14 / 17 on SQLite and MySQL (naive masking) |
 | Simulated insider attacks detected (normal users blocked) | **95–100% (0%)** | — |
 | Added latency per query, p50, all features on | ~8 ms (SQLite, PostgreSQL), ~21 ms (MySQL) | — |
-| Tests | **498 passed** on SQLite, PostgreSQL 16 and MySQL 8.4, plus 121 Postman assertions | — |
+| Tests | **500 passed** on SQLite, PostgreSQL 16 and MySQL 8.4, plus 121 Postman assertions | — |
 
 The attack suite is evidence for those 17 attack shapes, not a proof against every possible query. The threat
 engine was evaluated on simulated sessions.
@@ -511,7 +511,7 @@ the columns itself, masks inside the query, and applies one policy across databa
 They can get masking code quickly; MaskGuard itself was built with AI assistance. Getting code is the easy part.
 Knowing it can't be bypassed is the hard part:
 - the obvious version masks the output, which leaks 14–15 of our 17 attacks;
-- MaskGuard is checked on every push by an attack suite, 498 tests on three databases and 121 API assertions;
+- MaskGuard is checked on every push by an attack suite, 500 tests on three databases and 121 API assertions;
 - a security bug doesn't crash, it silently leaks, so untested security code is a liability.
 
 The value is the tested, verified behaviour, not the lines of code.
@@ -554,6 +554,11 @@ export MASKGUARD_HMAC_KEY=dev-only-hmac-key-change-me   # PowerShell: $env:MASKG
 maskguard                 # console with synthetic demo data
 maskguard serve           # dashboard at http://127.0.0.1:8000/ui/
 ```
+
+The ML scanner needs the OpenMP runtime. Most systems have it; minimal ones don't (`python:*-slim` Docker images, a
+fresh Mac). Without it, `maskguard status` shows `PII SCANNER WARN … rules only` and MaskGuard uses its rule-based
+scanner; columns it misses stay masked as `UNREVIEWED`. Install it with `apt-get install libgomp1` (Debian/Ubuntu)
+or `brew install libomp` (macOS).
 
 To develop or run the tests, clone the repository and use `uv sync`. For the demo stack with PostgreSQL, run
 `docker compose up --build`. There is no npm package or `.exe`: MaskGuard is a Python server that runs next to a

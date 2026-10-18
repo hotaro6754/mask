@@ -79,12 +79,19 @@ def classify_column_rules(column, values, hi=0.8, lo=0.3):
         return _out(best_kind, "high", f"{best_ratio:.0%} pass {best_kind} validator; header={hk}", source="rules")
     if best_kind and best_ratio >= lo:
         return _out(best_kind, "review", f"only {best_ratio:.0%} pass {best_kind} validator; header={hk}", source="rules")
+    if _texty(sample):  # identifiers inside free text, as the ML path does
+        from .textpii import scan_values
+        has, ev = scan_values(sample)
+        if has:
+            return _out("free_text_pii", "high", f"free text; {ev}", source="rules+patterns")
     if hk:  # header-only evidence: tag anyway (fail closed)
         return _out(hk, "medium", f"header token matched {hk}; no validator match", source="rules")
     return None
 
 
-_ML = {"ok": None}
+_ML = {"ok": None, "error": None}
+# LightGBM needs the OpenMP runtime, which minimal systems (slim Docker images, fresh macOS) don't ship
+ML_HINT = "install the OpenMP runtime for the ML scanner: libgomp1 (Debian/Ubuntu), libgomp (Fedora), libomp (macOS: brew)"
 
 
 def ml_available():
@@ -93,9 +100,9 @@ def ml_available():
             from .ml.model import Classifier
             Classifier.get()
             _ML["ok"] = True
-        except Exception as e:  # missing lightgbm or model file -> rules only
-            log.warning("ML scanner unavailable (%s); using rules only", e)
-            _ML["ok"] = False
+        except Exception as e:  # missing lightgbm, its OpenMP runtime, or the model file -> rules only
+            log.warning("ML scanner unavailable (%s); using rules only; %s", e, ML_HINT)
+            _ML["ok"], _ML["error"] = False, f"{type(e).__name__}: {str(e)[:120]}"
     return _ML["ok"]
 
 
