@@ -12,7 +12,7 @@ every query so each role sees only what its policy allows. Stored data never cha
 ![Databases](https://img.shields.io/badge/databases-SQLite%20%C2%B7%20PostgreSQL%20%C2%B7%20MySQL-4c8)
 ![Tests](https://img.shields.io/badge/tests-474%20passed-brightgreen)
 
-[Demo video](docs/demo_full.mp4) · [Quick start](#quick-start) · [How it works](#how-it-works) ·
+[Demo video](docs/demo_full.mp4) · [Beginner's guide](docs/GUIDE.md) · [Quick start](#quick-start) · [How it works](#how-it-works) ·
 [Results](#results) · [Production](#production-profile) · [Privacy review](#noisy-aggregates-and-the-privacy-review) ·
 [Deployment guide](docs/DEPLOYMENT.md)
 
