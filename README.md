@@ -11,6 +11,7 @@ every query so each role sees only what its policy allows. Stored data never cha
 ![Python](https://img.shields.io/badge/python-3.10%2B-3776AB)
 ![Databases](https://img.shields.io/badge/databases-SQLite%20%C2%B7%20PostgreSQL%20%C2%B7%20MySQL-4c8)
 ![Tests](https://img.shields.io/badge/tests-474%20passed-brightgreen)
+[![License](https://img.shields.io/badge/license-Apache--2.0-blue)](LICENSE)
 
 [Demo video](docs/demo_full.mp4) · [Beginner's guide](docs/GUIDE.md) · [The problem](#the-problem-we-solve) · [Quick start](#quick-start) · [How it works](#how-it-works) ·
 [Results](#results) · [Production](#production-profile) · [Privacy review](#noisy-aggregates-and-the-privacy-review) ·
@@ -366,6 +367,11 @@ MaskGuard component.
 - `docs/IMPLEMENTATION_REPORT.md`: requirements matrix with evidence-based status, test totals and remaining work.
 - `docs/EVALUATION.md` and `docs/eval/*.json`: every number behind the claims above.
 
+## License
+
+[Apache License 2.0](LICENSE). Copyright 2026 G. Harshith, G. Praneeth, D. Mandeep and K. Surya Srinivas; see
+[NOTICE](NOTICE).
+
 ## FAQ
 
 ### About the idea
@@ -569,8 +575,10 @@ production until the privacy-accounting design passes independent review
 <details>
 <summary><b>Is it free? What's the licence?</b></summary>
 
-The code is on GitHub, but no licence file has been chosen yet. Until one is added, others have no formal right to
-reuse it.
+Yes. MaskGuard is licensed under the [Apache License 2.0](LICENSE): anyone may use, modify and distribute it,
+including commercially, as long as they keep the licence and copyright notices ([NOTICE](NOTICE)). Apache-2.0 also
+grants a patent licence from contributors, which legal teams at banks typically look for. It comes without
+warranty.
 </details>
 
 <details>
