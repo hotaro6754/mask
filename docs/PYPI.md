@@ -20,8 +20,8 @@ decision in a hash-chained audit log. Stored data never changes.
 
 ```bash
 pip install maskguard
-export MASKGUARD_HMAC_KEY=dev-only-hmac-key-change-me     # PowerShell: $env:MASKGUARD_HMAC_KEY="..."  cmd: set MASKGUARD_HMAC_KEY=...
-maskguard                                                # console with synthetic demo data (created in ./data/)
+maskguard                                                # first run: demo data, or connect your own database
+maskguard connect postgresql://user:pw@host:5432/yourdb  # or later, in one command (mysql:// and sqlite:/// too)
 maskguard compare "SELECT name, ssn, phone FROM users LIMIT 2" --roles admin,support,analyst,auditor
 maskguard serve                                          # REST API + Control Room at http://127.0.0.1:8000/ui/
 ```
@@ -29,14 +29,15 @@ maskguard serve                                          # REST API + Control Ro
 Demo logins: `admin.ann`, `support.sam`, `analyst.ali` and `auditor.aud`, each with password `<role>123`. Data,
 the audit log and the scanner registry are written to `./data/` in the folder you run it from.
 
-`maskguard status` shows `HMAC KEY FAIL` until you set the key: there is deliberately no default key. If it shows
-`PII SCANNER WARN … rules only`, the system lacks the OpenMP runtime the ML scanner needs: install `libgomp1`
+In development the secret keys are generated on first run for this machine (`data/secrets.yaml`, readable only by
+you); production refuses to start without your own. If `maskguard status` shows `PII SCANNER WARN … rules only`, the system lacks the OpenMP runtime the ML scanner needs: install `libgomp1`
 (Debian/Ubuntu, including `python:*-slim` images) or `libomp` (macOS, with Homebrew).
 
-To use your own database, set `MASKGUARD_DB` (`postgresql://…` or `mysql://…`) and `MASKGUARD_DEMO=0`. Columns
-the scanner finds nothing in are `UNREVIEWED` and masked for every role except admin until you approve them as
-`PUBLIC` in your overrides file (`maskguard pii list` shows them). For real data, run in production mode
-(`MASKGUARD_ENV=production`): it refuses to start on any unsafe setting.
+On your own database MaskGuard adds no demo data. It finds identifiers, money, health data (diagnosis codes, blood
+groups) and staff names by itself, masks them by role, and hides every other column (`UNREVIEWED`) from everyone but
+admin until you review it: `maskguard pii approve --suggested` approves the ids and status lists it suggests,
+`maskguard pii tag` handles the rest. For real data, run in production mode (`MASKGUARD_ENV=production`) on a
+read-only account: it refuses to start on any unsafe setting.
 
 ## Results
 
@@ -44,8 +45,20 @@ the scanner finds nothing in are `UNREVIEWED` and masked for every role except a
   scores 0.844.
 - **Attack suite:** 0 of the 17 bypass and inference attacks in its suite leak, against 14–15 of 17 for output-only
   masking. That is evidence for those attack shapes, not a proof for every query.
-- **Tests:** 500 tests on SQLite, PostgreSQL 16 and MySQL 8.4.
+- **Tests:** 513 tests on SQLite, PostgreSQL 16 and MySQL 8.4.
 - **Latency:** about 8 ms added per query.
+
+## What's new in 1.0.3
+
+- **Your own database, in one step:** the first run asks "demo data or my own database"; `maskguard connect URL`
+  saves and scans one. A database you name never gets demo data.
+- **No key to set up:** development generates its secret keys on first run and keeps them; production still
+  requires your own.
+- **More found automatically:** health data (ICD-10 codes, blood groups, medication) as a new `HEALTH` class, staff
+  names (`Dr. Rao`), personal attributes (gender, religion, …) and amounts/fees tied to a person.
+- **Review in commands:** `maskguard pii approve [--suggested]` and `maskguard pii tag`.
+- **`maskguard integrity proof -u USER`** works in production.
+- Tested end to end in fresh containers on a database that is not the demo (`scripts/e2e/`, also in CI).
 
 ## What's new in 1.0.2
 

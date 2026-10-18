@@ -219,7 +219,7 @@ Partly, yes, and MaskGuard itself was built with an AI assistant. An AI can writ
 
 - **The quick version is usually display masking**, which our attack suite breaks in 14–15 of 17 attacks.
 - **Security bugs are silent.** Broken masking doesn't crash; it leaks, and nobody notices until data is gone.
-- **The value is the checking:** an attack suite, 500 tests on three databases, 121 API checks, a security
+- **The value is the checking:** an attack suite, 513 tests on three databases, 121 API checks, a security
   comparison with an existing product, a production profile verified live, and a privacy audit that found and
   documented its own gaps.
 
@@ -428,12 +428,15 @@ made of many small decision trees; trained on labelled examples, it predicts the
 | `FINANCIAL_CONFIDENTIAL` | Money and accounts | balances, card numbers, IBAN, account numbers |
 | `PII_MEDIUM` | Quasi-identifiers: harmless alone, identifying together | name, date of birth, address, PIN code |
 | `PII_IN_TEXT` | Identifiers inside free text | support notes mentioning a phone number |
+| `HEALTH` | Health data: a special category in law (GDPR, DPDP), sensitive even without a name | diagnosis codes (ICD-10), blood groups, medication |
 | `UNREVIEWED` | The scanner found nothing, and nobody has checked it yet. **Not the same as safe** | any column of a new database, until reviewed |
 | `PUBLIC` | A person reviewed it and approved it as not personal | ids, statuses, cities |
 
 **Unreviewed columns** are masked for every role except admin, because a scanner finding nothing is not proof there
-is nothing. **Uncertain columns** are still tagged and masked, marked for human review. **Overrides**
-(`policies/overrides.yaml`) let a person force a tag, including `PUBLIC` to approve a column:
+is nothing. The scanner **suggests** which of them look safe (whole-number ids and keys, short lists like statuses),
+and `maskguard pii approve --suggested` approves exactly those. **Uncertain columns** are still tagged and masked,
+marked for human review. A person's decisions go in `policies/overrides.yaml`, written by `maskguard pii approve`
+(PUBLIC) and `maskguard pii tag` (any tag), or by hand:
 
 ```yaml
 users:
@@ -697,9 +700,11 @@ MaskGuard is developed and tested on Linux. Windows and macOS should work with P
 
 ```bash
 pip install maskguard
-export MASKGUARD_HMAC_KEY=dev-only-hmac-key-change-me      # Windows PowerShell: $env:MASKGUARD_HMAC_KEY="..."
-maskguard
+maskguard                  # first run asks: demo data, or your own database
 ```
+
+The first run makes MaskGuard's secret keys for this computer (saved in `data/secrets.yaml`, readable only by you)
+and asks whether to explore the demo data or connect your own database. No settings to type.
 
 **pip** is Python's package installer. It downloads MaskGuard and everything it needs, and adds a `maskguard`
 command. The demo database, audit log and scanner registry are created in `./data/` in the folder you run it from.
@@ -718,7 +723,6 @@ Use this to develop MaskGuard or run its tests.
 git clone https://github.com/hotaro6754/mask
 cd mask
 uv sync                                                   # installs everything into .venv/ (only this project)
-export MASKGUARD_HMAC_KEY=dev-only-hmac-key-change-me     # the key for analyst tokens; any value for a demo
 uv run maskguard                                          # opens the console
 ```
 
@@ -728,7 +732,6 @@ uv run maskguard                                          # opens the console
 git clone https://github.com/hotaro6754/mask
 cd mask
 uv sync
-$env:MASKGUARD_HMAC_KEY="dev-only-hmac-key-change-me"
 uv run maskguard
 ```
 
@@ -772,7 +775,7 @@ and the PostgreSQL proxy on 6543. It is a **demo** stack (known passwords, open 
 
 | Message | Meaning | Fix |
 |---|---|---|
-| `MASKGUARD_HMAC_KEY is not set` | No token key (it fails closed on purpose) | Set the variable as above |
+| `MASKGUARD_HMAC_KEY is not set` | Production has no token key (development makes one itself) | Set your own key: section 21 |
 | `PII SCANNER  WARN  … rules only: install the OpenMP runtime …` | LightGBM can't load because the system lacks the OpenMP runtime (common on slim Docker images and fresh Macs). MaskGuard still runs on its rule-based scanner, which finds fewer columns; anything it misses stays masked as `UNREVIEWED` | Debian/Ubuntu: `sudo apt-get install libgomp1` · Fedora: `sudo dnf install libgomp` · macOS: `brew install libomp`. Then restart MaskGuard |
 | `address already in use` | Port 8000 is taken | `uv run maskguard serve --port 8080` |
 | `UNAVAILABLE … unsafe configuration` | You set `MASKGUARD_ENV=production` | Remove it for a demo, or follow section 21 |
@@ -791,19 +794,22 @@ This is how MaskGuard goes from demo data to your own database. **Always try it 
 | Always: read access to the tables | It only ever runs `SELECT` |
 | MySQL with binary logging | `log_bin_trust_function_creators=1`, so the functions can be created |
 
-It never changes your tables or rows. The secret key for tokens is passed in on each connection, not stored in the
-database.
+It never changes your tables or rows, and never adds demo data to them. The secret key for tokens is passed in on
+each connection, not stored in the database.
 
 ### Steps for a trial (development mode)
 
 ```bash
-export MASKGUARD_DB='postgresql://user:password@staging-host:5432/yourdb'
-export MASKGUARD_HMAC_KEY='a-long-random-secret'
-export MASKGUARD_SEED_IF_EMPTY=0          # never add demo data to your database
-export MASKGUARD_DEMO=0                   # no demo logins, and no demo approvals applied to your tables
-uv run maskguard status                   # connects, installs functions, scans, records a baseline
-uv run maskguard pii list                 # what the scanner found, with evidence (never values), and what's UNREVIEWED
+maskguard connect 'postgresql://user:password@staging-host:5432/yourdb'   # tests it, saves it, scans it
+maskguard pii list                        # what was found, with evidence (never values), and what's UNREVIEWED
+maskguard pii approve --suggested         # approve the ids, keys and status lists the scanner suggests
+maskguard pii tag customers.city --tag PII_MEDIUM   # decide the rest yourself
+maskguard compare "SELECT * FROM customers LIMIT 3" # the same query as each role
 ```
+
+`connect` saves the URL for this folder in `maskguard.yaml` (readable only by you) and gives the database its own
+folder for the audit log and registry (`data/<name>/`). `maskguard connect --demo` goes back to the demo. You can
+also choose "my own database" when `maskguard` first starts, or set `MASKGUARD_DB` yourself.
 
 ### What happens on first connection
 
@@ -826,10 +832,10 @@ sequenceDiagram
 
 ### Then make it yours
 
-1. **Check the tags and review the rest.** `maskguard pii list`, or Control Room → PII discovery. Wrong tag? Force it
-   in `policies/overrides.yaml`. Every column the scanner found nothing in is `UNREVIEWED` and masked for everyone
-   but admin, ids and keys included, so joins on them won't match yet. Look at each one, and approve the ones that
-   really aren't personal (`id: {tag: PUBLIC}`); tag the rest.
+1. **Check the tags and review the rest.** `maskguard pii list`, or Control Room → PII discovery. Wrong tag?
+   `maskguard pii tag TABLE.COLUMN --tag …`. Every column the scanner found nothing in is `UNREVIEWED` and masked
+   for everyone but admin, ids and keys included, so joins on them won't match yet. `maskguard pii approve
+   --suggested` approves the ones that look like keys or status lists; look at the rest yourself.
 2. **Set the rules.** Edit `policies/default.yaml`: roles, what each sees per tag, row filters, row limits.
    `maskguard policy explain --role support --table accounts` shows the result.
 3. **Create real users.** `maskguard hash-password` for each, into your own users file; set `MASKGUARD_USERS`.
@@ -1027,7 +1033,7 @@ production aggregates.
 
 | Check | What it proves | Command |
 |---|---|---|
-| **Test suite** (pytest) | 500 tests on SQLite, PostgreSQL 16 and MySQL 8.4: masking, firewall, roles, scanner, threat engine, API, CLI, production refusals, DP findings, audit hardening | `uv run pytest -q` |
+| **Test suite** (pytest) | 513 tests on SQLite, PostgreSQL 16 and MySQL 8.4: masking, firewall, roles, scanner, threat engine, API, CLI, production refusals, DP findings, audit hardening | `uv run pytest -q` |
 | **Attack suite** | 0 of 17 PII attacks leak; 4 of 4 unsafe statements rejected | `uv run maskguard attack --role support` |
 | **Security regression** | Attack suite as every role + audit chain + integrity proof | `uv run maskguard test` |
 | **Postman / Newman** | 55 API requests, 121 assertions, including 26 negative and security cases | `make postman` |
@@ -1056,8 +1062,7 @@ can't slip in unnoticed.
 ```bash
 git clone https://github.com/hotaro6754/mask && cd mask
 uv sync                                                    # install dependencies (uv is a fast Python package manager)
-export MASKGUARD_HMAC_KEY=dev-only-hmac-key-change-me      # key for analyst tokens (development value)
-uv run maskguard                                           # interactive console: health checks, then a menu
+uv run maskguard                                           # first run: demo data or your database, then a menu
 ```
 
 Synthetic data is created automatically the first time. Then:
@@ -1085,8 +1090,8 @@ flowchart LR
 2. Until the background scanner has seen it, queries on it are blocked.
 3. The scanner samples it and tags its columns (or run it now: `maskguard scan`).
 4. Check the result: `maskguard pii list`, or Control Room → PII discovery.
-5. If a column is wrong, force its tag in `policies/overrides.yaml`. Columns it found nothing in are `UNREVIEWED`
-   (masked for everyone but admin) until you approve them there as `PUBLIC`.
+5. If a column is wrong, `maskguard pii tag TABLE.COLUMN --tag …`. Columns it found nothing in are `UNREVIEWED`
+   (masked for everyone but admin) until you `maskguard pii approve` them.
 6. Queries now work, masked by policy.
 
 ### 24.4 Change the policy safely
@@ -1300,7 +1305,7 @@ request id you can look up in the audit log.
 | **Strict xfail** | A test expected to fail today that fails the build once the bug is fixed |
 | **Synthetic data** | Realistic but fake data, safe for demos |
 | **Table** | A set of rows and columns |
-| **Tag** | A column's category: PII_HIGH, FINANCIAL_CONFIDENTIAL, PII_MEDIUM, PII_IN_TEXT, UNREVIEWED (nothing found, not yet checked) or PUBLIC (approved by a person) |
+| **Tag** | A column's category: PII_HIGH, FINANCIAL_CONFIDENTIAL, PII_MEDIUM, PII_IN_TEXT, HEALTH, UNREVIEWED (nothing found, not yet checked) or PUBLIC (approved by a person) |
 | **Threat engine** | The part that detects and blocks attack patterns across queries |
 | **TLS** | The encryption behind `https://` |
 | **Token (auth)** | The signed JWT you get at login |

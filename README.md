@@ -10,7 +10,7 @@ every query so each role sees only what its policy allows. Stored data never cha
 [![CI](https://github.com/hotaro6754/mask/actions/workflows/ci.yml/badge.svg?branch=claude/zealous-bell-me62fn)](https://github.com/hotaro6754/mask/actions/workflows/ci.yml?query=branch%3Aclaude%2Fzealous-bell-me62fn)
 ![Python](https://img.shields.io/badge/python-3.10%2B-3776AB)
 ![Databases](https://img.shields.io/badge/databases-SQLite%20%C2%B7%20PostgreSQL%20%C2%B7%20MySQL-4c8)
-![Tests](https://img.shields.io/badge/tests-500%20passed-brightgreen)
+![Tests](https://img.shields.io/badge/tests-513%20passed-brightgreen)
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue)](LICENSE)
 [![PyPI](https://img.shields.io/pypi/v/maskguard)](https://pypi.org/project/maskguard/)
 
@@ -195,7 +195,7 @@ repository and a JSON file in `docs/eval/`.
 | PII leaks across 17 bypass and inference attacks | **0 / 17** | 15 / 17 on PostgreSQL, 14 / 17 on SQLite and MySQL (naive masking) |
 | Simulated insider attacks detected (normal users blocked) | **95–100% (0%)** | — |
 | Added latency per query, p50, all features on | ~8 ms (SQLite, PostgreSQL), ~21 ms (MySQL) | — |
-| Tests | **500 passed** on SQLite, PostgreSQL 16 and MySQL 8.4, plus 121 Postman assertions | — |
+| Tests | **513 passed** on SQLite, PostgreSQL 16 and MySQL 8.4, plus 121 Postman assertions | — |
 
 The attack suite is evidence for those 17 attack shapes, not a proof against every possible query. The threat
 engine was evaluated on simulated sessions.
@@ -211,14 +211,22 @@ Pick one way to install:
 | **From source** (to develop or run the tests) | `git clone https://github.com/hotaro6754/mask && cd mask && uv sync` | Works now; prefix commands with `uv run` |
 | **Docker** (demo stack with PostgreSQL) | `docker compose up --build` in the cloned repository | Works now |
 
-Then set the HMAC key and start it. Until the key is set, `maskguard status` shows `HMAC KEY FAIL`; Windows commands
-and the full explanation are in [Set the HMAC key](#set-the-hmac-key) below.
+Then start it:
 
 ```bash
-export MASKGUARD_HMAC_KEY=dev-only-hmac-key-change-me      # turns the HMAC KEY check green (macOS / Linux)
-maskguard                                                  # interactive security console (banner, live checks, playground)
-maskguard serve                                            # REST API + Control Room dashboard: http://127.0.0.1:8000/ui/
+maskguard                 # first run asks: demo data, or connect your own database
+maskguard serve           # REST API + Control Room dashboard: http://127.0.0.1:8000/ui/
 ```
+
+Nothing else to set up for a trial. On first run MaskGuard generates its secret keys for this machine
+([Secret keys](#secret-keys)), and you choose what to protect:
+
+| You pick | What happens |
+|---|---|
+| **Demo data** | A synthetic bank database is created in `./data/` with four demo logins, so you can see each role at once |
+| **My own database** | You give a `postgresql://`, `mysql://` or `sqlite:///` URL. MaskGuard scans it, hides what it finds, and adds nothing to it. See [Use your own database](#use-your-own-database) |
+
+![First run: every check passes, the key is generated for this machine](docs/img/first-run-status.png)
 
 A pip install keeps its demo database, audit log and scanner registry in `./data/` of the folder you run it from.
 
@@ -241,21 +249,59 @@ Demo identities (`policies/users.demo.yaml`, synthetic):
 | **PostgreSQL proxy** :6543 | `psql "host=localhost port=6543 user=support.sam dbname=bank"`: any PostgreSQL client, masked |
 | **Python SDK** | `MaskGuardClient.demo(url, "support").query_df("SELECT name, ssn FROM users LIMIT 5")` |
 
-### Set the HMAC key
+### Use your own database
 
-**`maskguard status` shows `HMAC KEY FAIL` until you set your own key, on purpose.** Nothing is broken: MaskGuard
-ships without a key, and only turns this check green once you choose one.
+```bash
+maskguard connect postgresql://user:password@host:5432/yourdb   # or mysql://… or sqlite:///file.db (asked if omitted)
+maskguard pii list                                                # what was found, and what is waiting for a person
+maskguard pii approve --suggested                                 # approve ids, keys and status lists in one step
+maskguard pii tag customers.city --tag PII_MEDIUM                 # decide the rest yourself
+maskguard compare "SELECT * FROM customers LIMIT 3"               # the same query as each role
+```
 
-| Before: no key set | After: key set in the same terminal |
-|---|---|
-| ![HMAC KEY FAIL MISSING](docs/img/hmac-key-fail.png) | ![HMAC KEY PASS set](docs/img/hmac-key-pass.png) |
-| `status` exits with code 4; analyst tokens refuse to work | `status` exits with code 0; everything is ready |
+![Connecting a clinic database it has never seen](docs/img/connect-own-database.png)
 
-#### What it is
+What happens:
 
-`MASKGUARD_HMAC_KEY` is a secret string you choose. When the policy says a role sees a column as a **token**,
-MaskGuard runs each value through HMAC-SHA256 with this key and keeps the first 16 hex characters. Real output from
-the demo (`maskguard compare "SELECT ssn FROM users LIMIT 1" --roles admin,analyst`):
+1. **Connect.** MaskGuard tests the URL, installs its small masking functions (`mg_*`) once, and saves the
+   connection for this folder in `maskguard.yaml` (readable only by you). Each database gets its own audit log,
+   registry and integrity baseline in `data/<name>/`. **No demo data and no demo approvals are added.**
+   `maskguard connect --demo` goes back to the demo.
+2. **Sort.** The scanner reads a sample of each column and sorts it, from the values first and the column name second:
+
+   | Found automatically | How |
+   |---|---|
+   | Aadhaar, PAN, cards, IBAN, phones, emails, UPI, SSN, GSTIN, … | Checksums and the ML classifier, even under misleading names (`contact` holding emails) |
+   | Names, dates of birth, addresses, staff names (`Dr. Rao`) | ML classifier, names with a title |
+   | **Health data** (`HEALTH`): diagnosis codes, blood groups, medication | ICD-10 and blood-group patterns in the values; health words in the name |
+   | Money tied to a person: balances, amounts, fees, salaries, refunds | Money-like values plus the column name (not prices of products) |
+   | Identifiers inside free text (notes, remarks) | Phone, Aadhaar, PAN, card, email and UPI patterns inside the text |
+   | Personal attributes: gender, religion, caste, marital status | The column name alone |
+
+3. **Hide.** Everything found is masked by role at once. Every other column is `UNREVIEWED` and **hidden from
+   everyone except admin**: a scanner finding nothing is not proof there is nothing.
+4. **Review.** The scanner suggests which unreviewed columns look safe (whole-number ids and keys, short lists like
+   statuses). `maskguard pii approve --suggested` approves exactly those; `pii approve TABLE.COLUMN` and
+   `pii tag TABLE.COLUMN --tag …` handle the rest. Decisions are saved in `policies/overrides.yaml`, audited, and
+   applied at once.
+
+For real data, run the same database in production mode on a read-only account: [Production profile](#production-profile).
+
+### Secret keys
+
+MaskGuard needs two secrets: `MASKGUARD_HMAC_KEY`, which turns values into analyst tokens, and
+`MASKGUARD_JWT_SECRET`, which signs logins.
+
+| | Development (trying it out) | Production |
+|---|---|---|
+| Who makes them | MaskGuard, on first run: random, 64 hex characters each | You, with a secret manager or `python -c "import secrets; print(secrets.token_hex(32))"` |
+| Where they live | `data/secrets.yaml`, readable only by you, reused on every run | Environment variables (`deploy/production.env.example`) |
+| `maskguard status` | `HMAC KEY  PASS  generated for this machine (data/secrets.yaml)` | `HMAC KEY  PASS  set` |
+| If missing | Generated | **Refuses to start.** Also refuses keys under 32 characters and placeholders such as `dev-only-…` |
+
+**What the HMAC key does.** When the policy gives a role a **token** for a column, MaskGuard runs each value
+through HMAC-SHA256 with this key and keeps 16 hex characters. Real output from the demo
+(`maskguard compare "SELECT ssn FROM users LIMIT 1" --roles admin,analyst`):
 
 | Stored value (what Admin sees) | Key | What the Analyst sees |
 |---|---|---|
@@ -263,70 +309,18 @@ the demo (`maskguard compare "SELECT ssn FROM users LIMIT 1" --roles admin,analy
 | `205-84-4078` again, in any row or table | same key | `58fd7cb2ac03875b` (same value + same key = same token) |
 | `205-84-4078` | `a-different-key-0123456789` | `52cb704a817fb775` (new key, new token) |
 
-#### Why it is needed
+- **Why a key:** the same value always gives the same token, so analysts can join and count without seeing it. A
+  plain hash could be reversed by hashing every possible SSN or phone number; without the key, nobody can.
+- **Why no built-in default:** a default key would be published with the code, and anyone could reverse the tokens.
+  So it is generated per machine in development and supplied by you in production.
+- **Keep it stable:** a new key gives every value a new token. Anyone with the key can test guesses against tokens,
+  so treat it like a password; never commit `data/secrets.yaml`.
+- **Where it is used:** in query results for columns whose action is `hmac` (default policy: the Analyst on
+  `PII_HIGH` and `HEALTH`), and inside the database by `mg_hmac` on PostgreSQL and MySQL. The gateway passes it to
+  its own database session; it is not stored in any table. Logins use the separate JWT secret.
 
-- **Analysts can still do their job.** The same value always gives the same token, so they can join tables, count
-  distinct customers and spot duplicates without ever seeing the real value.
-- **A key stops guessing.** A plain hash without a key can be reversed by brute force: there are only about a
-  billion SSNs or ten billion phone numbers, so an attacker hashes them all and looks for a match. With a secret key,
-  nobody without the key can make the tokens to compare.
-- **No default key, so FAIL first.** A built-in key would be published on GitHub and PyPI for everyone to read, and
-  then anyone could reverse your tokens. So MaskGuard fails closed: no key, no tokens, and `status` says `FAIL` until
-  you set yours.
-
-#### Where it is used
-
-- **In query results:** for every column whose policy action is `hmac`. In the default policy that is the Analyst
-  role on `PII_HIGH` columns, for example the demo's SSN column.
-- **Inside the database:** on PostgreSQL and MySQL, the token is computed in SQL (`mg_hmac`, installed by
-  `maskguard db-install`). The gateway passes the key to its own database session when it connects, so the key is
-  not stored in any table.
-- **Not used for:** logins (signed with the separate `MASKGUARD_JWT_SECRET`), user passwords (hashed in the user
-  store) or the audit log.
-
-#### How to set it
-
-**1. Set it in the terminal you will run MaskGuard from.** Pick the line for your shell:
-
-| Your terminal | Command |
-|---|---|
-| macOS / Linux (bash, zsh) | `export MASKGUARD_HMAC_KEY=dev-only-hmac-key-change-me` |
-| Windows PowerShell | `$env:MASKGUARD_HMAC_KEY="dev-only-hmac-key-change-me"` |
-| Windows Command Prompt (cmd) | `set MASKGUARD_HMAC_KEY=dev-only-hmac-key-change-me` |
-
-Any value works for the demo. It only lasts for that terminal window: a new window needs it again.
-
-**2. Check it.** Run `maskguard status`: the `HMAC KEY` row turns from red `FAIL MISSING` to green `PASS set`, as
-in the screenshots above. `maskguard doctor` also checks the length (at least 16 bytes).
-
-**3. Optional: keep it for every new terminal.**
-
-| System | How |
-|---|---|
-| macOS / Linux | Add the `export` line to `~/.bashrc` (bash) or `~/.zshrc` (zsh), then open a new terminal |
-| Windows | Run `setx MASKGUARD_HMAC_KEY "dev-only-hmac-key-change-me"` once, then open a new terminal |
-| Docker demo | Nothing to do: `docker-compose.yml` sets a demo key. Override it with `MASKGUARD_HMAC_KEY=... docker compose up` |
-
-**4. For real data, use a random key.** Generate one:
-
-```bash
-python -c "import secrets; print(secrets.token_hex(32))"
-```
-
-- Production refuses keys shorter than 32 characters and placeholder values such as `dev-only-…` or `change-me`.
-- Store it in a secret manager or the deployment's environment file (`deploy/production.env.example`), never in git.
-- Keep it the same over time: a new key gives every value a new token, so old tokens no longer match new ones.
-- Anyone with the key can test guesses against tokens (for example, every phone number), so treat it like a password.
-
-#### When something is wrong
-
-| You see | Why | Fix |
-|---|---|---|
-| `HMAC KEY  FAIL  MISSING` in `maskguard status` | The variable isn't set in this terminal | Run the line for your shell above, in the same window |
-| `query failed: OperationalError` (or `MASKGUARD_HMAC_KEY is not set`) on an analyst query | The token function has no key, so it refuses | Same |
-| `'export' is not recognized` (Windows) | `export` is for macOS/Linux | Use the PowerShell or cmd line |
-| `doctor`: `too short: use ≥ 16 random bytes` | The key is too short | Use a longer key, or generate one as in step 4 |
-| Production startup: `MASKGUARD_HMAC_KEY looks like a placeholder` or `is shorter than 32 characters` | Demo value used in production | Generate a random key as in step 4 |
+To use your own key in development instead, set `MASKGUARD_HMAC_KEY` (`export` on macOS/Linux, `$env:` in
+PowerShell, `set` in cmd); it always wins over the generated one.
 
 ## Production profile
 
@@ -395,14 +389,16 @@ production only after the decisions, an implementation, recovery tests and indep
 |---|---|---|
 | `MASKGUARD_ENV` | `development` | `production` turns on every check above; any other value is refused |
 | `MASKGUARD_DB` | `sqlite:///data/bank.db` | `postgresql://…` or `mysql://…` (MySQL needs `log_bin_trust_function_creators=1` for its masking functions) |
-| `MASKGUARD_HMAC_KEY` | required | key for Analyst tokens; missing → error (fail closed). Production: ≥ 32 characters, no placeholder. See [Set the HMAC key](#set-the-hmac-key) |
-| `MASKGUARD_JWT_SECRET` | random per process | set it so tokens survive restarts and work across workers; required in production |
+| `MASKGUARD_HMAC_KEY` | generated in development | key for Analyst tokens. Development: generated once into `data/secrets.yaml`. Production: required, ≥ 32 characters, no placeholder. See [Secret keys](#secret-keys) |
+| `MASKGUARD_JWT_SECRET` | generated in development | signs logins; same rules as the HMAC key; identical on every instance in production |
+| `MASKGUARD_SEED_IF_EMPTY` | `1` only for the bundled demo database | fill an empty database with synthetic demo data; never on for a database you name, unless you set it |
 | `MASKGUARD_POLICY` | `policies/default.yaml` | role × tag → `allow` / `partial` / `hmac` / `redact` / `redact_text` / `aggregate` / `deny`; row filters; row caps; group floor; threat thresholds |
 | `MASKGUARD_USERS` | `policies/users.demo.yaml` | users, roles, PBKDF2 hashes (`maskguard hash-password`); production needs its own file |
-| `MASKGUARD_OVERRIDES` | `policies/overrides.yaml` | manual tags that win over the scanner |
+| `MASKGUARD_OVERRIDES` | `policies/overrides.yaml` | reviewed tags that win over the scanner (`PUBLIC` = approved); written by `maskguard pii approve` / `pii tag` |
 | `MASKGUARD_SCAN_INTERVAL` | `300` | background rescan period, in seconds |
 
-Development settings are in `.env.example`, production ones in `deploy/production.env.example`.
+Development settings are in `.env.example`, production ones in `deploy/production.env.example`. `maskguard connect`
+saves `MASKGUARD_*` settings for one folder in `maskguard.yaml`; environment variables always win over it.
 
 ## Tests and CI
 
@@ -411,6 +407,7 @@ make test                                                      # SQLite
 MASKGUARD_TEST_PG=postgresql://… MASKGUARD_TEST_MYSQL=mysql://… uv run pytest -q    # all three databases
 uv run maskguard test                                          # security regression: attacks per role + integrity proof
 make postman                                                   # Newman against a running API
+scripts/e2e/run.sh dist/maskguard-*.whl                        # a built wheel (or `pypi`) in fresh containers
 ```
 
 On every push, [CI](.github/workflows/ci.yml) runs these against PostgreSQL 16 and MySQL 8.4, and fails on any leak,
@@ -418,7 +415,14 @@ any failed assertion, or any change to the source data:
 - the full test suite;
 - the attack suite;
 - `maskguard test`;
-- the Postman collection under Newman.
+- the Postman collection under Newman;
+- **an end-to-end test in isolated containers** (`scripts/e2e/`): the built wheel is installed in a fresh
+  `python:3.12` container next to a fresh PostgreSQL 16 container, on a clinic database that is not the demo, in
+  production mode on a read-only account. 45 checks: automatic discovery (13 sensitive columns, misleading names,
+  health data, a decoy that must not be flagged), unreviewed columns hidden until review, the four roles, bypass
+  attempts (value guessing, writes, system catalogs, comments in the audit log), the database refusing writes from
+  the gateway account, the integrity proof, the HTTPS API, refusals of unsafe settings, restarts, and a first-time
+  user connecting a database in development.
 
 The suite also includes:
 - a Playwright walkthrough of the dashboard: every page, no JavaScript errors, no horizontal scroll at phone width;
@@ -430,7 +434,11 @@ The suite also includes:
 - HMAC tokens still allow equality joins and frequency analysis. Partial masks reveal the characters they leave
   visible.
 - A column the scanner finds nothing in is `UNREVIEWED` and masked for every role except admin until a person
-  approves it as `PUBLIC` in `overrides.yaml`. A column wrongly approved is exposed, so review approvals like code.
+  approves it (`maskguard pii approve`). A column wrongly approved is exposed, so review approvals like code;
+  `--suggested` only takes whole-number keys and short value lists, never dates or free text.
+- The detectors for health data, staff names, personal attributes and money (1.0.3) are pattern- and name-based and
+  were checked on the clinic test database, not on a public benchmark like the identifier scanner. Columns they miss
+  stay `UNREVIEWED`, so they fail closed.
 - The threat engine was evaluated on simulated sessions; recalibrate it on real normal traffic. Its state is per
   process.
 - Names and addresses inside free text need NER, which isn't integrated yet.
@@ -511,7 +519,7 @@ the columns itself, masks inside the query, and applies one policy across databa
 They can get masking code quickly; MaskGuard itself was built with AI assistance. Getting code is the easy part.
 Knowing it can't be bypassed is the hard part:
 - the obvious version masks the output, which leaks 14–15 of our 17 attacks;
-- MaskGuard is checked on every push by an attack suite, 500 tests on three databases and 121 API assertions;
+- MaskGuard is checked on every push by an attack suite, 513 tests on three databases and 121 API assertions;
 - a security bug doesn't crash, it silently leaks, so untested security code is a liability.
 
 The value is the tested, verified behaviour, not the lines of code.
@@ -550,8 +558,7 @@ You need Python 3.10 or newer:
 
 ```bash
 pip install maskguard
-export MASKGUARD_HMAC_KEY=dev-only-hmac-key-change-me   # PowerShell: $env:MASKGUARD_HMAC_KEY="..."   cmd: set MASKGUARD_HMAC_KEY=...
-maskguard                 # console with synthetic demo data
+maskguard                 # first run: demo data, or connect your own database
 maskguard serve           # dashboard at http://127.0.0.1:8000/ui/
 ```
 
@@ -567,33 +574,30 @@ macOS should work with Python 3.10+, but CI doesn't cover them. Step by step: [G
 </details>
 
 <details>
-<summary><b><code>maskguard status</code> says <code>HMAC KEY FAIL MISSING</code>. What's wrong?</b></summary>
+<summary><b>Do I need to set an HMAC key?</b></summary>
 
-Nothing is broken: the token key isn't set in that terminal, and MaskGuard has no default key on purpose. Set
-`MASKGUARD_HMAC_KEY` in the same window (`export` on macOS/Linux, `$env:` in PowerShell, `set` in cmd) and run
-`maskguard status` again. All the commands, how to make it permanent and how to pick a real key are in
-[Set the HMAC key](#set-the-hmac-key).
+Not to try it: from 1.0.3, development generates one per machine on first run and saves it in `data/secrets.yaml`
+(readable only by you), so `maskguard status` passes straight away. Production refuses to start without your own
+key. Details: [Secret keys](#secret-keys).
 </details>
 
 <details>
 <summary><b>How do I connect my existing database?</b></summary>
 
-Point `MASKGUARD_DB` at it and start MaskGuard:
+One command, or choose "my own database" when `maskguard` first starts:
 
 ```bash
-export MASKGUARD_DB='postgresql://user:password@db-host:5432/yourdb'     # or mysql://user:password@host:3306/yourdb
-export MASKGUARD_SEED_IF_EMPTY=0                                           # never add demo data to your database
-export MASKGUARD_DEMO=0                                                    # no demo logins or demo approvals
-uv run maskguard status
+maskguard connect 'postgresql://user:password@db-host:5432/yourdb'     # or mysql://… or sqlite:///file.db
+maskguard pii approve --suggested                                     # then review what is left
 ```
 
-On first start it:
+(Or set `MASKGUARD_DB` yourself; a database you name never gets demo data.) On first start it:
 1. installs its masking functions (`mg_*`; on PostgreSQL also the `pgcrypto` extension);
 2. scans every table and tags sensitive columns;
 3. records an integrity baseline.
 
-Columns it finds nothing in are `UNREVIEWED`: masked for everyone but admin until a person approves them as
-`PUBLIC` in `policies/overrides.yaml`. Review the tags and those columns with `maskguard pii list`, adjust the policy, create users, then point people and tools at
+Columns it finds nothing in are `UNREVIEWED`: masked for everyone but admin until a person approves them with
+`maskguard pii approve`. Review the tags and those columns with `maskguard pii list`, adjust the policy, create users, then point people and tools at
 MaskGuard. **Try it on a staging copy first.** For production, install the functions once with the owner account
 (`maskguard db-install`) and run the gateway through a read-only account. Full walkthrough:
 [GUIDE §19](docs/GUIDE.md#19-connecting-your-existing-database), production: [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md).

@@ -29,6 +29,12 @@ the two are indistinguishable from values alone.
 
 `bench/bpb_export.py` (run in the benchmark's venv) → `bench/eval_scanner.py` → `docs/eval/scanner_holdout_*.json`.
 
+**Not covered by this benchmark (added in 1.0.3):** health data (ICD-10 codes and blood groups by value, health words
+by column name), names with a title, personal attributes by column name, and more money headers. They sit outside the
+ML decision the benchmark scores, and money maps to its `NONE` label, so the numbers above are unchanged. They were
+checked on the synthetic clinic database of `scripts/e2e/` (13 of 13 sensitive columns found, the 12-digit decoy not
+flagged) and by `tests/test_onboarding.py`; that is a check, not a benchmark result.
+
 ## 2. PII inside free text — external benchmark
 
 **Data.** bharat-pii-bench T3: 4,500 sentences (English, Hindi, Hinglish; seeds 401–403), one identifier each.

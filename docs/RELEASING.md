@@ -56,6 +56,7 @@ can still install it.
 | Version | Date | What changed |
 |---|---|---|
 | 1.0.0 | 18 Oct 2026 | First release |
+| 1.0.3 | 18 Oct 2026 | Own-database onboarding (`maskguard connect`, first-run choice, no demo data in your database); development keys generated automatically; `HEALTH` class and automatic detection of health data, staff names, personal attributes and amounts; `pii approve [--suggested]` / `pii tag`; CLI integrity proof in production; end-to-end container test |
 | 1.0.2 | 18 Oct 2026 | Rule-based scanner (the fallback without LightGBM) checks free text for identifiers; `status` warns and `doctor` explains when the ML scanner can't load (missing OpenMP runtime) |
 | 1.0.1 | 18 Oct 2026 | Security fixes from an external source audit: unreviewed columns fail closed, SQL comments and MySQL hints stripped, no database error text through the proxy or dashboard, `query` capability enforced on every path |
 

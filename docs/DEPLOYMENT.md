@@ -51,8 +51,10 @@ for those roles. Production never loads the demo approvals (`policies/public.dem
 
 1. `maskguard pii list` lists the sensitive columns and every `UNREVIEWED` one, with the scanner's evidence (never
    values).
-2. Look at each unreviewed column. Approve the ones that are not personal data in your overrides file, and tag the
-   ones that are:
+2. Look at each unreviewed column. Approve the ones that are not personal data and tag the ones that are, with
+   `maskguard pii approve TABLE.COLUMN …` (`--suggested` takes the whole-number keys and short value lists the scanner
+   suggests) and `maskguard pii tag TABLE.COLUMN --tag …`. They write your overrides file (`MASKGUARD_OVERRIDES`),
+   which looks like this:
 
    ```yaml
    accounts:
@@ -63,6 +65,14 @@ for those roles. Production never loads the demo approvals (`policies/public.dem
 
 3. Mount that file read-only and point `MASKGUARD_OVERRIDES` at it (a Compose override adding a volume, for the
    reference stack). Review changes to it like code: a column wrongly approved as `PUBLIC` is shown to every role.
+
+## Prove it on your deployment
+
+- `maskguard integrity proof -u <admin user> -p <password> --sql "SELECT … FROM your_table LIMIT 5"`: runs the
+  query as that account, tries six kinds of write, and compares table hashes before and after (exit 0 = PASS). It
+  needs the `integrity.verify` capability; the API's `POST /integrity/proof` does the same.
+- `scripts/e2e/run.sh <wheel>` (or `pypi`) repeats the whole production setup in fresh containers on a test
+  database and runs 45 checks; CI runs it on every push.
 
 ## What production checks at startup
 

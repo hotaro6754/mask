@@ -66,8 +66,9 @@ the gateway.
 
 ## Policy semantics
 
-- **Classification.** The scanner tags columns `PII_HIGH`, `FINANCIAL_CONFIDENTIAL`, `PII_MEDIUM`, `PII_IN_TEXT`, or
-  nothing. Nothing found is `UNREVIEWED`, not safe: it has its own rule per role (default policy: admin `allow`,
+- **Classification.** The scanner tags columns `PII_HIGH`, `FINANCIAL_CONFIDENTIAL`, `PII_MEDIUM`, `PII_IN_TEXT`,
+  `HEALTH` (ICD-10 codes and blood groups by value, health words by name), or nothing. Unreviewed whole-number keys
+  and short value lists carry a `suggest: PUBLIC` hint for `maskguard pii approve --suggested`. Nothing found is `UNREVIEWED`, not safe: it has its own rule per role (default policy: admin `allow`,
   everyone else `redact`; no rule falls back to `default_action`). Only `PUBLIC`, set by a person in
   `overrides.yaml`, means "approved, not personal" and is always allowed. Manual tags in `overrides.yaml` win over the
   scanner. Demo mode adds `policies/public.demo.yaml` (the demo schema's ids, statuses and cities), and only for
