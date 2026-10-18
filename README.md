@@ -12,6 +12,7 @@ every query so each role sees only what its policy allows. Stored data never cha
 ![Databases](https://img.shields.io/badge/databases-SQLite%20%C2%B7%20PostgreSQL%20%C2%B7%20MySQL-4c8)
 ![Tests](https://img.shields.io/badge/tests-476%20passed-brightgreen)
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue)](LICENSE)
+[![PyPI](https://img.shields.io/pypi/v/maskguard)](https://pypi.org/project/maskguard/)
 
 [Demo video](docs/demo_full.mp4) · [Beginner's guide](docs/GUIDE.md) · [The problem](#the-problem-we-solve) · [Quick start](#quick-start) · [How it works](#how-it-works) ·
 [Results](#results) · [Production](#production-profile) · [Privacy review](#noisy-aggregates-and-the-privacy-review) ·
@@ -205,8 +206,8 @@ Pick one way to install:
 
 | Way | Command | Status |
 |---|---|---|
-| **pip, from PyPI** | `pip install maskguard` | Available once the first release is published ([docs/RELEASING.md](docs/RELEASING.md)) |
-| **pip, straight from GitHub** | `pip install "git+https://github.com/hotaro6754/mask@claude/zealous-bell-me62fn"` | Works now |
+| **pip, from PyPI** (recommended) | `pip install maskguard` | Works: [pypi.org/project/maskguard](https://pypi.org/project/maskguard/) |
+| **pip, latest from GitHub** | `pip install "git+https://github.com/hotaro6754/mask@claude/zealous-bell-me62fn"` | Works; includes changes made after the last release |
 | **From source** (to develop or run the tests) | `git clone https://github.com/hotaro6754/mask && cd mask && uv sync` | Works now; prefix commands with `uv run` |
 | **Docker** (demo stack with PostgreSQL) | `docker compose up --build` in the cloned repository | Works now |
 
@@ -459,7 +460,7 @@ notices, retention, breach reporting and more.
 You need Python 3.10 or newer:
 
 ```bash
-pip install "git+https://github.com/hotaro6754/mask@claude/zealous-bell-me62fn"   # after the first release: pip install maskguard
+pip install maskguard
 export MASKGUARD_HMAC_KEY=dev-only-hmac-key-change-me   # Windows PowerShell: $env:MASKGUARD_HMAC_KEY="dev-only-hmac-key-change-me"
 maskguard                 # console with synthetic demo data
 maskguard serve           # dashboard at http://127.0.0.1:8000/ui/

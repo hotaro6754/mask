@@ -1,6 +1,6 @@
 # Releasing MaskGuard to PyPI
 
-After the first release, anyone can install MaskGuard with:
+MaskGuard is on PyPI (<https://pypi.org/project/maskguard/>). Anyone can install it with:
 
 ```bash
 pip install maskguard
@@ -10,7 +10,7 @@ Releases are published by GitHub Actions (`.github/workflows/release.yml`) using
 trusts this repository's release workflow directly, so no password or API token is stored in GitHub. The workflow
 runs when a version tag such as `v1.0.0` is pushed.
 
-## One-time setup (the project owner does this once)
+## One-time setup (done for 1.0.0; kept for reference)
 
 1. **Create a PyPI account** at <https://pypi.org/account/register/> and turn on two-factor authentication. PyPI
    requires it for publishing.
@@ -50,9 +50,9 @@ runs when a version tag such as `v1.0.0` is pushed.
 
 A version can be published only once. To fix a released version, bump the number and release again.
 
-## Before the first release: install straight from GitHub
+## Installing unreleased changes from GitHub
 
-Until the first release, the same package installs directly from the repository:
+To get changes made after the last release, install straight from the repository:
 
 ```bash
 pip install "git+https://github.com/hotaro6754/mask@claude/zealous-bell-me62fn"

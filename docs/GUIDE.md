@@ -688,15 +688,16 @@ MaskGuard is developed and tested on Linux. Windows and macOS should work with P
 ### The quickest way: pip
 
 ```bash
-pip install "git+https://github.com/hotaro6754/mask@claude/zealous-bell-me62fn"   # after the first PyPI release: pip install maskguard
+pip install maskguard
 export MASKGUARD_HMAC_KEY=dev-only-hmac-key-change-me      # Windows PowerShell: $env:MASKGUARD_HMAC_KEY="..."
 maskguard
 ```
 
 **pip** is Python's package installer. It downloads MaskGuard and everything it needs, and adds a `maskguard`
 command. The demo database, audit log and scanner registry are created in `./data/` in the folder you run it from.
-`pip install maskguard` (from PyPI, the public Python package index) works once the project publishes its first
-release ([RELEASING.md](RELEASING.md)).
+It comes from PyPI, the public Python package index: <https://pypi.org/project/maskguard/>. For changes made after
+the last release, install straight from GitHub:
+`pip install "git+https://github.com/hotaro6754/mask@claude/zealous-bell-me62fn"`.
 
 There is no npm package and no `.exe`. MaskGuard is a Python server that runs next to a database, and a bundled
 `.exe` would be hundreds of megabytes of ML libraries.
