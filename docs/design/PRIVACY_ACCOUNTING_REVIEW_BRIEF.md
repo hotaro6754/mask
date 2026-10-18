@@ -4,7 +4,7 @@
 |---|---|
 | **What this is** | Clarifications to the *review brief* (§9.8 and §13 item 14) of the privacy-accounting design. Scope of the review only. |
 | **What this is not** | A change to the protocol. No invariant, obligation, store requirement, step, decision or claim in the design is added, removed or reworded here. |
-| **Date** | 2026-10-17 (§5 added the same day, after the fix in `63b0c25`) |
+| **Date** | 2026-10-17. §5–§7 revised the same day for the handoff (findings by status, implementation-gap scope, reproduction) |
 | **Author** | The design's author. This file defines what the reviewer is asked to check; it is not part of the review. |
 
 ## 1. The revision under review
@@ -204,18 +204,46 @@ reported as "proven" or "secure" (§9.8).
 
 ## 3. What the reviewer receives
 
-All files are at commit `a6891fd`, except this file, which comes from the commit that adds it:
+### 3.1 Commits
 
-- `docs/design/PRIVACY_ACCOUNTING.md`: the protocol and the DP design under review.
-- `docs/design/PRIVACY_ACCOUNTING_REVIEW_BRIEF.md`: this scope clarification.
+The protocol stays at `a6891fd`. Everything later changes the review scope, the implementation or the tests, never
+the protocol.
+
+| Commit (full) | Kind | What it is |
+|---|---|---|
+| `a6891fd0a52252d7b65454bab9c912b9c559ddb2` | Protocol | **Frozen protocol under review**: `docs/design/PRIVACY_ACCOUNTING.md` |
+| `4eb3e83a02c3c42fe95eae9299a2ef5fb3e635d6` | Docs | Brief: C1–C4 clarifications |
+| `1090fe439ac3dc20cd67ec44b65bfbc925609a75` | Docs | Brief: reviewer authority, gateway-bypass inventory, five-part verdict, gate |
+| `63b0c2549b69f455247786e09e2d62abc13937e1` | Code + tests + docs | **Production self-test fix** (attack suite, simulated attack, benchmark refused in production) |
+| `32ed7920776d5eb9ae9f5c4503bb002a37714565` | Docs | Brief: records the fix |
+| `988271d1d271eb85fbc39a084ffe2f83d84ec4ff` | Tests only | Test fixture passes database passwords, so the PostgreSQL production tests run in CI (§7) |
+| `29f6ba1cf2c25e6e3a75aa3c13dd86347cecf13b` | CI only | The Newman step stops its API server, so setup-uv's post-job cache prune no longer times out (§7) |
+| *the commit adding this revision* | Docs | This handoff revision of the brief, plus `PRIVACY_ACCOUNTING_REVIEW_EVIDENCE.md`; named in full in the handoff |
+
+Review the **implementation** at the newest commit, and the **protocol** at `a6891fd`. Check that nothing later
+touched the protocol:
+
+```bash
+git diff --stat a6891fd0a52252d7b65454bab9c912b9c559ddb2 <newest commit> -- docs/design/PRIVACY_ACCOUNTING.md   # empty
+```
+
+### 3.2 Files
+
+- `docs/design/PRIVACY_ACCOUNTING.md` (at `a6891fd`): the protocol and the DP design under review.
+- `docs/design/PRIVACY_ACCOUNTING_REVIEW_BRIEF.md`: this file, the review scope.
+- `docs/design/PRIVACY_ACCOUNTING_REVIEW_EVIDENCE.md`: versions, commands, recorded results, CI history and the
+  live production procedure.
 - `tests/test_dp_findings.py`: reproductions of F1, F2, F4 and F6. They are strict xfails, with controls.
 - The mechanism as it stands today: `src/maskguard/dp.py` and `src/maskguard/rewriter.py`.
-- The disclosure paths listed in C2.
+- The disclosure paths listed in C2 and §5, including `src/maskguard/pgwire.py`.
 - The D11 refusal:
   - `src/maskguard/gateway.py` (`allow_dp`);
   - `src/maskguard/config.py` (`allow_dp=not production`);
   - `tests/test_production.py::test_production_refuses_noisy_aggregates_but_keeps_masking`;
   - `docs/DEPLOYMENT.md`.
+- The self-test refusal:
+  - `src/maskguard/attacks.py` (`require_self_test`);
+  - its tests in `tests/test_production.py` (evidence §4).
 
 The accountant is **not implemented**. The review covers the design and today's mechanism. It does not cover an
 implementation.
@@ -247,18 +275,114 @@ Noisy aggregates stay disabled in production until every one of these is complet
 
 None of these is changed by this file.
 
-## 5. Implementation changes since `a6891fd`
+## 5. Findings and their status
 
-These change the code, not the protocol. The C2 inventory above stays as the record of what was found at
-`a6891fd`. Review the paths against both revisions.
+Three kinds, kept apart. *Historical* means recorded at the protocol baseline `a6891fd` and kept as written. The
+C2 inventory above is historical: it describes the code at `a6891fd`.
 
-| Date | Commit | Change | Evidence |
-|---|---|---|---|
-| 2026-10-17 | `63b0c2549b69f455247786e09e2d62abc13937e1` | **Attack self-test refused in production.** `GET /attacks` (403, generic message, every role and any parameters), `maskguard attack`, `test` and `simulate-attack` (exit 3), and the dashboard's attack, simulated-attack and benchmark tabs. The check runs inside the runners before the first read. It fails closed unless the environment is development both now and at build time. Refusals are audited without SQL, schema or results. | Regression tests in `tests/test_production.py` (support and admin, demo mode on, unrecognised environment, failing audit log, zero backend reads, full production build on PostgreSQL); all fail with the guard disabled. Full suite: 474 passed, 6 xfailed, 1 skipped on SQLite, PostgreSQL 16 and MySQL 8.4. Live production server on PostgreSQL 16: six `/attacks` requests got 403, and `pg_stat_user_tables` scan counters did not move (an ordinary masked query did move them). |
+### 5.1 Historical findings at `a6891fd` that are still open
 
-**Still open, unchanged by this fix:**
+| Finding | Where recorded | Status now |
+|---|---|---|
+| F1–F10: gaps in today's noisy-aggregate mechanism (fan-out, ordering on true values, budget scope, per-row clipping, sensitivity, exact counts, floor on true counts, float sampler) | Design §1.2; F1, F2, F4, F6 reproduced in `tests/test_dp_findings.py` | **Not fixed.** Contained in production by D11. The accountant and mechanism changes are not implemented |
+| The proxy's `Describe` runs rewritten SQL outside the gateway | C2 (bypass table) | **Unresolved.** See §5.3 |
+| The proxy's extended-protocol errors echo exception text | C2 (error handlers row) | **Unresolved.** See §5.3 |
 
-- The proxy's `Describe` still runs the rewritten SQL directly, with `LIMIT 0`.
-- The proxy's extended-protocol error path still echoes exception text (C2).
+### 5.2 Remediated since `a6891fd`
 
-The reviewer should still assess both.
+| Finding | Fixed in | Evidence |
+|---|---|---|
+| **Attack self-test served in production.** `GET /attacks`, open to any role, read every protected column in full and sent crafted SQL straight to the database | `63b0c25` | **The fix:** `GET /attacks` returns 403 with a generic message for every role and any parameters. `maskguard attack`, `test` and `simulate-attack` exit 3. The dashboard tabs show a notice. The check runs inside the runners before the first read, fails closed unless the environment is development both now and at build time, and is audited without SQL, schema or results. **Regression tests:** listed in evidence §4; all fail with the guard disabled. **Live production run on PostgreSQL 16:** six 403s, and the scan counters did not move (evidence §3) |
+| **CI was red for two reasons unrelated to the product.** (1) The test fixture dropped database passwords, and CI requires them, so the PostgreSQL production tests had never passed in CI. (2) The Newman step left a `uv run` server holding uv's cache lock, so the post-job prune timed out. Neither is a product vulnerability, but together they meant CI evidence was missing | `988271d`, `29f6ba1` | **(1)** Reproduced on a password-authenticated PostgreSQL 16: 4 errors before the fix, 4 passed after; full suite there 474 passed. **(2)** Reproduced from the CI log and locally with a scratch uv cache. Details in evidence §2.3 |
+
+### 5.3 Unresolved risks (for the reviewer; nothing has been fixed or tested beyond what is stated)
+
+Each risk comes with its basis and with what has not been done.
+
+- **`Describe` skips gateway checks.** `pgwire.describe` calls `rewrite()` and then runs
+  `SELECT * FROM (…) LIMIT 0` directly. It keeps the rewriter's firewall, masking and row filters, and the
+  read-only transaction. It skips these `Gateway._query` steps:
+  - the session validity check (deleted users and changed roles);
+  - the threat engine's block check and its scoring;
+  - the D11 refusal;
+  - the audit record.
+
+  *Basis:* code reading at `32ed792`. *Not done:* any live test of planning-time effects, errors or timing.
+- **Extended-protocol error text.** `pgwire.extended` returns `"{type}: {message}"`, up to 200 characters, for any
+  exception during Parse, Bind, Describe or Execute. That includes database errors raised while Bind runs the
+  query through the gateway. The simple protocol returns only the type; the API uses `safe_error`.
+  *Basis:* code reading, plus the two probe cases in evidence §5. *Not done:* a general assessment.
+- **Row-filter enforcement under errors and alternative query shapes.** The rewriter places each row filter
+  inside a derived table that PostgreSQL may flatten. It is not declared as a security barrier, so whether a
+  user's own expressions can be evaluated on rows the filter excludes, and what an error would then reveal, is
+  unknown. *Basis:* code reading of `rewriter.py`. *Not done:* any test. This may affect every channel, not just
+  the proxy.
+- **Other open items** (from `docs/DEPLOYMENT.md`, outside this review's core):
+  - the Dockerfile build is not verified;
+  - the proxy has no TLS;
+  - threat-engine state is per process;
+  - the audit chain is unkeyed and local.
+
+## 6. Implementation-gap assessment (part 4 of the verdict)
+
+The reviewer assesses §5.3 as part of the **implementation gaps** verdict (C4 item 9.4), at the newest commit.
+Beyond the code reading recorded in §5.3, nothing was investigated before the review, so the reviewer starts from the
+code.
+
+**Examine at least:**
+
+1. **PostgreSQL extended-protocol `Describe`.** Can statement preparation or planning bypass intended controls?
+   Consider parsing, planning, function resolution, permission checks, and errors or timing that depend on data or
+   schema.
+2. **Error responses** on every channel (proxy simple and extended, API, SDK, CLI, dashboard). Look for leakage of
+   data, schema or inference.
+3. **Row-filter enforcement** across joins, aliases, subqueries, CTEs, set operations, aggregates and
+   error-raising expressions, and across every query path.
+4. **Equal guarantees on every path.** Do the proxy, SDK, CLI, API, dashboard and any caches all apply the same
+   authentication, firewall, masking, row filters, D11 refusal, threat checks and audit?
+5. **Any bypass** that reads protected data, or releases a result, without the required authorisation and audit.
+
+**Report finding by finding**, with:
+
+- an identifier;
+- the affected path and code reference;
+- a reproducible test, or the exact steps;
+- severity;
+- exploit preconditions (role, channel, configuration);
+- evidence;
+- recommended remediation;
+- whether it affects the protocol's obligation O3 ("every disclosure path").
+
+**Ground rules:**
+
+- **No fixes during the assessment.** The exception is an issue the reviewer judges actively exploitable in a
+  production deployment, which goes to the owner at once for containment. Containment lands as its own commit and
+  is listed in §5.2. It never changes the protocol.
+- Any pre-review investigation by the owner's team is read-only: findings recorded, no speculative patches, the
+  baseline kept.
+- Implementation findings are tracked separately from the protocol. None is folded into `a6891fd`.
+
+## 7. Reproducing the evidence
+
+`PRIVACY_ACCOUNTING_REVIEW_EVIDENCE.md` gives:
+
+- the environment and versions (§1);
+- the exact test commands and recorded results (§2), including the skipped test and why:
+  `test_mysql_read_only_runtime_end_to_end` needs `MASKGUARD_TEST_MYSQL_ADMIN`;
+- the CI history and its causes (§2.3);
+- the full procedure and recorded output of the live production check (§3);
+- the regression tests and their negative control (§4);
+- the probes behind the C2 inventory, with their limits (§5).
+
+Summary of current results:
+
+- **Full suite:** 474 passed, 6 xfailed (the DP findings), 1 skipped.
+- **Databases:** SQLite 3.45, PostgreSQL 16.15 (also with password authentication, as in CI) and MySQL 8.4.11.
+- **CI's later steps:** the attack suite (0/17 MaskGuard leaks), `maskguard test` (all PASS) and Newman
+  (121 assertions, 0 failures) pass locally with CI's environment.
+- **CI on GitHub:**
+  - runs 17–26 failed because of the fixture fixed in `988271d`;
+  - run 27 passed every real step and failed only in the post-job cache prune, fixed in `29f6ba1`;
+  - **run 28 on `29f6ba1` passed every step** (<https://github.com/hotaro6754/mask/actions/runs/39090103420>): 473 passed, 2 skipped, 6 xfailed;
+    attack suite 0/17; `maskguard test`; Newman 121 assertions, 0 failures. CI skips two tests: the MySQL
+    admin test (skipped everywhere) and the dashboard UI test, which needs Playwright (evidence §2.3).
