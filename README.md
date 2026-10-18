@@ -165,5 +165,8 @@ these gaps to a MaskGuard component.
 
 - `docs/MaskGuard_Round1_Submission.pptx`: the Round 1 deck.
 - `docs/demo.mp4`: a walkthrough of the classic dashboard.
+- `docs/demo_full.mp4` (8 min, captioned, no audio): the full walkthrough. It covers the CLI tour on synthetic data,
+  the Control Room, the production profile on PostgreSQL (refusals, D11, self-test refusal over CLI and API, audit),
+  and the privacy review package (DP findings tests, frozen protocol, production tests).
 - `docs/IMPLEMENTATION_REPORT.md`: requirements matrix with evidence-based status, test totals and remaining work.
 - `docs/EVALUATION.md` and `docs/eval/*.json`: every number behind the claims above.
