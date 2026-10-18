@@ -36,9 +36,13 @@ jobs:
       - uses: actions/setup-node@v4
         with: {node-version: 20}
       - name: Postman collection against a live API (Newman)
+        # Start the API from the synced venv, not `uv run`: a live `uv run` holds uv's cache lock, and setup-uv's
+        # post-job `uv cache prune` then waits on it until it times out and fails the job. Stop it on exit too.
         run: |
           MASKGUARD_DB=sqlite:///$RUNNER_TEMP/newman.db MASKGUARD_AUDIT=$RUNNER_TEMP/a.jsonl MASKGUARD_REGISTRY=$RUNNER_TEMP/r.yaml \
-            uv run maskguard serve --port 8000 > $RUNNER_TEMP/api.log 2>&1 &
+            .venv/bin/maskguard serve --port 8000 > $RUNNER_TEMP/api.log 2>&1 &
+          API_PID=$!
+          trap 'kill $API_PID 2>/dev/null || true' EXIT
           for i in $(seq 1 60); do curl -sf http://127.0.0.1:8000/health && break; sleep 1; done
           npx -y newman@6 run postman/Smart-Data-Masking.postman_collection.json -e postman/Local.postman_environment.json \
             --reporters cli,junit --reporter-junit-export newman.xml
