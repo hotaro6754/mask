@@ -4,63 +4,86 @@ A beginner's guide to what MaskGuard does, how every part works, and how to use 
 databases, security or privacy is assumed: every term is explained the first time it appears, and there is an A–Z
 glossary at the end.
 
-> **How to read this.** Sections 1–3 give the big picture. Sections 4–13 open each part of the machine. Sections
-> 14–17 cover running it for real, the privacy work and testing. Section 18 is a set of step-by-step workflows.
-> The diagrams are Mermaid flowcharts; GitHub draws them automatically.
+> **How to read this.** Sections 1–5 explain the problem, who it's for and how it compares. Sections 6–17 open each
+> part of the machine. Sections 18–21 show how to install it, connect your own database and run it for real.
+> Sections 22–25 cover the privacy work, testing, step-by-step workflows and a day in the life. The diagrams are
+> Mermaid flowcharts; GitHub draws them automatically.
 
 **Contents**
 
 1. [The problem, in plain words](#1-the-problem-in-plain-words)
 2. [The idea in one picture](#2-the-idea-in-one-picture)
-3. [Basic terms you need first](#3-basic-terms-you-need-first)
-4. [The parts of MaskGuard](#4-the-parts-of-maskguard)
-5. [The life of one query](#5-the-life-of-one-query)
-6. [Finding sensitive data: the PII scanner](#6-finding-sensitive-data-the-pii-scanner)
-7. [The policy: who sees what](#7-the-policy-who-sees-what)
-8. [The masking actions, one by one](#8-the-masking-actions-one-by-one)
-9. [Why mask inside the query](#9-why-mask-inside-the-query)
-10. [The firewall and read-only execution](#10-the-firewall-and-read-only-execution)
-11. [The insider-threat engine](#11-the-insider-threat-engine)
-12. [The audit log and its hash chain](#12-the-audit-log-and-its-hash-chain)
-13. [Integrity proofs](#13-integrity-proofs)
-14. [Ways to connect](#14-ways-to-connect)
-15. [Development mode and production mode](#15-development-mode-and-production-mode)
-16. [Noisy aggregates and differential privacy](#16-noisy-aggregates-and-differential-privacy)
-17. [How it is tested](#17-how-it-is-tested)
-18. [Workflows, step by step](#18-workflows-step-by-step)
-19. [Exit codes and error messages](#19-exit-codes-and-error-messages)
-20. [Known limits, explained](#20-known-limits-explained)
-21. [Glossary A–Z](#21-glossary-az)
-22. [Where to read next](#22-where-to-read-next)
+3. [Who, what, where, when, why and how](#3-who-what-where-when-why-and-how)
+4. [Before and after](#4-before-and-after)
+5. [What already exists, and where MaskGuard fits](#5-what-already-exists-and-where-maskguard-fits)
+6. [Basic terms you need first](#6-basic-terms-you-need-first)
+7. [The parts of MaskGuard](#7-the-parts-of-maskguard)
+8. [The life of one query](#8-the-life-of-one-query)
+9. [Finding sensitive data: the PII scanner](#9-finding-sensitive-data-the-pii-scanner)
+10. [The policy: who sees what](#10-the-policy-who-sees-what)
+11. [The masking actions, one by one](#11-the-masking-actions-one-by-one)
+12. [Why mask inside the query](#12-why-mask-inside-the-query)
+13. [The firewall and read-only execution](#13-the-firewall-and-read-only-execution)
+14. [The insider-threat engine](#14-the-insider-threat-engine)
+15. [The audit log and its hash chain](#15-the-audit-log-and-its-hash-chain)
+16. [Integrity proofs](#16-integrity-proofs)
+17. [Ways to connect](#17-ways-to-connect)
+18. [Installing MaskGuard on your computer](#18-installing-maskguard-on-your-computer)
+19. [Connecting your existing database](#19-connecting-your-existing-database)
+20. [Where MaskGuard runs](#20-where-maskguard-runs)
+21. [Development mode and production mode](#21-development-mode-and-production-mode)
+22. [Noisy aggregates and differential privacy](#22-noisy-aggregates-and-differential-privacy)
+23. [How it is tested](#23-how-it-is-tested)
+24. [Workflows, step by step](#24-workflows-step-by-step)
+25. [A day with MaskGuard](#25-a-day-with-maskguard)
+26. [Exit codes and error messages](#26-exit-codes-and-error-messages)
+27. [Known limits, explained](#27-known-limits-explained)
+28. [Glossary A–Z](#28-glossary-az)
+29. [Where to read next](#29-where-to-read-next)
 
 ---
 
 ## 1. The problem, in plain words
 
-Imagine a bank. Its database holds customers' names, phone numbers, Aadhaar numbers, PAN numbers, card numbers and
-account balances. Many employees need to look at that database every day:
+### A story
 
-- a **support agent** checks whether a customer's card is active;
-- an **analyst** studies how average balances change by city;
-- an **auditor** checks that rules are being followed.
+Priya works on a bank's customer-support desk. A customer calls: "Is my card blocked?" To answer, Priya opens the
+customer's record. On her screen she sees:
 
-None of them needs to see everything. The support agent needs the last four digits of a card, not the full number.
-The analyst needs averages, not anyone's personal balance. The auditor needs to see what happened, not the
-customers' identities. Showing everyone everything is risky (a leak, a curious employee, a stolen laptop) and, under
-laws such as India's **DPDP Act** (Digital Personal Data Protection Act), GDPR in Europe and HIPAA in US healthcare,
-it can be illegal.
+- the full card number, `4111-2222-3333-1111`;
+- the Aadhaar number;
+- the phone number and email;
+- the account balance.
 
-Two things make this hard:
+She needed one fact: is the card active? She saw everything. So do the other 500 people on the support desk, the
+analysts, the contractors and the vendors who have database access, for every customer, every day.
 
-1. **You first have to know which columns are sensitive.** Column names lie. A column called `contact` might hold
-   phone numbers; `ref_no` might hold Aadhaar numbers. Simple pattern matching confuses an order number with an
-   Aadhaar number because both are 12 digits.
-2. **Hiding values on the screen is not enough.** If the database still uses the real values while answering a
-   question, a clever user can ask questions that reveal them without ever seeing them directly (section 9 shows
-   how).
+### Why that is a problem
 
-MaskGuard solves both: it **finds** sensitive columns automatically, and it **masks them inside the question itself**,
-so the database only ever works with masked values for that person.
+- **Insider fraud.** One employee can copy card numbers or Aadhaar numbers and sell them. This is a common cause of
+  real breaches.
+- **Accidents.** A screenshot in a chat group, a laptop left open, a spreadsheet emailed to the wrong person.
+- **The law.** India's **DPDP Act** (Digital Personal Data Protection Act, 2023) requires "reasonable security
+  safeguards", and its rules name masking and access logs. Failing to protect personal data can cost up to ₹250
+  crore. GDPR in Europe and HIPAA in US healthcare have similar rules.
+- **Trust.** Customers leave a bank that leaks their data.
+
+**The actual problem: too many people can see too much personal data, and nobody can prove who saw what.**
+
+### Why the obvious fix doesn't work
+
+"Just hide the sensitive columns." Two things get in the way:
+
+1. **Nobody knows exactly which columns are sensitive.** A real bank database has thousands of columns, built by
+   different teams over years. Column names lie: `contact` might hold phone numbers, `ref_no` might hold Aadhaar
+   numbers. Simple pattern matching confuses a 12-digit order number with a 12-digit Aadhaar number.
+2. **Hiding values on the screen can be tricked.** Many tools hide values only in the *displayed result*. The
+   database still uses the real values while answering. A user can ask "is there a customer whose Aadhaar starts
+   with 1234?", then "…with 12345?", and so on, and rebuild the number without it ever appearing on screen
+   (section 12 shows exactly how).
+
+MaskGuard fixes both: it **finds** sensitive columns by looking at the values, and it **masks them inside the question
+itself**, so the database only ever works with masked values for that person.
 
 ## 2. The idea in one picture
 
@@ -88,7 +111,138 @@ The same question gives different answers to different people:
 | Analyst | a token like `b0d9e2c45fa1773e` | `REDACTED` | nothing individually; only group averages (and only in development) |
 | Auditor | `REDACTED` | `REDACTED` | `REDACTED` |
 
-## 3. Basic terms you need first
+## 3. Who, what, where, when, why and how
+
+| Question | Answer |
+|---|---|
+| **What is it?** | A gateway that sits between people and a database and shows each person only what their role allows |
+| **Who uses it?** | Banks, NBFCs, fintechs, insurers, hospitals and government offices that hold personal data in PostgreSQL or MySQL |
+| **Who benefits?** | Customers (their data is safe), the organisation (fewer leaks, easier audits, lower legal risk), and employees (they can't be blamed for data they never saw) |
+| **Where does it run?** | On the organisation's own servers, next to the database. For a demo, on a laptop. Nothing goes to an outside service |
+| **When is it used?** | Every time someone looks at customer data: a support call, a report, an audit, an app lookup |
+| **Why?** | To stop leaks and insider fraud, and to meet laws like DPDP, without stopping people from doing their jobs |
+| **How?** | It finds sensitive columns, rewrites every query so the database returns only allowed data, watches for probing, and logs every decision |
+
+### The people who use it
+
+| Person | Their job | What they need | What MaskGuard shows them |
+|---|---|---|---|
+| **Support agent** | Answer customer calls | Confirm identity, check status | Last 4 digits of card, Aadhaar and phone; balance rounded to the nearest 10,000 below; frozen accounts hidden |
+| **Analyst** | Find trends ("average balance by city") | Count, group and join records | Joinable codes (tokens) instead of identities; no individual balances |
+| **Auditor** | Check rules are followed | Who did what, and when | The audit log, policies and scanner evidence; customer data redacted |
+| **Admin / data owner** | Run the system | Everything, accountably | Real values; every action logged |
+| **An application** | Show data in a back-office screen | Same as the person using it | Whatever that person's role allows |
+| **A vendor or contractor** | A specific outsourced task | A narrow slice of data | Whatever their (usually strict) role allows |
+
+### Where it fits in a company
+
+```mermaid
+flowchart LR
+    subgraph People["People and tools"]
+        A["Support desk"]
+        B["Analysts<br/>(SQL, notebooks, BI)"]
+        C["Auditors"]
+        D["Internal apps"]
+    end
+    subgraph Server["Company server"]
+        M["MaskGuard"]
+    end
+    subgraph Data["Data"]
+        DB1[("Core banking<br/>PostgreSQL")]
+        DB2[("Loans<br/>MySQL")]
+    end
+    A --> M
+    B --> M
+    C --> M
+    D --> M
+    M --> DB1
+    M --> DB2
+    X["Direct database access<br/>(removed for these users)"] -. x .-> DB1
+```
+
+The key change: people and tools that used to connect **directly** to the database now connect to **MaskGuard**
+instead. MaskGuard is the only thing with database credentials for them.
+
+## 4. Before and after
+
+```mermaid
+flowchart TB
+    subgraph Before["Before"]
+        U1["Support agent"] --> DBa[("Database")]
+        DBa --> R1["Full card, Aadhaar,<br/>phone, balance"]
+    end
+    subgraph After["After"]
+        U2["Support agent"] --> MG["MaskGuard"]
+        MG --> DBb[("Database")]
+        DBb --> MG
+        MG --> R2["4111-XXXX-XXXX-1111<br/>XXXX-XXXX-4078<br/>balance rounded"]
+        MG --> LOG["Audit log entry"]
+    end
+    Before ~~~ After
+```
+
+| Situation | Before | After |
+|---|---|---|
+| Support agent opens a record | Sees full card, Aadhaar, phone and balance | Sees the last 4 digits and a rounded balance; can still do the job |
+| An analyst builds a report | Gets a raw data dump, or nothing | Gets tokens they can count and join, but not identify |
+| A new column `ref_no` actually holds Aadhaar numbers | Exposed; nobody notices | Found by its values and masked automatically |
+| An employee probes `WHERE aadhaar LIKE '1234%'` again and again | Eventually learns the number | Only masked values to compare against; the threat engine blocks them |
+| Someone tries `UPDATE` or `DROP TABLE` through it | Depends on their database rights | Refused, and the attempt is logged |
+| A DPDP or RBI auditor asks "who saw what?" | Scattered logs, if any | One tamper-evident log of every query, role and decision |
+| "Can you prove nothing was changed?" | No | An integrity proof: table hashes match before and after |
+| The same rules on three databases | Three separate setups that drift apart | One policy file |
+| A suspicious pattern of queries | Nobody notices | An alert at risk 70, a block at 90 |
+
+## 5. What already exists, and where MaskGuard fits
+
+### Existing kinds of solutions
+
+| Kind of tool | Examples | Good at | Gap for this problem |
+|---|---|---|---|
+| Masking built into the database | SQL Server dynamic data masking, Oracle Data Redaction, Snowflake masking policies, PostgreSQL Anonymizer | Included with the database; close to the data | Configured separately per database; assumes you already know which columns are sensitive; several mask only the displayed result, so `WHERE` and `ORDER BY` still use real values. Microsoft documents that its dynamic masking isn't meant to stop users running exhaustive queries |
+| Enterprise data-security platforms | Immuta, Privacera, Cyral, DataSunrise and similar | Mature, many connectors, compliance reports | Expensive enterprise licences, built mainly around big cloud warehouses; Indian ID types aren't their focus |
+| Masked copies (test-data tools) | Static masking products | Safe copies for developers and testers | A copy, not live access: support staff need today's data |
+| PII-finding libraries | Microsoft Presidio and others | Finding PII in text | They find PII; they don't control who sees what inside the database |
+
+### What MaskGuard adds
+
+1. **Finds sensitive columns by itself**, including Indian IDs (Aadhaar, PAN, GSTIN, UPI, IFSC, EPIC) and columns with
+   misleading names.
+2. **Masks inside the query**, so the clever tricks of section 12 don't work.
+3. **One policy across PostgreSQL, MySQL and SQLite.**
+4. **More than masking:** insider-threat detection, a hash-chained audit log with no PII in it, and integrity proofs.
+5. **Self-hosted and light**: about 8 ms added per query, runs on the organisation's own server.
+
+### "Can't we just ask ChatGPT or Claude to build this?"
+
+Partly, yes, and MaskGuard itself was built with an AI assistant. An AI can write masking code in an afternoon. But:
+
+- **The quick version is usually display masking**, which our attack suite breaks in 14–15 of 17 attacks.
+- **Security bugs are silent.** Broken masking doesn't crash; it leaks, and nobody notices until data is gone.
+- **The value is the checking:** an attack suite, 474 tests on three databases, 121 API checks, a security
+  comparison with an existing product, a production profile verified live, and a privacy audit that found and
+  documented its own gaps.
+
+A team with AI help could rebuild something similar, but it would then own the job of proving it safe, and of
+maintaining it when a new bypass is found.
+
+### "Why not let an AI decide, at query time, what to hide?"
+
+- It would send customer data to an outside service: the very leak you're trying to stop.
+- A security rule must give the same answer every time; a language model can vary.
+- It adds seconds and cost to every query; MaskGuard adds milliseconds.
+- Text hidden inside the data can manipulate a language model ("prompt injection"); fixed rules can't be argued with.
+
+MaskGuard uses AI where it fits (finding sensitive columns, locally) and fixed rules for enforcement.
+
+### What MaskGuard is not
+
+- **Not a replacement for encryption**, network security or your login system. Keep all of those.
+- **Not a write path.** It only answers `SELECT` queries; updates go through your existing applications.
+- **Not a guarantee for people who bypass it.** Anyone with direct database credentials isn't protected by it.
+- **Not a compliance certificate.** It provides safeguards the law asks for; compliance covers much more.
+
+## 6. Basic terms you need first
 
 **Database.** An organised store of data, like a set of spreadsheets that a program can search quickly. MaskGuard
 works with three kinds: **SQLite** (a database in a single file, used for demos), **PostgreSQL** and **MySQL** (database
@@ -131,7 +285,7 @@ role, not on your name.
 
 **Read-only.** Allowed to read data but never to change it.
 
-## 4. The parts of MaskGuard
+## 7. The parts of MaskGuard
 
 ```mermaid
 flowchart TB
@@ -180,7 +334,7 @@ flowchart TB
 | Interfaces | CLI, API, Control Room, proxy, SDK | `cli.py`, `api.py`, `web/`, `pgwire.py`, `client.py` |
 | Configuration | Reads settings, refuses unsafe production setups | `src/maskguard/config.py` |
 
-## 5. The life of one query
+## 8. The life of one query
 
 Follow one question from a support agent through the gateway.
 
@@ -212,16 +366,16 @@ In words:
 1. **Authenticate.** The request carries a **token** (a signed note saying "this is support.sam, role support").
    The gateway checks the signature and that the user still exists with that role.
 2. **Threat check.** If the threat engine has blocked this user, the request stops here.
-3. **Rewrite.** The rewriter parses the SQL and checks it is safe (section 10). It then replaces every table name with a
-   **masked view** for the caller's role (section 9).
-4. **Policy checks.** In production, a query that would release a noisy aggregate is refused here (section 16).
+3. **Rewrite.** The rewriter parses the SQL and checks it is safe (section 13). It then replaces every table name with a
+   **masked view** for the caller's role (section 12).
+4. **Policy checks.** In production, a query that would release a noisy aggregate is refused here (section 22).
 5. **Execute read-only.** The rewritten query runs. The database cannot change anything.
 6. **Score and record.** The threat engine updates the user's risk score; the audit log gets one entry.
 7. **Respond.** The masked rows go back with a **request id**, so the matching audit entry can be found later.
 
 If anything fails, the request is refused, the refusal is audited, and the error message never contains data.
 
-## 6. Finding sensitive data: the PII scanner
+## 9. Finding sensitive data: the PII scanner
 
 Before masking anything, MaskGuard must know which columns are sensitive. Reading column names is unreliable, so
 the scanner looks at the **values**.
@@ -284,7 +438,7 @@ How well does it work? On an independent Indian-PII benchmark with deliberately 
 0.965 F1 with 5 sample values per column (0.999 with 20), against 0.844 for the benchmark's own baseline. **F1** is a
 score from 0 to 1 that balances "found all the PII" against "did not flag non-PII".
 
-## 7. The policy: who sees what
+## 10. The policy: who sees what
 
 The policy is a YAML file (`policies/default.yaml`), a simple text format of keys and values. Its heart is a table:
 for each **role** and each **tag**, which **action** to apply.
@@ -322,7 +476,7 @@ rule weaker (for example support `partial` → `allow`) needs a written reason a
 **Asking "why is this masked?"** `maskguard policy explain --role support --table accounts` prints, for every column,
 the tag, the action and the rule that decided it.
 
-## 8. The masking actions, one by one
+## 11. The masking actions, one by one
 
 | Action | What the role sees | Example | Typical use |
 |---|---|---|---|
@@ -331,7 +485,7 @@ the tag, the action and the rule that decided it.
 | `hmac` | A **keyed token**: the same input always gives the same token, but the token cannot be turned back into the value without the secret key | `b0d9e2c45fa1773e` | Analyst (lets them join and count without seeing identities) |
 | `redact` | `REDACTED` (or `NULL` for numbers) | `REDACTED` | Auditor |
 | `redact_text` | The text, with identifiers inside it replaced | `Call [PHONE] about card [CARD]` | Support reading notes |
-| `aggregate` | Numbers only through noisy SUM/AVG/COUNT; never individually. **Experimental; off in production** | (section 16) | Analyst |
+| `aggregate` | Numbers only through noisy SUM/AVG/COUNT; never individually. **Experimental; off in production** | (section 22) | Analyst |
 | `deny` | The column is refused | error | Anything without a rule |
 
 **What is HMAC?** "Hash-based Message Authentication Code". A **hash function** turns any input into a fixed-length
@@ -342,7 +496,7 @@ of short IDs are easy to brute-force; keyed ones are not, as long as the key sta
 Masks are computed **inside the database** by small functions MaskGuard installs: `mg_partial`, `mg_email`,
 `mg_hmac`, `mg_bucket` and `mg_redact_text`. They give byte-identical results on SQLite, PostgreSQL and MySQL.
 
-## 9. Why mask inside the query
+## 12. Why mask inside the query
 
 This is the most important idea in MaskGuard.
 
@@ -375,7 +529,7 @@ The **attack suite** tries 21 such attacks (17 that try to leak PII, 4 unsafe st
 the 17; MaskGuard leaks none. That is evidence for those 17 shapes, not a mathematical proof against every possible
 query.
 
-## 10. The firewall and read-only execution
+## 13. The firewall and read-only execution
 
 Before rewriting, the query is **parsed**: turned from text into a tree structure the program can inspect, using a
 library called **sqlglot**. The firewall then refuses:
@@ -390,9 +544,9 @@ library called **sqlglot**. The firewall then refuses:
 
 Even if something slipped through, the query runs **read-only**: in a `READ ONLY` transaction on PostgreSQL and
 MySQL, and through an "authorizer" that only permits reads on SQLite. In production, the database account itself can
-only read (section 15). That is three layers, so one mistake isn't enough.
+only read (section 21). That is three layers, so one mistake isn't enough.
 
-## 11. The insider-threat engine
+## 14. The insider-threat engine
 
 Masking stops one query from returning raw values. A determined insider can still try **many** queries: guessing an
 email over and over, binary-searching a balance, or paging through a whole table. The threat engine watches each
@@ -433,7 +587,7 @@ stateDiagram-v2
 In the simulated evaluation it caught 95–100% of attack sessions and blocked no normal users. The engine's memory is
 per process: a restart forgets it, and two gateway instances don't share it.
 
-## 12. The audit log and its hash chain
+## 15. The audit log and its hash chain
 
 Every decision (allowed, rejected, blocked, error, policy change, integrity check) is written to an **audit log**
 (`data/audit.jsonl`, one JSON record per line). Each record contains who, which role, which channel, the decision,
@@ -459,9 +613,9 @@ If someone edits, deletes or reorders an entry, its hash no longer matches what 
 - The chain is not keyed, so someone who can rewrite the whole file can rebuild a valid-looking chain. Ship the log
   to an external store if that matters.
 - The log assumes **one writing process**. If an API server and CLI commands write to the same file at the same
-  time, the chain forks and verification reports "CHAIN BROKEN" although nothing was tampered with (section 20).
+  time, the chain forks and verification reports "CHAIN BROKEN" although nothing was tampered with (section 27).
 
-## 13. Integrity proofs
+## 16. Integrity proofs
 
 How do you show that MaskGuard never changed the data? An **integrity proof**:
 
@@ -479,7 +633,7 @@ A **digest** is a hash of a whole table's contents. If even one character change
 expects every write attempt to be refused and the digests to match. `maskguard integrity proof` runs it, the Control
 Room has a button for it, and CI runs it on every push.
 
-## 14. Ways to connect
+## 17. Ways to connect
 
 Every interface goes through the same gateway, so the same rules apply everywhere.
 
@@ -515,7 +669,213 @@ never from the request itself, so nobody can just claim to be admin.
 **PBKDF2.** Passwords are never stored. The user file stores a PBKDF2-SHA256 hash, run 200,000 times so guessing is
 slow. Create one with `maskguard hash-password`.
 
-## 15. Development mode and production mode
+## 18. Installing MaskGuard on your computer
+
+This gets you a working MaskGuard with synthetic (fake) bank data in a few minutes. Nothing touches any real
+database.
+
+### What you need
+
+| Tool | What it is | Get it |
+|---|---|---|
+| **Python 3.10 or newer** | The language MaskGuard is written in | <https://www.python.org/downloads/> |
+| **uv** | A fast tool that installs Python packages into a private folder for this project | <https://docs.astral.sh/uv/> |
+| **git** | Downloads the code | <https://git-scm.com/> |
+| Docker (optional) | Runs MaskGuard plus PostgreSQL in containers | <https://docs.docker.com/get-docker/> |
+
+MaskGuard is developed and tested on Linux. Windows and macOS should work with Python 3.10+, but CI doesn't test them.
+
+### Steps (Linux or macOS)
+
+```bash
+git clone https://github.com/hotaro6754/mask
+cd mask
+uv sync                                                   # installs everything into .venv/ (only this project)
+export MASKGUARD_HMAC_KEY=dev-only-hmac-key-change-me     # the key for analyst tokens; any value for a demo
+uv run maskguard                                          # opens the console
+```
+
+### Steps (Windows PowerShell)
+
+```powershell
+git clone https://github.com/hotaro6754/mask
+cd mask
+uv sync
+$env:MASKGUARD_HMAC_KEY="dev-only-hmac-key-change-me"
+uv run maskguard
+```
+
+### What happens the first time
+
+```mermaid
+flowchart TD
+    A["uv run maskguard"] --> B["No database configured →<br/>use data/bank.db (SQLite file)"]
+    B --> C{"Empty?"}
+    C -- yes --> D["Create synthetic bank data<br/>(users, accounts, support tickets)"]
+    C -- no --> E["Use it as it is"]
+    D --> F["Install masking functions"]
+    E --> F
+    F --> G["Scan every table, tag sensitive columns"]
+    G --> H["Record an integrity baseline"]
+    H --> I["Show health checks and the menu"]
+```
+
+Then try:
+
+```bash
+uv run maskguard status                                     # every line is a real check
+uv run maskguard compare "SELECT name, ssn, phone FROM users LIMIT 2" --roles admin,support,analyst,auditor
+uv run maskguard attack --role support                      # 21 attacks: naive masking vs MaskGuard
+uv run maskguard serve                                      # dashboard at http://127.0.0.1:8000/ui/
+```
+
+Demo logins: `admin.ann`, `support.sam`, `analyst.ali` and `auditor.aud`, each with password `<role>123` (for
+example `support123`).
+
+### With Docker instead
+
+```bash
+docker compose up --build
+```
+
+This starts PostgreSQL 16 with synthetic data, the API and Control Room on port 8000, the classic dashboard on 8501
+and the PostgreSQL proxy on 6543. It is a **demo** stack (known passwords, open ports); never use it for real data.
+
+### If something goes wrong
+
+| Message | Meaning | Fix |
+|---|---|---|
+| `MASKGUARD_HMAC_KEY is not set` | No token key (it fails closed on purpose) | Set the variable as above |
+| `address already in use` | Port 8000 is taken | `uv run maskguard serve --port 8080` |
+| `UNAVAILABLE … unsafe configuration` | You set `MASKGUARD_ENV=production` | Remove it for a demo, or follow section 21 |
+| A command isn't found | You're outside the project folder, or `uv sync` didn't run | `cd mask && uv sync` |
+
+## 19. Connecting your existing database
+
+This is how MaskGuard goes from demo data to your own database. **Always try it on a staging copy first.**
+
+### What MaskGuard needs from your database
+
+| Need | Why |
+|---|---|
+| A connection URL | `postgresql://user:password@host:5432/dbname` or `mysql://user:password@host:3306/dbname` |
+| Once: rights to create functions | It installs small masking functions (`mg_partial`, `mg_email`, `mg_hmac`, `mg_bucket`, `mg_redact_text`). On PostgreSQL it also enables the `pgcrypto` extension |
+| Always: read access to the tables | It only ever runs `SELECT` |
+| MySQL with binary logging | `log_bin_trust_function_creators=1`, so the functions can be created |
+
+It never changes your tables or rows. The secret key for tokens is passed in on each connection, not stored in the
+database.
+
+### Steps for a trial (development mode)
+
+```bash
+export MASKGUARD_DB='postgresql://user:password@staging-host:5432/yourdb'
+export MASKGUARD_HMAC_KEY='a-long-random-secret'
+export MASKGUARD_SEED_IF_EMPTY=0          # never add demo data to your database
+uv run maskguard status                   # connects, installs functions, scans, records a baseline
+uv run maskguard pii list                 # what the scanner found, with evidence (never values)
+```
+
+### What happens on first connection
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant M as MaskGuard
+    participant D as Your database
+    M->>D: Connect with MASKGUARD_DB
+    M->>D: Install mg_* masking functions (and pgcrypto on PostgreSQL)
+    M->>D: List the tables (base tables only)
+    loop each table
+        M->>D: Read a sample of values per column
+        M->>M: Checksums + ML → tag + evidence (values discarded)
+    end
+    M->>M: Save the registry (tags, no values)
+    M->>D: Hash every table → integrity baseline
+    M-->>M: Ready: queries now go through masked views
+```
+
+### Then make it yours
+
+1. **Check the tags.** `maskguard pii list`, or Control Room → PII discovery. Wrong tag? Force it in
+   `policies/overrides.yaml`.
+2. **Set the rules.** Edit `policies/default.yaml`: roles, what each sees per tag, row filters, row limits.
+   `maskguard policy explain --role support --table accounts` shows the result.
+3. **Create real users.** `maskguard hash-password` for each, into your own users file; set `MASKGUARD_USERS`.
+4. **Point people and tools at MaskGuard**, not the database:
+   - people: the Control Room (`maskguard serve`) or the CLI;
+   - programs: the REST API or Python SDK;
+   - PostgreSQL tools: the proxy on port 6543 (tested with `psql` and psycopg; it has no TLS, so clients must
+     allow non-SSL, and it should stay on the same machine).
+5. **Remove direct database access** for those people and tools. Otherwise they can go around MaskGuard.
+6. **Prove it on your data.** `maskguard integrity proof --sql "SELECT * FROM your_table LIMIT 5"` runs that query as
+   every role plus six write attempts and compares table hashes before and after. `maskguard integrity verify`
+   compares the tables with the baseline. (The attack suite in `maskguard attack` and `maskguard test` is written
+   for the demo tables, so run it on the demo data, not on yours.)
+
+### Going to production
+
+Production adds strict checks (section 21):
+- run `maskguard db-install --db <owner URL>` once with the owner account to install the functions;
+- give the gateway its own **read-only** database account;
+- set `MASKGUARD_ENV=production`, with real secrets, your own users file, and TLS for the API.
+
+MaskGuard refuses to start if anything is unsafe. Full guide: [DEPLOYMENT.md](DEPLOYMENT.md).
+
+### Removing it
+
+Stop using it, give people their previous access back if appropriate, and drop the `mg_*` functions (in `psql`,
+`\df mg_*` lists them with their argument types). Your data was never changed.
+
+### Questions people ask at this step
+
+- **Views?** The scanner covers base tables. Queries go through masked views of those tables.
+- **Cloud databases** (Amazon RDS, Cloud SQL, Azure)? Same engines; they should work, but haven't been tested.
+- **Oracle, SQL Server, MongoDB, Snowflake?** Not supported.
+- **Large tables?** The scanner samples values instead of reading everything, and queries have a 5-second timeout.
+
+## 20. Where MaskGuard runs
+
+Three common pictures, from smallest to production.
+
+**A. On a laptop, for a demo or evaluation.** Everything on one machine, with synthetic data.
+
+```mermaid
+flowchart LR
+    You["You (browser / terminal)"] --> MG["MaskGuard<br/>localhost:8000"] --> DB[("data/bank.db<br/>SQLite file")]
+```
+
+**B. On a company server, next to the database.** Staff and tools reach MaskGuard; only MaskGuard reaches the
+database.
+
+```mermaid
+flowchart LR
+    subgraph Office["Office network"]
+        Staff["Staff browsers"]
+        BI["BI tools / scripts"]
+    end
+    subgraph Srv["Company server"]
+        MG["MaskGuard<br/>HTTPS API + Control Room"]
+    end
+    DB[("Company database<br/>read-only account for MaskGuard")]
+    Staff -->|"HTTPS"| MG
+    BI -->|"API / SDK"| MG
+    MG --> DB
+```
+
+**C. The production Docker stack** (`docker-compose.prod.yml`). The database sits on an internal network with no
+published port.
+
+```mermaid
+flowchart LR
+    Client["Clients"] -->|"HTTPS 8443"| API["api container<br/>MaskGuard, read-only account"]
+    subgraph Internal["internal Docker network (no outside access)"]
+        API --> DB[("db container<br/>PostgreSQL 16")]
+        INST["db-install job<br/>(owner account, runs once)"] --> DB
+    end
+```
+
+## 21. Development mode and production mode
 
 MaskGuard has two modes, set by `MASKGUARD_ENV`:
 
@@ -560,7 +920,7 @@ show what a display filter would leak. That is useful on synthetic data and dang
 refuses it for every role, before any read. The refusal is audited with who, which channel and why, never with SQL
 or results.
 
-## 16. Noisy aggregates and differential privacy
+## 22. Noisy aggregates and differential privacy
 
 This section explains an advanced topic simply, and why the feature is switched off in production.
 
@@ -632,7 +992,7 @@ stateDiagram-v2
 Passing tests or a model checker finding no counterexample are evidence, not proof; none of them alone reopens
 production aggregates.
 
-## 17. How it is tested
+## 23. How it is tested
 
 | Check | What it proves | Command |
 |---|---|---|
@@ -658,9 +1018,9 @@ flowchart TD
 **CI** ("continuous integration") runs all of this automatically on every push, so a change that breaks security
 can't slip in unnoticed.
 
-## 18. Workflows, step by step
+## 24. Workflows, step by step
 
-### 18.1 First run on your laptop
+### 24.1 First run on your laptop
 
 ```bash
 git clone https://github.com/hotaro6754/mask && cd mask
@@ -677,7 +1037,7 @@ uv run maskguard compare "SELECT name, ssn, phone FROM users LIMIT 2" --roles ad
 uv run maskguard serve                                     # API + Control Room at http://127.0.0.1:8000/ui/
 ```
 
-### 18.2 See the same query as every role
+### 24.2 See the same query as every role
 
 ```mermaid
 flowchart LR
@@ -688,7 +1048,7 @@ flowchart LR
     E --> F["Source tables re-hashed:<br/>MATCH, mutation NONE"]
 ```
 
-### 18.3 A new table arrives
+### 24.3 A new table arrives
 
 1. The table is created in the database.
 2. Until the background scanner has seen it, queries on it are blocked.
@@ -697,7 +1057,7 @@ flowchart LR
 5. If a column is wrong, force its tag in `policies/overrides.yaml`.
 6. Queries now work, masked by policy.
 
-### 18.4 Change the policy safely
+### 24.4 Change the policy safely
 
 ```mermaid
 flowchart TD
@@ -711,7 +1071,7 @@ flowchart TD
     G --> H["maskguard test: still 0 leaks?"]
 ```
 
-### 18.5 Investigate a threat alert
+### 24.5 Investigate a threat alert
 
 1. Control Room → Overview (threat alerts and blocks), or the API: `GET /threats` lists each user's risk score,
    action and reasons.
@@ -720,7 +1080,7 @@ flowchart TD
 4. If it's a real attack, leave the block in place and escalate. If it's a false alarm, an admin unblocks
    (`POST /threats/{user}/unblock`; needs the `threats.manage` capability).
 
-### 18.6 Deploy to production
+### 24.6 Deploy to production
 
 ```mermaid
 flowchart TD
@@ -738,14 +1098,14 @@ flowchart TD
 
 Details and every variable: [DEPLOYMENT.md](DEPLOYMENT.md).
 
-### 18.7 Prove nothing leaks before a release
+### 24.7 Prove nothing leaks before a release
 
 ```bash
 uv run pytest -q              # all tests
 uv run maskguard test         # attacks per role + audit chain + integrity proof; exit 6 if anything fails
 ```
 
-### 18.8 Query from Python or psql
+### 24.8 Query from Python or psql
 
 ```python
 from maskguard.client import MaskGuardClient
@@ -757,7 +1117,24 @@ print(mg.query("SELECT name, ssn FROM users LIMIT 3"))
 psql "host=localhost port=6543 user=support.sam dbname=bank"     # password: support123 (development)
 ```
 
-## 19. Exit codes and error messages
+## 25. A day with MaskGuard
+
+What a normal day looks like once it's running.
+
+```mermaid
+flowchart TD
+    A["09:00 · Support desk opens<br/>agents look up customers: masked"] --> B["10:30 · An analyst runs a city report<br/>tokens and counts, no identities"]
+    B --> C["12:00 · A new table appears<br/>blocked until the background scan tags it"]
+    C --> D["14:15 · An agent queries the same column<br/>with 20 different values in 3 minutes"]
+    D --> E["Threat engine: risk 74 → alert<br/>…keeps going → risk 90 → blocked 15 min"]
+    E --> F["14:30 · Security team reads the reasons<br/>in the Control Room and audit log"]
+    F --> G["17:00 · Auditor verifies the audit chain<br/>and runs an integrity proof: PASS"]
+```
+
+Every one of those events is in the audit log, with who, which role, which channel, the decision and the reason,
+and none of the customers' values.
+
+## 26. Exit codes and error messages
 
 The CLI uses stable exit codes, so scripts can react to them:
 
@@ -774,7 +1151,7 @@ The CLI uses stable exit codes, so scripts can react to them:
 Error messages never contain data values. A rejected query says why ("only a single SELECT is allowed") and gives a
 request id you can look up in the audit log.
 
-## 20. Known limits, explained
+## 27. Known limits, explained
 
 | Limit | What it means | Can it be fixed? |
 |---|---|---|
@@ -790,7 +1167,7 @@ request id you can look up in the audit log.
 | Audit log assumes one writing process | API + CLI writing the same file break the chain (false alarm) | Fixable: lock the file and re-read the last entry before each write |
 | PostgreSQL proxy has no TLS; `Describe` and error messages under review | Production keeps the proxy on loopback | TLS is fixable; the other two wait for the independent review |
 
-## 21. Glossary A–Z
+## 28. Glossary A–Z
 
 | Term | Meaning |
 |---|---|
@@ -900,7 +1277,7 @@ request id you can look up in the audit log.
 | **WHERE** | The filtering clause in SQL |
 | **YAML** | A simple text format for configuration files |
 
-## 22. Where to read next
+## 29. Where to read next
 
 | If you want… | Read |
 |---|---|
