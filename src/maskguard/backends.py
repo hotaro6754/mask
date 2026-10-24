@@ -71,7 +71,9 @@ class Backend:
         raise NotImplementedError
 
     def sample(self, table, column, n=200):
-        return [r[0] for r in self.admin_query(f'SELECT "{column}" FROM {self._qualified(table)} LIMIT {int(n)}')[1]]
+        """Up to n non-null values, in storage order. Read only to classify the column: never logged or stored."""
+        q = f'SELECT "{column}" FROM {self._qualified(table)} WHERE "{column}" IS NOT NULL LIMIT {int(n)}'
+        return [r[0] for r in self.admin_query(q)[1]]
 
     def checksum(self, table):
         cols, rows = self.admin_query(f"SELECT * FROM {self._qualified(table)} ORDER BY 1")

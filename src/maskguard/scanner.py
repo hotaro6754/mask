@@ -89,6 +89,24 @@ def value_kind(sample):
     return None, None
 
 
+# Identifiers whose format is strict enough that even one value is evidence: an order-id or reference column almost
+# never contains an email address, a PAN or a valid IBAN by accident. (Aadhaar, cards and phone numbers are left out:
+# about one random 12- or 16-digit number in ten passes their checksum, and any 10-digit number can look like a phone.)
+SPARSE_KINDS = ("email", "pan", "iban")
+
+
+def sparse_identifiers(sample):
+    """A few strong-format identifiers in an otherwise ordinary column (a reference field someone typed an email
+    into). Returns (kind, evidence) or (None, None); the caller tags the column for review, so it stays masked."""
+    vals = [v for v in sample if v is not None and str(v).strip()]
+    for kind in SPARSE_KINDS:
+        hits = {str(v).strip() for v in vals if _safe(VALIDATORS[kind], str(v).strip())}
+        if hits:
+            return kind, (f"{len(hits)} distinct value(s) of {len(vals)} sampled look like {kind}: "
+                          "a sparse identifier, needs review")
+    return None, None
+
+
 def suggest_public(column, sample):
     """For a column the scanner found nothing in: why it probably isn't personal data, or None. Only a suggestion:
     nothing is approved until a person runs `maskguard pii approve` (--suggested takes these)."""
@@ -143,6 +161,9 @@ def classify_column_rules(column, values, hi=0.8, lo=0.3):
         has, ev = scan_values(sample)
         if has:
             return _out("free_text_pii", "high", f"free text; {ev}", source="rules+patterns")
+    sk, sev = sparse_identifiers(sample)
+    if sk:
+        return _out(sk, "review", sev, source="sparse")
     if hk and not (hk in TEXT_ONLY_HEADER_KINDS and _numeric(sample)):  # header-only evidence: tag anyway (fail closed)
         return _out(hk, "medium", f"header token matched {hk}; no validator match", source="rules")
     return None
@@ -191,6 +212,9 @@ def classify_column(column, values):
             return _out("free_text_pii", "high", f"free text; {ev}", source="ml+patterns", probs=d["probs"])
         if kind == "free_text":
             return None
+    sk, sev = sparse_identifiers(sample)
+    if sk:
+        return _out(sk, "review", sev, source="sparse", probs=d["probs"])
     hk = header_kind(column)  # ML says not PII; a PII header with a non-confident model still masks (fail closed)
     if hk in TEXT_ONLY_HEADER_KINDS and _numeric(sample):  # doctor_id, blood_test_no: numbers, not names or health
         return None
