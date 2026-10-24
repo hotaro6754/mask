@@ -90,7 +90,7 @@ import json, re, sys
 a, s, n, u = (json.loads(x)["rows"][0] for x in sys.argv[1:5])
 assert re.fullmatch(r"\d{12}", a[2]) and re.fullmatch(r"[6-9]\d{9}", a[1]), a          # admin: real values
 assert s[0] == a[0] and s[2] == "X" * 8 + a[2][-4:] and s[3] == "REDACTED", s          # support: partial, no health
-assert n[0] == "REDACTED" and re.fullmatch(r"[0-9a-f]{16}", n[2]) and re.fullmatch(r"[0-9a-f]{16}", n[3]), n
+assert n[0] == "REDACTED" and re.fullmatch(r"[0-9a-f]{32}", n[2]) and re.fullmatch(r"[0-9a-f]{32}", n[3]), n
 assert u == ["REDACTED"] * 4, u
 ' "$A" "$S" "$N" "$U" && ok "admin real · support partial · analyst tokens · auditor redacted" || die "roles" "$A $S $N $U"
 REAL_AADHAAR=$(py "import json,sys; print(json.loads(sys.argv[1])['rows'][0][2])" "$A")

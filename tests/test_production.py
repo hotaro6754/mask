@@ -141,7 +141,7 @@ def test_production_refuses_noisy_aggregates_but_keeps_masking(sqlite_env):
     assert gw.dp_ledger.remaining("analyst.ali") == before  # refused before any budget was charged
     assert gw.audit.tail(1)[0]["reason"] == "noisy aggregates disabled in production"
     token = gw.query(analyst, "SELECT email FROM users ORDER BY id LIMIT 1", observe=False).rows[0][0]
-    assert re.fullmatch(r"[0-9a-f]{16}", token)  # ordinary masking still works for analysts
+    assert re.fullmatch(r"[0-9a-f]{32}", token)  # ordinary masking still works for analysts
     assert gw.query(analyst, "SELECT balance FROM accounts LIMIT 1", observe=False).rows[0][0] in (None, "REDACTED")
     admin = sqlite_env.login("admin")
     assert gw.query(admin, "SELECT SUM(balance) FROM accounts", observe=False).rows[0][0] > 0  # admins unaffected

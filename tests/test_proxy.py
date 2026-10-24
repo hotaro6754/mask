@@ -41,7 +41,7 @@ def test_psycopg_masks_per_role_with_parameters(proxy):
     assert ssn.startswith("XXX-XX-") and "X" in card
     ana = connect(port, "analyst.ali", "analyst123").cursor()
     ana.execute("SELECT ssn FROM users WHERE id = %s", (1,))
-    assert len(ana.fetchone()[0]) == 16  # keyed token
+    assert len(ana.fetchone()[0]) == 32  # keyed 128-bit token
 
 
 def test_auto_prepared_statements_keep_masking(proxy):

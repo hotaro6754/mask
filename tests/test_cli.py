@@ -42,7 +42,7 @@ def test_query_json_is_masked_per_role(run):
         assert r["role"] == role and r["request_id"].startswith("req-")
         rows[role] = r["rows"][0][0]
     assert rows["support"] == "XXX-XX-" + rows["admin"][-4:]
-    assert len(rows["analyst"]) == 16 and rows["auditor"] == "REDACTED"
+    assert len(rows["analyst"]) == 32 and rows["auditor"] == "REDACTED"
 
 
 def test_query_builder_csv_and_explain(run, tmp_path):

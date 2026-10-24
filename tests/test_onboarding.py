@@ -115,7 +115,7 @@ def test_development_keys_are_generated_once_kept_private_and_reused(folder, mon
     first = token()
     for n in config.SECRET_NAMES:
         monkeypatch.delenv(n, raising=False)  # a new process: the key comes back from the file, tokens stay the same
-    assert token() == first and len(first[0][0]) == 16
+    assert token() == first and len(first[0][0]) == 32
     assert yaml.safe_load(open(path)) == stored
 
 

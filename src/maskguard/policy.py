@@ -19,7 +19,7 @@ ACTIONS = {
     "allow":       (0, "Full value", "Returned unchanged."),
     "partial":     (1, "Partial mask", "Separators and a few edge characters kept; the rest becomes X. Numbers rounded down to a bucket."),
     "redact_text": (2, "Redact identifiers in text", "Identifiers inside free text become [PHONE], [AADHAAR], ...; the rest of the text stays."),
-    "hmac":        (3, "Keyed token (HMAC-SHA256)", "Deterministic 16-hex token: joinable and countable, not reversible without the server key."),
+    "hmac":        (3, "Keyed token (HMAC-SHA256)", "Deterministic 128-bit token (32 hex): joinable and countable, not reversible without the server key. Pseudonymous, not anonymous."),
     "aggregate":   (4, "Noisy aggregates only", "Usable only as SUM/AVG/COUNT with Laplace noise and a daily epsilon budget; any other use is redacted."),
     "redact":      (5, "Redacted", "Replaced by the literal REDACTED (NULL for numbers)."),
     "deny":        (6, "Withheld", "Value withheld: the column returns NULL for this role."),
@@ -125,10 +125,12 @@ def preview(meta, action, policy):
         p = policy["partial"].get(kind, policy["partial"]["default"])
         return ex, masks.partial(ex, p["prefix"], p["suffix"])
     if action == "hmac":
+        from .rewriter import token_settings
+        length, mode = token_settings(policy)
         try:
-            return ex, masks.token(ex)
+            return ex, masks.token(ex, length, f"example.{kind}" if mode == "column" else "")
         except RuntimeError:
-            return ex, "<16-hex HMAC token>"
+            return ex, f"<{length}-hex HMAC token>"
     if action == "redact_text":
         from .textpii import redact
         return ex, redact(str(ex))
@@ -178,6 +180,11 @@ def validate(policy):
     errs = []
     if policy.get("default_action", "deny") not in ("deny", "redact"):
         errs.append("default_action must be deny or redact (fail closed)")
+    h = policy.get("hmac") or {}
+    if not (isinstance(h.get("length", 32), int) and 16 <= h.get("length", 32) <= 64):
+        errs.append("hmac.length must be a whole number of hex characters from 16 to 64 (32 = 128 bits)")
+    if h.get("scope", "global") not in ("global", "column"):
+        errs.append("hmac.scope must be global (joinable everywhere) or column (no linking across columns)")
     for r, rules in (policy.get("roles") or {}).items():
         for tag, a in (rules or {}).items():
             if a not in ACTIONS:

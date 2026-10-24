@@ -618,7 +618,7 @@
                 "exec": [
                   "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
                   "const r = pm.response.json();",
-                  "pm.test('SSN is a 16-hex HMAC token', () => pm.expect(r.rows[0][2]).to.match(/^[0-9a-f]{16}$/));",
+                  "pm.test('SSN is a 32-hex (128-bit) HMAC token', () => pm.expect(r.rows[0][2]).to.match(/^[0-9a-f]{32}$/));",
                   "pm.test('name redacted', () => pm.expect(r.rows[0][1]).to.eql('REDACTED'));",
                   "pm.test('no raw SSN in the body', () => pm.expect(pm.response.text()).to.not.include(pm.collectionVariables.get('adminSsn')));",
                   "pm.test('email not present', () => pm.expect(pm.response.text()).to.not.include(pm.collectionVariables.get('adminEmail')));"
@@ -716,7 +716,7 @@
                 "exec": [
                   "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
                   "const r = pm.response.json().results;",
-                  "pm.test('admin real, support partial, analyst token', () => { pm.expect(r.admin.rows[0][2]).to.eql(pm.collectionVariables.get('adminSsn')); pm.expect(r.support.rows[0][2]).to.match(/^XXX-XX-/); pm.expect(r.analyst.rows[0][2]).to.match(/^[0-9a-f]{16}$/); });",
+                  "pm.test('admin real, support partial, analyst token', () => { pm.expect(r.admin.rows[0][2]).to.eql(pm.collectionVariables.get('adminSsn')); pm.expect(r.support.rows[0][2]).to.match(/^XXX-XX-/); pm.expect(r.analyst.rows[0][2]).to.match(/^[0-9a-f]{32}$/); });",
                   "pm.test('three distinct request ids', () => pm.expect(new Set([r.admin.request_id, r.support.request_id, r.analyst.request_id]).size).to.eql(3));"
                 ]
               }

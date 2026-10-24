@@ -53,6 +53,9 @@ partial:                        # characters kept at each end; separators are pr
   address: {prefix: 0, suffix: 0}
   default: {prefix: 0, suffix: 2}
 bucket_size: 10000              # partial masking of numbers = round down to this bucket
+hmac:                           # the `hmac` action: keyed pseudonyms (not anonymous; the key is MASKGUARD_HMAC_KEY)
+  length: 32                    # hex characters: 32 = 128 bits (16 = 64 bits, the 1.0.x length)
+  scope: global                 # global: equal values match across tables (joins work); column: per-column tokens
 threat:                         # insider-threat engine (rules + IsolationForest over each user's query stream)
   enabled: true
   ml: true

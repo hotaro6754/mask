@@ -141,7 +141,14 @@ def _as_text(c):
     return exp.Cast(this=c, to=exp.DataType.build("text"))
 
 
-def _mask_expr(col, meta, action, policy, dp_bounds=None):
+def token_settings(policy):
+    """(hex length, scope mode) for the hmac action: 32 hex = 128 bits by default; scope "global" keeps tokens
+    joinable across tables and columns, "column" gives every column its own tokens (no linking through tokens)."""
+    h = policy.get("hmac") or {}
+    return int(h.get("length", 32)), h.get("scope", "global")
+
+
+def _mask_expr(col, meta, action, policy, dp_bounds=None, scope=""):
     c = exp.column(col, quoted=True)
     kind, num = meta.get("kind"), meta.get("type") == "num"
     fn = lambda name, *args: exp.Anonymous(this=name, expressions=list(args))
@@ -155,7 +162,8 @@ def _mask_expr(col, meta, action, policy, dp_bounds=None):
         p = policy["partial"].get(kind, policy["partial"]["default"])
         return fn("mg_partial", _as_text(c), exp.Literal.number(p["prefix"]), exp.Literal.number(p["suffix"]))
     if action == "hmac":
-        return fn("mg_hmac", _as_text(c))
+        length, mode = token_settings(policy)
+        return fn("mg_token", _as_text(c), exp.Literal.string(scope if mode == "column" else ""), exp.Literal.number(length))
     if action == "redact_text":  # identifiers inside free text -> [PHONE], [AADHAAR], ...
         return fn("mg_redact_text", _as_text(c))
     if action == "aggregate":
@@ -294,7 +302,8 @@ def rewrite(sql, role, registry, policy, dialect="sqlite", schema=None):
                 masked.append(f"{table.name.lower()}.{col}:{action}")
             key = (table.alias_or_name.lower(), col.lower())
             bounds = dp_cols[key][1:] if dp_plan and key in dp_cols else None
-            projections.append(_mask_expr(col, meta, action, policy, bounds).as_(col, quoted=True))
+            projections.append(_mask_expr(col, meta, action, policy, bounds,
+                                          scope=f"{table.name.lower()}.{col.lower()}").as_(col, quoted=True))
         inner = exp.Table(this=exp.to_identifier(real_names[table.name.lower()], quoted=True),
                           db=exp.to_identifier(schema))  # pinned to the real table: a CTE can't capture it
         view = exp.select(*projections).from_(inner)

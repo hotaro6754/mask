@@ -85,7 +85,7 @@ folders = [
             "pm.collectionVariables.set('supportRequestId', r.request_id);", NO_RAW_SSN]),
         req("Analyst: tokens and redaction", "POST", "/query", q("{{sameQuery}}"), "analystToken", tests=[
             STATUS(200), "const r = pm.response.json();",
-            "pm.test('SSN is a 16-hex HMAC token', () => pm.expect(r.rows[0][2]).to.match(/^[0-9a-f]{16}$/));",
+            "pm.test('SSN is a 32-hex (128-bit) HMAC token', () => pm.expect(r.rows[0][2]).to.match(/^[0-9a-f]{32}$/));",
             "pm.test('name redacted', () => pm.expect(r.rows[0][1]).to.eql('REDACTED'));", NO_RAW_SSN,
             "pm.test('email not present', () => pm.expect(pm.response.text()).to.not.include(pm.collectionVariables.get('adminEmail')));"]),
         req("Auditor: no raw PII at all", "POST", "/query", q("{{sameQuery}}"), "auditorToken", tests=[
@@ -94,7 +94,7 @@ folders = [
         req("Cross-role comparison as admin (demo identities, one audited query each)", "POST", "/demo/compare",
             {"sql": "{{sameQuery}}", "roles": ["admin", "support", "analyst"]}, "adminToken", tests=[
             STATUS(200), "const r = pm.response.json().results;",
-            "pm.test('admin real, support partial, analyst token', () => { pm.expect(r.admin.rows[0][2]).to.eql(pm.collectionVariables.get('adminSsn')); pm.expect(r.support.rows[0][2]).to.match(/^XXX-XX-/); pm.expect(r.analyst.rows[0][2]).to.match(/^[0-9a-f]{16}$/); });",
+            "pm.test('admin real, support partial, analyst token', () => { pm.expect(r.admin.rows[0][2]).to.eql(pm.collectionVariables.get('adminSsn')); pm.expect(r.support.rows[0][2]).to.match(/^XXX-XX-/); pm.expect(r.analyst.rows[0][2]).to.match(/^[0-9a-f]{32}$/); });",
             "pm.test('three distinct request ids', () => pm.expect(new Set([r.admin.request_id, r.support.request_id, r.analyst.request_id]).size).to.eql(3));"]),
         req("Query builder: support sees card masks and only active accounts", "POST", "/query/table",
             {"table": "accounts", "columns": ["credit_card", "status"], "limit": 50}, "supportToken", tests=[

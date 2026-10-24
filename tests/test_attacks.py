@@ -71,7 +71,7 @@ def test_admin_sees_real_values_support_sees_card_format(env):
 def test_analyst_hmac_tokens_are_stable_and_joinable(env):
     a = env.run("analyst", "SELECT email FROM users ORDER BY id LIMIT 3")[1]
     b = env.run("analyst", "SELECT email FROM users ORDER BY id LIMIT 3")[1]
-    assert a == b and all(len(r[0]) == 16 for r in a)
+    assert a == b and all(len(r[0]) == 32 for r in a)
     n = env.run("analyst", "SELECT count(*) FROM users u JOIN users v ON u.email = v.email")[1][0][0]
     assert int(n) == 300
 

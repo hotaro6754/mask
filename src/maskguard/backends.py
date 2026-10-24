@@ -47,6 +47,11 @@ CREATE OR REPLACE FUNCTION mg_email(v text) RETURNS text LANGUAGE sql IMMUTABLE 
 CREATE OR REPLACE FUNCTION mg_hmac(v text) RETURNS text LANGUAGE sql STABLE AS $$
   SELECT CASE WHEN v IS NULL THEN NULL
               ELSE substr(encode(hmac(v, current_setting('maskguard.hmac_key'), 'sha256'), 'hex'), 1, 16) END $$;
+-- Scoped, variable-length token (1.1): same HMAC over "scope<US>value" (or the bare value with no scope)
+CREATE OR REPLACE FUNCTION mg_token(v text, scope text, n int) RETURNS text LANGUAGE sql STABLE AS $$
+  SELECT CASE WHEN v IS NULL THEN NULL
+              ELSE substr(encode(hmac(CASE WHEN scope = '' THEN v ELSE scope || chr(31) || v END,
+                                      current_setting('maskguard.hmac_key'), 'sha256'), 'hex'), 1, n) END $$;
 
 CREATE OR REPLACE FUNCTION mg_bucket(v numeric, size int) RETURNS numeric LANGUAGE sql IMMUTABLE AS $$
   SELECT floor(v / size) * size $$;
@@ -142,10 +147,10 @@ class SQLiteBackend(Backend):
         return [(r[1], (r[2] or "").upper()) for r in self.admin_query(f'PRAGMA table_info("{table}")')[1]]
 
 
-PG_PROBE = ("SELECT mg_partial('x', 0, 1), mg_email('a@b.c'), mg_hmac('x'), mg_bucket(1::numeric, 10), "
+PG_PROBE = ("SELECT mg_partial('x', 0, 1), mg_email('a@b.c'), mg_token('x', '', 32), mg_bucket(1::numeric, 10), "
             "mg_bucket(1::float8, 10), mg_redact_text('x')")
-MYSQL_PROBE = "SELECT mg_partial('x', 0, 1), mg_email('a@b.c'), mg_hmac('x'), mg_bucket(1, 10), mg_redact_text('x')"
-MYSQL_FUNCTION_NAMES = ("mg_partial", "mg_email", "mg_hmac", "mg_bucket", "mg_redact_text")
+MYSQL_PROBE = "SELECT mg_partial('x', 0, 1), mg_email('a@b.c'), mg_token('x', '', 32), mg_bucket(1, 10), mg_redact_text('x')"
+MYSQL_FUNCTION_NAMES = ("mg_partial", "mg_email", "mg_hmac", "mg_token", "mg_bucket", "mg_redact_text")
 # What a MySQL gateway account may hold. Anything else (writes, DDL, routines, *_ADMIN, FILE, SUPER…) is refused.
 MYSQL_READ_PRIVILEGES = {"SELECT", "EXECUTE", "USAGE", "SHOW VIEW"}
 
@@ -275,6 +280,20 @@ BEGIN
   SET k = RPAD(k, 64, X'00');
   RETURN LEFT(SHA2(CONCAT(k ^ UNHEX(REPEAT('5c', 64)),
                           UNHEX(SHA2(CONCAT(k ^ UNHEX(REPEAT('36', 64)), CAST(v AS BINARY)), 256))), 256), 16);
+END""",
+    # Scoped, variable-length token (1.1): HMAC over "scope<US>value", or the bare value when scope is ''
+    """CREATE FUNCTION mg_token(v TEXT, scope TEXT, n INT) RETURNS VARCHAR(64) NOT DETERMINISTIC READS SQL DATA
+BEGIN
+  DECLARE k VARBINARY(64);
+  DECLARE m LONGBLOB;
+  IF v IS NULL THEN RETURN NULL; END IF;
+  IF @maskguard_hmac_key IS NULL THEN SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'maskguard hmac key not set'; END IF;
+  SET k = CAST(@maskguard_hmac_key AS BINARY);
+  IF LENGTH(k) > 64 THEN SET k = UNHEX(SHA2(k, 256)); END IF;
+  SET k = RPAD(k, 64, X'00');
+  SET m = IF(scope = '', CAST(v AS BINARY), CONCAT(CAST(scope AS BINARY), X'1F', CAST(v AS BINARY)));
+  RETURN LEFT(SHA2(CONCAT(k ^ UNHEX(REPEAT('5c', 64)),
+                          UNHEX(SHA2(CONCAT(k ^ UNHEX(REPEAT('36', 64)), m), 256))), 256), n);
 END""",
     """CREATE FUNCTION mg_bucket(v DOUBLE, size INT) RETURNS DOUBLE DETERMINISTIC NO SQL
 RETURN FLOOR(v / size) * size""",

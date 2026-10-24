@@ -35,7 +35,7 @@ def test_same_query_different_roles(client):
             for r in ("admin", "support", "analyst", "auditor")}
     real = rows["admin"]
     assert rows["support"][1].startswith("XXX-XX-") and rows["support"][1][-4:] == real[1][-4:]
-    assert rows["analyst"][0] == "REDACTED" and len(rows["analyst"][1]) == 16 and rows["analyst"][1] != real[1]
+    assert rows["analyst"][0] == "REDACTED" and len(rows["analyst"][1]) == 32 and rows["analyst"][1] != real[1]
     assert rows["auditor"] == ["REDACTED"] * 3
     c = client.post("/demo/compare", json=sql, headers=demo(client, "admin")).json()["results"]
     assert c["support"]["rows"][0] == rows["support"] and c["admin"]["rows"][0] == real
@@ -104,7 +104,7 @@ def test_policy_edit_flow(client, sqlite_env):
     r = client.put("/policy/rules", json={"role": "support", "tag": "PII_HIGH", "action": "hmac"}, headers=adm).json()
     assert r["changed"]
     out = client.post("/query", json=q, headers=demo(client, "support")).json()
-    assert out["policy_version"] == r["version"] and len(out["rows"][0][0]) == 16
+    assert out["policy_version"] == r["version"] and len(out["rows"][0][0]) == 32
     assert client.put("/policy/rules", json={"role": "support", "tag": "PII_HIGH", "action": "drop"}, headers=adm).status_code == 400
     hist = client.get("/policy/history", headers=adm).json()["history"]
     assert hist[-1]["to"] == "hmac" and hist[-1]["actor"] == "admin.ann"
