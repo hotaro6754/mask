@@ -366,7 +366,7 @@ def policy_check(body: Rule, _=Depends(require("policy.write"))):
     except P.PolicyError as e:
         raise HTTPException(400, str(e))
     return {"current": current, "proposed": body.action, "weakening": weaker, "warnings": warnings,
-            "needs_confirmation": weaker}
+            "needs_confirmation": weaker, "comparison": P.compare(body.action, current)}
 
 
 @app.put("/policy/rules", tags=["policy"])
@@ -437,8 +437,15 @@ def rescan(body: Optional[ScanRequest] = None, s=Depends(require("scan.run"))):
 def audit(n: int = 20, user: Optional[str] = None, role: Optional[str] = None, decision: Optional[str] = None,
           q: Optional[str] = None, request_id: Optional[str] = None, _=Depends(require("audit.read"))):
     log = get_app().gateway.audit
-    return {"chain_valid": log.verify(),
+    return {"chain_valid": log.verify(), **log.head(),
             "entries": log.search(user, role, decision, q, request_id, limit=max(1, min(n, 1000)))[::-1]}
+
+
+@app.get("/audit/verify", tags=["audit"])
+def audit_verify(anchor: Optional[str] = None, _=Depends(require("audit.read"))):
+    """Chain check, optionally against a head hash recorded earlier somewhere the log's host can't write."""
+    log = get_app().gateway.audit
+    return {"chain_valid": log.verify(anchor), "anchor": anchor, **log.head()}
 
 
 @app.get("/audit/stats", tags=["audit"])

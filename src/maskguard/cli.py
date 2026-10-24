@@ -627,7 +627,7 @@ def policy_explain(role: str = typer.Option(..., "--role", "-r"), table: str = t
 @policy_app.command("set")
 @guarded
 def policy_set(role: str, tag: str, action: str, reason: str = typer.Option("", "--reason"),
-               confirm: bool = typer.Option(False, "--confirm", help="Required when the change weakens protection."),
+               confirm: bool = typer.Option(False, "--confirm", help="Required unless the change is the same or stricter (hmac -> partial needs it too)."),
                json_out: bool = typer.Option(False, "--json")):
     """Change one rule at runtime (validated, versioned, audited). The YAML file stays the reviewed baseline."""
     r = svc().set_rule(role, tag.upper(), action, reason, confirm)
@@ -766,7 +766,7 @@ def security_test(roles: str = typer.Option("support,analyst,auditor", "--roles"
     for r in [x.strip() for x in roles.split(",") if x.strip()]:
         with err.status(f"[cyan]attack suite as {r}…[/]"):
             report["attacks"][r] = s.attacks(role=r)["score"]
-    report["audit_chain"] = s.audit_verify()
+    report["audit_chain"] = s.audit_verify()["chain_valid"]
     with err.status("[cyan]integrity proof…[/]"):
         p = s.integrity_proof()
     report["integrity"] = {k: p[k] for k in ("status", "before", "after")}
@@ -820,11 +820,22 @@ def audit_list(n: int = typer.Option(20, "-n"), user: Optional[str] = None, role
 
 @audit_app.command("verify")
 @guarded
-def audit_verify():
-    """Verify the hash chain (detects edited, removed or reordered entries)."""
-    ok = svc().audit_verify()
-    out.print(Text.assemble(status_label(ok), "  audit chain " + ("intact" if ok else "BROKEN")))
-    if not ok:
+def audit_verify(anchor: Optional[str] = typer.Option(None, "--anchor", help="A head hash recorded earlier: it must "
+                                                    "still be in the chain (catches a rewritten, re-hashed file)."),
+                 json_out: bool = typer.Option(False, "--json")):
+    """Verify the hash chain (edited, removed or reordered entries) and print its head to record elsewhere."""
+    r = svc().audit_verify(anchor)
+    if json_out:
+        emit_json(r)
+    else:
+        ok = r["chain_valid"]
+        out.print(Text.assemble(status_label(ok), "  audit chain " + ("intact" if ok else "BROKEN") +
+                                (" · anchor found" if ok and anchor else " · anchor NOT in the chain" if anchor else "")))
+        out.print(Text(f"{r['entries']} entries · head {r['head']}", style=C["muted"]))
+        if not anchor:
+            out.print(Text("Record the head outside this machine; later run `maskguard audit verify --anchor <head>`.",
+                           style=C["muted"]))
+    if not r["chain_valid"]:
         raise typer.Exit(INTEGRITY_FAILED)
 
 

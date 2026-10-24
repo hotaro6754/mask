@@ -89,6 +89,26 @@ def test_policy_store_versions_and_requires_confirmation_to_weaken(sqlite_env):
     assert len(audit_versions) == 2 and None not in audit_versions  # every audit entry names the policy version that decided it
 
 
+def test_middle_actions_are_not_comparable():
+    """allow < {partial, redact_text, hmac, aggregate} < redact < deny. Swapping two middle actions changes what is
+    revealed (edge characters vs. linkable tokens), so it is never treated as "stricter"."""
+    assert P.compare("redact", "hmac") == "stricter" and P.compare("allow", "partial") == "weaker"
+    assert P.compare("partial", "hmac") == "different" and P.compare("aggregate", "hmac") == "different"
+    assert P.compare("hmac", "partial") == "different" and P.compare("deny", "redact") == "stricter"
+    assert P.compare("hmac", "hmac") == "same" and P.at_least_as_strict("bogus", "redact")  # unknown -> deny
+
+
+def test_swapping_middle_actions_needs_confirmation(sqlite_env):
+    store = sqlite_env.app.policy
+    current, warnings, needs = store.check_rule("analyst", "PII_HIGH", "partial")  # hmac -> partial
+    assert current == "hmac" and needs and "reveal different things" in warnings[0]
+    with pytest.raises(P.PolicyError, match="changes what is revealed"):
+        store.set_rule("analyst", "PII_HIGH", "partial", actor="admin.ann")
+    r = store.set_rule("analyst", "PII_HIGH", "partial", actor="admin.ann", reason="support pilot", confirm=True)
+    assert r["entry"]["weakening"] and r["entry"]["comparison"] == "different"
+    assert not store.check_rule("analyst", "PII_HIGH", "redact")[2]  # partial -> redact: stricter, no confirmation
+
+
 def test_capabilities():
     from maskguard.config import _load_yaml
     pol = _load_yaml("policies/default.yaml")
@@ -135,3 +155,27 @@ def test_audit_entries_carry_request_id_and_channel(sqlite_env):
     assert sqlite_env.gw.audit.search(request_id=exc.value.request_id)[0]["decision"] == "reject"
     st = sqlite_env.gw.audit.stats(hours=1)
     assert st["totals"]["allow"] >= 1 and st["totals"]["reject"] >= 1
+
+
+def test_audit_file_is_owner_only_and_the_head_anchors_the_chain(tmp_path):
+    import os, stat
+    from maskguard.audit import AuditLog
+    path = str(tmp_path / "audit.jsonl")
+    log = AuditLog(path)
+    for i in range(3):
+        log.append(user="u", decision="allow", sql=f"q{i}")
+    assert stat.S_IMODE(os.stat(path).st_mode) == 0o600
+    head = log.head()
+    assert head["entries"] == 3 and log.verify(anchor=head["head"]) and not log.verify(anchor="f" * 64)
+    # someone rewrites the file and recomputes every hash: the chain verifies, but the recorded head is gone
+    lines = open(path).read().splitlines()
+    forged = AuditLog(str(tmp_path / "forged.jsonl"))
+    for line in lines:
+        import json
+        e = json.loads(line)
+        forged.append(**{k: v for k, v in e.items() if k not in ("hash", "prev", "ts")}, note="edited")
+    os.replace(forged.path, path)
+    assert AuditLog(path).verify() and not AuditLog(path).verify(anchor=head["head"])
+    os.chmod(path, 0o644)
+    AuditLog(path)  # reopening tightens a too-open file
+    assert stat.S_IMODE(os.stat(path).st_mode) == 0o600

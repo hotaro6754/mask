@@ -9,7 +9,7 @@ RemoteService talks to a running API (`--api URL` or MASKGUARD_API) through the 
 
 Both return plain dicts shaped like the REST responses, so the CLI renders them the same way.
 """
-import datetime, decimal, os, time
+import datetime, decimal, os, time, urllib.parse
 
 from . import config, policy as P
 from .rewriter import Rejected, tag_of
@@ -232,8 +232,8 @@ class LocalService:
         return {"chain_valid": self.gw.audit.verify(),
                 "entries": self.gw.audit.search(limit=n, **{k: v for k, v in filters.items() if v})[::-1]}
 
-    def audit_verify(self):
-        return self.gw.audit.verify()
+    def audit_verify(self, anchor=None):
+        return {"chain_valid": self.gw.audit.verify(anchor), "anchor": anchor, **self.gw.audit.head()}
 
     def integrity_verify(self):
         return self.app.integrity.verify("cli-operator")
@@ -363,8 +363,8 @@ class RemoteService:
     def audit(self, n=20, **filters):
         return self._call(self._op().audit, n, **filters)
 
-    def audit_verify(self):
-        return self.audit(1)["chain_valid"]
+    def audit_verify(self, anchor=None):
+        return self._call(self._op()._call, "GET", "/audit/verify" + (f"?anchor={urllib.parse.quote(anchor)}" if anchor else ""))
 
     def integrity_verify(self):
         return self._call(self._op().verify_integrity)

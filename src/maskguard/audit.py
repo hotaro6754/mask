@@ -17,31 +17,50 @@ def fingerprint(sql, dialect=None):
         return "<unparseable>"
 
 
+def _owner_only(path):
+    try:
+        if os.stat(path).st_mode & 0o077:
+            os.chmod(path, 0o600)
+    except OSError:  # not ours to change (e.g. a read-only mount): keep going, the chain still verifies
+        pass
+
+
 def _digest(entry):
     return hashlib.sha256(json.dumps(entry, sort_keys=True, default=str).encode()).hexdigest()
 
 
 class AuditLog:
+    """The chain shows edits, deletions and reordering. Someone who can rewrite the whole file can also recompute every
+    hash, so copy head() somewhere they can't write (a ticket, another server) and check it later with verify(anchor)."""
+
     def __init__(self, path):
-        self.path, self.prev, self.lock = path, GENESIS, threading.Lock()
+        self.path, self.prev, self.count, self.lock = path, GENESIS, 0, threading.Lock()
         if os.path.exists(path):  # continue the existing chain after a restart
+            _owner_only(path)
             for line in open(path):
                 if line.strip():
-                    self.prev = json.loads(line)["hash"]
+                    self.prev, self.count = json.loads(line)["hash"], self.count + 1
 
     def append(self, **entry):
         with self.lock:
             entry.update(ts=time.time(), prev=self.prev)
             entry["hash"] = _digest(entry)
-            self.prev = entry["hash"]
-            with open(self.path, "a") as f:
+            self.prev, self.count = entry["hash"], self.count + 1
+            fd = os.open(self.path, os.O_WRONLY | os.O_APPEND | os.O_CREAT, 0o600)  # owner-only from the first line
+            with os.fdopen(fd, "a") as f:
                 f.write(json.dumps(entry, default=str) + "\n")
 
-    def verify(self):
-        """True if no entry was edited, removed or reordered."""
+    def head(self):
+        """{entries, head}: the hash of the newest entry. Record it outside this machine to anchor the chain."""
+        with self.lock:
+            return {"entries": self.count, "head": self.prev}
+
+    def verify(self, anchor=None):
+        """True if no entry was edited, removed or reordered, and (given an anchor recorded earlier) that entry is
+        still in the chain: a rewritten file has different hashes, even if they were all recomputed."""
         if not os.path.exists(self.path):
-            return True
-        prev = GENESIS
+            return anchor in (None, GENESIS)
+        prev, seen = GENESIS, anchor in (None, GENESIS)
         for line in open(self.path):
             if not line.strip():
                 continue
@@ -49,8 +68,8 @@ class AuditLog:
             h = e.pop("hash")
             if e.get("prev") != prev or _digest(e) != h:
                 return False
-            prev = h
-        return True
+            prev, seen = h, seen or h == anchor
+        return seen
 
     def tail(self, n=20):
         if not os.path.exists(self.path):

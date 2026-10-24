@@ -101,7 +101,12 @@ def test_policy_edit_flow(client, sqlite_env):
     assert chk["weakening"] and chk["needs_confirmation"]
     r = client.put("/policy/rules", json={"role": "support", "tag": "PII_HIGH", "action": "allow"}, headers=adm)
     assert r.status_code == 409
-    r = client.put("/policy/rules", json={"role": "support", "tag": "PII_HIGH", "action": "hmac"}, headers=adm).json()
+    chk = client.post("/policy/check", json={"role": "support", "tag": "PII_HIGH", "action": "hmac"}, headers=adm).json()
+    assert chk["comparison"] == "different" and chk["needs_confirmation"]  # partial -> hmac: not "stricter"
+    assert client.put("/policy/rules", json={"role": "support", "tag": "PII_HIGH", "action": "hmac"},
+                      headers=adm).status_code == 409
+    r = client.put("/policy/rules", json={"role": "support", "tag": "PII_HIGH", "action": "hmac", "confirm": True,
+                                          "reason": "tokens for the support pilot"}, headers=adm).json()
     assert r["changed"]
     out = client.post("/query", json=q, headers=demo(client, "support")).json()
     assert out["policy_version"] == r["version"] and len(out["rows"][0][0]) == 32

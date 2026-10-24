@@ -597,14 +597,14 @@ PAGES.policy = async (main) => {
   render();
   function editRule(role, tag, current, row) {
     const sel = h("select", {}, Object.entries(actions).map(([k, v]) => h("option", { value: k, selected: k === current }, `${k} · ${v.label}`)));
-    const reason = h("input", { placeholder: "Reason (required when weakening)" });
+    const reason = h("input", { placeholder: "Reason (required unless same or stricter)" });
     const confirm = h("input", { type: "checkbox" });
     const info = h("div", { class: "small" });
     const check = async () => {
       if (!can("policy.write")) { info.replaceChildren(badge("READ ONLY", "b-warn"), " Your role lacks policy.write; the server would refuse the change."); return null; }
       const r = await api("POST", "/policy/check", { role, tag, action: sel.value });
       if (!r.ok) { info.replaceChildren(errorBox(detail(r))); return null; }
-      info.replaceChildren(h("div", { class: "row" }, r.data.weakening ? badge("WEAKENS PROTECTION", "b-warn") : badge("SAME OR STRICTER", "b-ok"),
+      info.replaceChildren(h("div", { class: "row" }, r.data.comparison === "different" ? badge("REVEALS SOMETHING DIFFERENT", "b-warn") : r.data.weakening ? badge("WEAKENS PROTECTION", "b-warn") : badge("SAME OR STRICTER", "b-ok"),
         h("span", { class: "muted" }, `${r.data.current} → ${r.data.proposed}`)),
         ...r.data.warnings.map((w) => h("div", { class: "small", style: { color: "var(--warn)" } }, "⚠ " + w)));
       return r.data;
@@ -613,7 +613,7 @@ PAGES.policy = async (main) => {
     const apply = async () => {
       const c = await check();
       if (!c) return;
-      if (c.weakening && (!confirm.checked || !reason.value.trim())) { toast("Weakening needs a reason and the confirmation box", "warn"); return; }
+      if (c.weakening && (!confirm.checked || !reason.value.trim())) { toast("This change needs a reason and the confirmation box", "warn"); return; }
       const r = await api("PUT", "/policy/rules", { role, tag, action: sel.value, reason: reason.value, confirm: confirm.checked });
       if (!r.ok) { toast(detail(r), "bad"); return; }
       closeDialog(); toast(r.data.changed ? `Rule updated · policy ${r.data.version}` : "No change", r.data.changed ? "ok" : "info");

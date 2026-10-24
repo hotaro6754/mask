@@ -14,7 +14,8 @@ import copy, hashlib, json, os, threading, time
 from . import masks
 from .rewriter import PUBLIC, UNREVIEWED, action_for, compile_row_filter, tag_of
 
-# Strictness order: higher = more protective. Conflicts resolve to the strictest action.
+# Display order: higher = more protective. It is not a total order (see at_least_as_strict): partial, redact_text,
+# hmac and aggregate each reveal something the others hide, so changing one into another needs confirmation.
 ACTIONS = {
     "allow":       (0, "Full value", "Returned unchanged."),
     "partial":     (1, "Partial mask", "Separators and a few edge characters kept; the rest becomes X. Numbers rounded down to a bucket."),
@@ -50,7 +51,25 @@ EXAMPLES = {
 
 
 def strictness(action):
+    """Display rank only; use at_least_as_strict() to decide whether a change weakens protection."""
     return ACTIONS.get(action, ACTIONS["deny"])[0]
+
+
+def at_least_as_strict(a, b):
+    """True if action a never reveals more than action b. allow < {partial, redact_text, hmac, aggregate} < redact <
+    deny; the four middle actions are not comparable: edge characters, the rest of a text, linkability and noisy group
+    totals are different disclosures, so none of them is safely "stricter" than another."""
+    a, b = (x if x in ACTIONS else "deny" for x in (a, b))
+    return a == b or b == "allow" or a == "deny" or (a == "redact" and b != "deny")
+
+
+def compare(new, current):
+    """How a proposed action relates to the current one: same | stricter | weaker | different (not comparable)."""
+    if new == current:
+        return "same"
+    if at_least_as_strict(new, current):
+        return "stricter"
+    return "weaker" if at_least_as_strict(current, new) else "different"
 
 
 def version(policy):
@@ -88,7 +107,7 @@ def view_within(role, caller, policy):
     rules = policy["roles"]
     default = policy.get("default_action", "deny")
     for tag in known_tags(policy):
-        if strictness(rules[role].get(tag, default)) < strictness(rules[caller].get(tag, default)):
+        if not at_least_as_strict(rules[role].get(tag, default), rules[caller].get(tag, default)):
             return False
     rf = policy.get("row_filters") or {}
     return all((rf.get(role) or {}).get(t) == f for t, f in (rf.get(caller) or {}).items())
@@ -238,16 +257,21 @@ class PolicyStore:
                 f.write(json.dumps(entry) + "\n")
 
     def check_rule(self, role, tag, action):
-        """Dry run: (current action, warnings, weakening?) for a proposed change."""
+        """Dry run: (current action, warnings, needs confirmation?) for a proposed change. Confirmation is needed when
+        the change is weaker, or when the two actions are not comparable (e.g. hmac -> partial)."""
         if role not in self.policy["roles"]:
             raise PolicyError(f"unknown role: {role}")
         if action not in ACTIONS:
             raise PolicyError(f"unknown action: {action}; choose one of {', '.join(ACTIONS)}")
         current = self.policy["roles"][role].get(tag, self.policy.get("default_action", "deny"))
-        weaker = strictness(action) < strictness(current)
+        how = compare(action, current)
+        weaker = how in ("weaker", "different")
         warnings = []
-        if weaker:
+        if how == "weaker":
             warnings.append(f"weakens {role}/{tag}: {current} -> {action}")
+        elif how == "different":
+            warnings.append(f"changes what {role} learns from {tag}: {current} and {action} reveal different things "
+                            f"({ACTIONS[action][1].lower()} instead of {ACTIONS[current][1].lower()}); not stricter")
         if action == "allow" and tag in ("PII_HIGH", "FINANCIAL_CONFIDENTIAL", "HEALTH") and role != "admin":
             warnings.append(f"grants raw {tag} values to non-admin role {role}")
         if action == "allow" and tag == UNREVIEWED and role != "admin":
@@ -263,7 +287,8 @@ class PolicyStore:
             if current == action:
                 return {"changed": False, "version": version(self.policy), "warnings": []}
             if weaker and not (confirm and reason.strip()):
-                raise PolicyError("this change weakens protection; resend with confirm=true and a reason")
+                raise PolicyError("this change weakens protection or changes what is revealed; resend with "
+                                  "confirm=true and a reason")
             before = version(self.policy)
             new = copy.deepcopy(self.policy)
             new["roles"][role][tag] = action
@@ -273,6 +298,7 @@ class PolicyStore:
             self.policy.clear(); self.policy.update(new)  # in place: the gateway holds this dict
             entry = {"ts": time.time(), "actor": actor, "change": "set_rule", "role": role, "tag": tag,
                      "from": current, "to": action, "reason": reason, "weakening": weaker,
+                     "comparison": compare(action, current),
                      "version_before": before, "version_after": version(self.policy)}
             self._record(entry)
             return {"changed": True, "version": entry["version_after"], "warnings": warnings, "entry": entry}
