@@ -11,6 +11,8 @@ HARD_NEGATIVES = {  # ordinary columns that must not be pulled into review by th
     "sku": [f"SKU-{chr(65 + i % 26)}{i:05d}" for i in range(200)],
     "uuid": [f"{i:08x}-1f2e-4c3d-9a8b-{i * 7919:012x}" for i in range(200)],
     "bad_pan": [f"ABCD{c}1234F" for c in "DIMNOQRSUVWXYZ"] * 10,  # PAN-shaped, impossible holder type
+    # PAN-shaped product codes, a few of which pass the PAN check by chance (bharat-pii-bench's pan_sku decoy)
+    "pan_sku": [f"XKQ{'D' if i % 15 else 'P'}R{i:04d}Z" for i in range(200)],
     "ip": [f"10.0.{i // 250}.{i % 250}" for i in range(200)],
 }
 

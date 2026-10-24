@@ -89,19 +89,22 @@ def value_kind(sample):
     return None, None
 
 
-# Identifiers whose format is strict enough that even one value is evidence: an order-id or reference column almost
-# never contains an email address, a PAN or a valid IBAN by accident. (Aadhaar, cards and phone numbers are left out:
-# about one random 12- or 16-digit number in ten passes their checksum, and any 10-digit number can look like a phone.)
-SPARSE_KINDS = ("email", "pan", "iban")
+# Identifiers that are rare by accident in a column of other things: an order-id or reference column almost never
+# holds an email address, a PAN or a valid IBAN. (Aadhaar, cards and phone numbers are left out: about one random 12-
+# or 16-digit number in ten passes their checksum, and any 10-digit number can look like a phone.) The hits must stand
+# out: in a column where most values already have the identifier's shape (PAN-shaped product codes), some pass the
+# check by chance, so the checksum rules and the model decide those columns instead.
+SPARSE_SHAPES = {"email": re.compile(r"\S+@\S+"), "pan": re.compile(r"[A-Za-z]{5}\d{4}[A-Za-z]"),
+                 "iban": re.compile(r"[A-Za-z]{2}\d{2}[A-Za-z0-9 ]{10,40}")}
 
 
 def sparse_identifiers(sample):
     """A few strong-format identifiers in an otherwise ordinary column (a reference field someone typed an email
     into). Returns (kind, evidence) or (None, None); the caller tags the column for review, so it stays masked."""
-    vals = [v for v in sample if v is not None and str(v).strip()]
-    for kind in SPARSE_KINDS:
-        hits = {str(v).strip() for v in vals if _safe(VALIDATORS[kind], str(v).strip())}
-        if hits:
+    vals = [str(v).strip() for v in sample if v is not None and str(v).strip()]
+    for kind, shape in SPARSE_SHAPES.items():
+        hits = {v for v in vals if _safe(VALIDATORS[kind], v)}
+        if hits and sum(1 for v in vals if shape.fullmatch(v)) <= len(vals) / 2:
             return kind, (f"{len(hits)} distinct value(s) of {len(vals)} sampled look like {kind}: "
                           "a sparse identifier, needs review")
     return None, None
