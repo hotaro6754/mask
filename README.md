@@ -300,14 +300,21 @@ MaskGuard needs two secrets: `MASKGUARD_HMAC_KEY`, which turns values into analy
 | If missing | Generated | **Refuses to start.** Also refuses keys under 32 characters and placeholders such as `dev-only-…` |
 
 **What the HMAC key does.** When the policy gives a role a **token** for a column, MaskGuard runs each value
-through HMAC-SHA256 with this key and keeps 16 hex characters. Real output from the demo
+through HMAC-SHA256 with this key and keeps 32 hex characters (128 bits; 1.0.x kept 16, which is the first half of
+today's token). Output for the demo's first customer
 (`maskguard compare "SELECT ssn FROM users LIMIT 1" --roles admin,analyst`):
 
 | Stored value (what Admin sees) | Key | What the Analyst sees |
 |---|---|---|
-| `205-84-4078` | `dev-only-hmac-key-change-me` | `58fd7cb2ac03875b` |
-| `205-84-4078` again, in any row or table | same key | `58fd7cb2ac03875b` (same value + same key = same token) |
-| `205-84-4078` | `a-different-key-0123456789` | `52cb704a817fb775` (new key, new token) |
+| `205-84-4078` | `dev-only-hmac-key-change-me` | `58fd7cb2ac03875b6c94f1370f69f816` |
+| `205-84-4078` again, in any row or table | same key | `58fd7cb2ac03875b6c94f1370f69f816` (same value + same key = same token) |
+| `205-84-4078` | `a-different-key-0123456789` | `52cb704a817fb775540297564c22362f` (new key, new token) |
+| `205-84-4078` with `hmac: {scope: column}` | same key | `891a02b49b57616f6f849274c2308baa` in `users.ssn`, `afd87416488537927b4116bfaf77ce78` in another column |
+
+The token is **pseudonymous, not anonymous**: anyone holding the key can test guesses, and equal values give equal
+tokens, so analysts can join and count. If they shouldn't link one column to another, set `hmac: {scope: column}`
+in the policy: each column then gets its own tokens (a value still matches itself within its column). `hmac.length`
+takes 16 to 64 hex characters.
 
 - **Why a key:** the same value always gives the same token, so analysts can join and count without seeing it. A
   plain hash could be reversed by hashing every possible SSN or phone number; without the key, nobody can.
@@ -316,7 +323,8 @@ through HMAC-SHA256 with this key and keeps 16 hex characters. Real output from 
 - **Keep it stable:** a new key gives every value a new token. Anyone with the key can test guesses against tokens,
   so treat it like a password; never commit `data/secrets.yaml`.
 - **Where it is used:** in query results for columns whose action is `hmac` (default policy: the Analyst on
-  `PII_HIGH` and `HEALTH`), and inside the database by `mg_hmac` on PostgreSQL and MySQL. The gateway passes it to
+  `PII_HIGH` and `HEALTH`), and inside the database by `mg_token` on PostgreSQL and MySQL (after upgrading to 1.1,
+run `maskguard db-install` once so the database has it). The gateway passes it to
   its own database session; it is not stored in any table. Logins use the separate JWT secret.
 
 To use your own key in development instead, set `MASKGUARD_HMAC_KEY` (`export` on macOS/Linux, `$env:` in

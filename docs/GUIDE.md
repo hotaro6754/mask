@@ -108,7 +108,7 @@ The same question gives different answers to different people:
 |---|---|---|---|
 | Admin | `bharat.rana@example.com` | `4111-2222-3333-1111` | `4,52,310.50` |
 | Support | `b***@example.com` | `4111-XXXX-XXXX-1111` | `450000` (rounded down to 10,000) |
-| Analyst | a token like `b0d9e2c45fa1773e` | `REDACTED` | nothing individually; only group averages (and only in development) |
+| Analyst | a token like `423ef9aa927cc5b048aaaf98452d3bf1` | `REDACTED` | nothing individually; only group averages (and only in development) |
 | Auditor | `REDACTED` | `REDACTED` | `REDACTED` |
 
 ## 3. Who, what, where, when, why and how
@@ -493,7 +493,7 @@ the tag, the action and the rule that decided it.
 |---|---|---|---|
 | `allow` | The real value | `4111-2222-3333-1111` | Admin, data owners |
 | `partial` | Some characters, the rest replaced by `X`. Emails keep the first letter and domain. Numbers are rounded down to the bucket | `4111-XXXX-XXXX-1111`, `XXX-XX-4078`, `b***@example.com`, `450000` | Support |
-| `hmac` | A **keyed token**: the same input always gives the same token, but the token cannot be turned back into the value without the secret key | `b0d9e2c45fa1773e` | Analyst (lets them join and count without seeing identities) |
+| `hmac` | A **keyed token**: the same input always gives the same token, but the token cannot be turned back into the value without the secret key | `423ef9aa927cc5b048aaaf98452d3bf1` (32 hex characters) | Analyst (lets them join and count without seeing identities) |
 | `redact` | `REDACTED` (or `NULL` for numbers) | `REDACTED` | Auditor |
 | `redact_text` | The text, with identifiers inside it replaced | `Call [PHONE] about card [CARD]` | Support reading notes |
 | `aggregate` | Numbers only through noisy SUM/AVG/COUNT; never individually. **Experimental; off in production** | (section 22) | Analyst |
@@ -505,7 +505,7 @@ fingerprint; the same input always gives the same fingerprint, and you can't run
 of short IDs are easy to brute-force; keyed ones are not, as long as the key stays secret.
 
 Masks are computed **inside the database** by small functions MaskGuard installs: `mg_partial`, `mg_email`,
-`mg_hmac`, `mg_bucket` and `mg_redact_text`. They give byte-identical results on SQLite, PostgreSQL and MySQL.
+`mg_token` (and the 1.0.x `mg_hmac`), `mg_bucket` and `mg_redact_text`. They give byte-identical results on SQLite, PostgreSQL and MySQL.
 
 ## 12. Why mask inside the query
 
@@ -790,7 +790,7 @@ This is how MaskGuard goes from demo data to your own database. **Always try it 
 | Need | Why |
 |---|---|
 | A connection URL | `postgresql://user:password@host:5432/dbname` or `mysql://user:password@host:3306/dbname` |
-| Once: rights to create functions | It installs small masking functions (`mg_partial`, `mg_email`, `mg_hmac`, `mg_bucket`, `mg_redact_text`). On PostgreSQL it also enables the `pgcrypto` extension |
+| Once: rights to create functions | It installs small masking functions (`mg_partial`, `mg_email`, `mg_hmac`, `mg_token`, `mg_bucket`, `mg_redact_text`). On PostgreSQL it also enables the `pgcrypto` extension |
 | Always: read access to the tables | It only ever runs `SELECT` |
 | MySQL with binary logging | `log_bin_trust_function_creators=1`, so the functions can be created |
 

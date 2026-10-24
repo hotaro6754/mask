@@ -82,8 +82,9 @@ SUPPORT · support.sam
  name           ssn [PARTIAL]   email [PARTIAL]
  Matthew Rana   XXX-XX-4078     b***@example.com
 ANALYST · analyst.ali
- name [REDACT]   ssn [HMAC]         email [HMAC]
- REDACTED        58fd7cb2ac03875b   423ef9aa927cc5b0     (tokens depend on MASKGUARD_HMAC_KEY)
+ name [REDACT]   ssn [HMAC]                         email [HMAC]
+ REDACTED        58fd7cb2ac03875b6c94f1370f69f816   423ef9aa927cc5b048aaaf98452d3bf1
+                 (tokens depend on MASKGUARD_HMAC_KEY; these are for dev-only-hmac-key-change-me)
 ```
 
 Cards, the problem statement's example:

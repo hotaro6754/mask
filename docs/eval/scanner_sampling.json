@@ -1,0 +1,1220 @@
+{
+  "part_a_bharat_holdout": {
+    "columns_t2": 2880,
+    "columns_hardneg": 540,
+    "by_sample_size": {
+      "5": {
+        "hybrid": {
+          "macro_f1": {
+            "truthful": 0.9668,
+            "obfuscated": 0.968,
+            "misleading": 0.968
+          },
+          "per_label_all_conditions": {
+            "DATE_OF_BIRTH": {
+              "precision": 1.0,
+              "recall": 0.889,
+              "f1": 0.941,
+              "support": 180
+            },
+            "EMAIL": {
+              "precision": 1.0,
+              "recall": 1.0,
+              "f1": 1.0,
+              "support": 180
+            },
+            "IN_AADHAAR": {
+              "precision": 1.0,
+              "recall": 1.0,
+              "f1": 1.0,
+              "support": 180
+            },
+            "IN_BANK_ACCOUNT": {
+              "precision": 1.0,
+              "recall": 0.817,
+              "f1": 0.899,
+              "support": 180
+            },
+            "IN_GSTIN": {
+              "precision": 1.0,
+              "recall": 1.0,
+              "f1": 1.0,
+              "support": 180
+            },
+            "IN_IFSC": {
+              "precision": 1.0,
+              "recall": 1.0,
+              "f1": 1.0,
+              "support": 180
+            },
+            "IN_MOBILE": {
+              "precision": 0.952,
+              "recall": 1.0,
+              "f1": 0.976,
+              "support": 180
+            },
+            "IN_PAN": {
+              "precision": 1.0,
+              "recall": 1.0,
+              "f1": 1.0,
+              "support": 180
+            },
+            "IN_PASSPORT": {
+              "precision": 1.0,
+              "recall": 1.0,
+              "f1": 1.0,
+              "support": 180
+            },
+            "IN_PINCODE": {
+              "precision": 1.0,
+              "recall": 1.0,
+              "f1": 1.0,
+              "support": 180
+            },
+            "IN_UPI_ID": {
+              "precision": 1.0,
+              "recall": 1.0,
+              "f1": 1.0,
+              "support": 180
+            },
+            "IN_VEHICLE_REG": {
+              "precision": 1.0,
+              "recall": 1.0,
+              "f1": 1.0,
+              "support": 180
+            },
+            "IN_VOTER_ID": {
+              "precision": 1.0,
+              "recall": 1.0,
+              "f1": 1.0,
+              "support": 180
+            },
+            "PERSON_NAME": {
+              "precision": 1.0,
+              "recall": 0.989,
+              "f1": 0.994,
+              "support": 180
+            },
+            "POSTAL_ADDRESS": {
+              "precision": 1.0,
+              "recall": 0.767,
+              "f1": 0.868,
+              "support": 180
+            },
+            "NONE": {
+              "precision": 0.672,
+              "recall": 1.0,
+              "f1": 0.804,
+              "support": 180
+            }
+          },
+          "hardneg_fp_rate_benchmark_labels": 0.063,
+          "hardneg_any_tag_rate": 0.063,
+          "hardneg_fp_by_variant": {
+            "otp": 34
+          },
+          "missed_pii_columns": 88,
+          "ms_per_column": 1.46
+        },
+        "scanner": {
+          "macro_f1": {
+            "truthful": 0.9724,
+            "obfuscated": 0.968,
+            "misleading": 0.968
+          },
+          "per_label_all_conditions": {
+            "DATE_OF_BIRTH": {
+              "precision": 1.0,
+              "recall": 0.911,
+              "f1": 0.953,
+              "support": 180
+            },
+            "EMAIL": {
+              "precision": 1.0,
+              "recall": 1.0,
+              "f1": 1.0,
+              "support": 180
+            },
+            "IN_AADHAAR": {
+              "precision": 1.0,
+              "recall": 1.0,
+              "f1": 1.0,
+              "support": 180
+            },
+            "IN_BANK_ACCOUNT": {
+              "precision": 1.0,
+              "recall": 0.817,
+              "f1": 0.899,
+              "support": 180
+            },
+            "IN_GSTIN": {
+              "precision": 1.0,
+              "recall": 1.0,
+              "f1": 1.0,
+              "support": 180
+            },
+            "IN_IFSC": {
+              "precision": 1.0,
+              "recall": 1.0,
+              "f1": 1.0,
+              "support": 180
+            },
+            "IN_MOBILE": {
+              "precision": 0.952,
+              "recall": 1.0,
+              "f1": 0.976,
+              "support": 180
+            },
+            "IN_PAN": {
+              "precision": 1.0,
+              "recall": 1.0,
+              "f1": 1.0,
+              "support": 180
+            },
+            "IN_PASSPORT": {
+              "precision": 1.0,
+              "recall": 1.0,
+              "f1": 1.0,
+              "support": 180
+            },
+            "IN_PINCODE": {
+              "precision": 1.0,
+              "recall": 1.0,
+              "f1": 1.0,
+              "support": 180
+            },
+            "IN_UPI_ID": {
+              "precision": 1.0,
+              "recall": 1.0,
+              "f1": 1.0,
+              "support": 180
+            },
+            "IN_VEHICLE_REG": {
+              "precision": 1.0,
+              "recall": 1.0,
+              "f1": 1.0,
+              "support": 180
+            },
+            "IN_VOTER_ID": {
+              "precision": 1.0,
+              "recall": 1.0,
+              "f1": 1.0,
+              "support": 180
+            },
+            "PERSON_NAME": {
+              "precision": 1.0,
+              "recall": 0.989,
+              "f1": 0.994,
+              "support": 180
+            },
+            "POSTAL_ADDRESS": {
+              "precision": 1.0,
+              "recall": 0.778,
+              "f1": 0.875,
+              "support": 180
+            },
+            "NONE": {
+              "precision": 0.687,
+              "recall": 1.0,
+              "f1": 0.814,
+              "support": 180
+            }
+          },
+          "hardneg_fp_rate_benchmark_labels": 0.063,
+          "hardneg_any_tag_rate": 0.063,
+          "hardneg_fp_by_variant": {
+            "otp": 34
+          },
+          "missed_pii_columns": 82,
+          "ms_per_column": 1.55
+        }
+      },
+      "10": {
+        "hybrid": {
+          "macro_f1": {
+            "truthful": 0.9886,
+            "obfuscated": 0.9948,
+            "misleading": 0.9948
+          },
+          "per_label_all_conditions": {
+            "DATE_OF_BIRTH": {
+              "precision": 1.0,
+              "recall": 1.0,
+              "f1": 1.0,
+              "support": 180
+            },
+            "EMAIL": {
+              "precision": 1.0,
+              "recall": 1.0,
+              "f1": 1.0,
+              "support": 180
+            },
+            "IN_AADHAAR": {
+              "precision": 1.0,
+              "recall": 1.0,
+              "f1": 1.0,
+              "support": 180
+            },
+            "IN_BANK_ACCOUNT": {
+              "precision": 1.0,
+              "recall": 0.967,
+              "f1": 0.983,
+              "support": 180
+            },
+            "IN_GSTIN": {
+              "precision": 1.0,
+              "recall": 1.0,
+              "f1": 1.0,
+              "support": 180
+            },
+            "IN_IFSC": {
+              "precision": 1.0,
+              "recall": 1.0,
+              "f1": 1.0,
+              "support": 180
+            },
+            "IN_MOBILE": {
+              "precision": 1.0,
+              "recall": 1.0,
+              "f1": 1.0,
+              "support": 180
+            },
+            "IN_PAN": {
+              "precision": 1.0,
+              "recall": 1.0,
+              "f1": 1.0,
+              "support": 180
+            },
+            "IN_PASSPORT": {
+              "precision": 1.0,
+              "recall": 1.0,
+              "f1": 1.0,
+              "support": 180
+            },
+            "IN_PINCODE": {
+              "precision": 1.0,
+              "recall": 1.0,
+              "f1": 1.0,
+              "support": 180
+            },
+            "IN_UPI_ID": {
+              "precision": 1.0,
+              "recall": 1.0,
+              "f1": 1.0,
+              "support": 180
+            },
+            "IN_VEHICLE_REG": {
+              "precision": 1.0,
+              "recall": 1.0,
+              "f1": 1.0,
+              "support": 180
+            },
+            "IN_VOTER_ID": {
+              "precision": 1.0,
+              "recall": 1.0,
+              "f1": 1.0,
+              "support": 180
+            },
+            "PERSON_NAME": {
+              "precision": 1.0,
+              "recall": 1.0,
+              "f1": 1.0,
+              "support": 180
+            },
+            "POSTAL_ADDRESS": {
+              "precision": 1.0,
+              "recall": 0.917,
+              "f1": 0.957,
+              "support": 180
+            },
+            "NONE": {
+              "precision": 0.896,
+              "recall": 1.0,
+              "f1": 0.945,
+              "support": 180
+            }
+          },
+          "hardneg_fp_rate_benchmark_labels": 0.0352,
+          "hardneg_any_tag_rate": 0.0352,
+          "hardneg_fp_by_variant": {
+            "otp": 19
+          },
+          "missed_pii_columns": 21,
+          "ms_per_column": 1.86
+        },
+        "scanner": {
+          "macro_f1": {
+            "truthful": 0.9886,
+            "obfuscated": 0.9948,
+            "misleading": 0.9948
+          },
+          "per_label_all_conditions": {
+            "DATE_OF_BIRTH": {
+              "precision": 1.0,
+              "recall": 1.0,
+              "f1": 1.0,
+              "support": 180
+            },
+            "EMAIL": {
+              "precision": 1.0,
+              "recall": 1.0,
+              "f1": 1.0,
+              "support": 180
+            },
+            "IN_AADHAAR": {
+              "precision": 1.0,
+              "recall": 1.0,
+              "f1": 1.0,
+              "support": 180
+            },
+            "IN_BANK_ACCOUNT": {
+              "precision": 1.0,
+              "recall": 0.967,
+              "f1": 0.983,
+              "support": 180
+            },
+            "IN_GSTIN": {
+              "precision": 1.0,
+              "recall": 1.0,
+              "f1": 1.0,
+              "support": 180
+            },
+            "IN_IFSC": {
+              "precision": 1.0,
+              "recall": 1.0,
+              "f1": 1.0,
+              "support": 180
+            },
+            "IN_MOBILE": {
+              "precision": 1.0,
+              "recall": 1.0,
+              "f1": 1.0,
+              "support": 180
+            },
+            "IN_PAN": {
+              "precision": 1.0,
+              "recall": 1.0,
+              "f1": 1.0,
+              "support": 180
+            },
+            "IN_PASSPORT": {
+              "precision": 1.0,
+              "recall": 1.0,
+              "f1": 1.0,
+              "support": 180
+            },
+            "IN_PINCODE": {
+              "precision": 1.0,
+              "recall": 1.0,
+              "f1": 1.0,
+              "support": 180
+            },
+            "IN_UPI_ID": {
+              "precision": 1.0,
+              "recall": 1.0,
+              "f1": 1.0,
+              "support": 180
+            },
+            "IN_VEHICLE_REG": {
+              "precision": 1.0,
+              "recall": 1.0,
+              "f1": 1.0,
+              "support": 180
+            },
+            "IN_VOTER_ID": {
+              "precision": 1.0,
+              "recall": 1.0,
+              "f1": 1.0,
+              "support": 180
+            },
+            "PERSON_NAME": {
+              "precision": 1.0,
+              "recall": 1.0,
+              "f1": 1.0,
+              "support": 180
+            },
+            "POSTAL_ADDRESS": {
+              "precision": 1.0,
+              "recall": 0.917,
+              "f1": 0.957,
+              "support": 180
+            },
+            "NONE": {
+              "precision": 0.896,
+              "recall": 1.0,
+              "f1": 0.945,
+              "support": 180
+            }
+          },
+          "hardneg_fp_rate_benchmark_labels": 0.0352,
+          "hardneg_any_tag_rate": 0.0352,
+          "hardneg_fp_by_variant": {
+            "otp": 19
+          },
+          "missed_pii_columns": 21,
+          "ms_per_column": 1.8
+        }
+      },
+      "20": {
+        "hybrid": {
+          "macro_f1": {
+            "truthful": 0.999,
+            "obfuscated": 0.999,
+            "misleading": 0.999
+          },
+          "per_label_all_conditions": {
+            "DATE_OF_BIRTH": {
+              "precision": 1.0,
+              "recall": 1.0,
+              "f1": 1.0,
+              "support": 180
+            },
+            "EMAIL": {
+              "precision": 1.0,
+              "recall": 1.0,
+              "f1": 1.0,
+              "support": 180
+            },
+            "IN_AADHAAR": {
+              "precision": 1.0,
+              "recall": 1.0,
+              "f1": 1.0,
+              "support": 180
+            },
+            "IN_BANK_ACCOUNT": {
+              "precision": 1.0,
+              "recall": 1.0,
+              "f1": 1.0,
+              "support": 180
+            },
+            "IN_GSTIN": {
+              "precision": 1.0,
+              "recall": 1.0,
+              "f1": 1.0,
+              "support": 180
+            },
+            "IN_IFSC": {
+              "precision": 1.0,
+              "recall": 1.0,
+              "f1": 1.0,
+              "support": 180
+            },
+            "IN_MOBILE": {
+              "precision": 1.0,
+              "recall": 1.0,
+              "f1": 1.0,
+              "support": 180
+            },
+            "IN_PAN": {
+              "precision": 1.0,
+              "recall": 1.0,
+              "f1": 1.0,
+              "support": 180
+            },
+            "IN_PASSPORT": {
+              "precision": 1.0,
+              "recall": 1.0,
+              "f1": 1.0,
+              "support": 180
+            },
+            "IN_PINCODE": {
+              "precision": 1.0,
+              "recall": 1.0,
+              "f1": 1.0,
+              "support": 180
+            },
+            "IN_UPI_ID": {
+              "precision": 1.0,
+              "recall": 1.0,
+              "f1": 1.0,
+              "support": 180
+            },
+            "IN_VEHICLE_REG": {
+              "precision": 1.0,
+              "recall": 1.0,
+              "f1": 1.0,
+              "support": 180
+            },
+            "IN_VOTER_ID": {
+              "precision": 1.0,
+              "recall": 1.0,
+              "f1": 1.0,
+              "support": 180
+            },
+            "PERSON_NAME": {
+              "precision": 1.0,
+              "recall": 1.0,
+              "f1": 1.0,
+              "support": 180
+            },
+            "POSTAL_ADDRESS": {
+              "precision": 1.0,
+              "recall": 0.983,
+              "f1": 0.992,
+              "support": 180
+            },
+            "NONE": {
+              "precision": 0.984,
+              "recall": 1.0,
+              "f1": 0.992,
+              "support": 180
+            }
+          },
+          "hardneg_fp_rate_benchmark_labels": 0.0148,
+          "hardneg_any_tag_rate": 0.0148,
+          "hardneg_fp_by_variant": {
+            "otp": 8
+          },
+          "missed_pii_columns": 3,
+          "ms_per_column": 2.7
+        },
+        "scanner": {
+          "macro_f1": {
+            "truthful": 0.999,
+            "obfuscated": 0.999,
+            "misleading": 0.999
+          },
+          "per_label_all_conditions": {
+            "DATE_OF_BIRTH": {
+              "precision": 1.0,
+              "recall": 1.0,
+              "f1": 1.0,
+              "support": 180
+            },
+            "EMAIL": {
+              "precision": 1.0,
+              "recall": 1.0,
+              "f1": 1.0,
+              "support": 180
+            },
+            "IN_AADHAAR": {
+              "precision": 1.0,
+              "recall": 1.0,
+              "f1": 1.0,
+              "support": 180
+            },
+            "IN_BANK_ACCOUNT": {
+              "precision": 1.0,
+              "recall": 1.0,
+              "f1": 1.0,
+              "support": 180
+            },
+            "IN_GSTIN": {
+              "precision": 1.0,
+              "recall": 1.0,
+              "f1": 1.0,
+              "support": 180
+            },
+            "IN_IFSC": {
+              "precision": 1.0,
+              "recall": 1.0,
+              "f1": 1.0,
+              "support": 180
+            },
+            "IN_MOBILE": {
+              "precision": 1.0,
+              "recall": 1.0,
+              "f1": 1.0,
+              "support": 180
+            },
+            "IN_PAN": {
+              "precision": 1.0,
+              "recall": 1.0,
+              "f1": 1.0,
+              "support": 180
+            },
+            "IN_PASSPORT": {
+              "precision": 1.0,
+              "recall": 1.0,
+              "f1": 1.0,
+              "support": 180
+            },
+            "IN_PINCODE": {
+              "precision": 1.0,
+              "recall": 1.0,
+              "f1": 1.0,
+              "support": 180
+            },
+            "IN_UPI_ID": {
+              "precision": 1.0,
+              "recall": 1.0,
+              "f1": 1.0,
+              "support": 180
+            },
+            "IN_VEHICLE_REG": {
+              "precision": 1.0,
+              "recall": 1.0,
+              "f1": 1.0,
+              "support": 180
+            },
+            "IN_VOTER_ID": {
+              "precision": 1.0,
+              "recall": 1.0,
+              "f1": 1.0,
+              "support": 180
+            },
+            "PERSON_NAME": {
+              "precision": 1.0,
+              "recall": 1.0,
+              "f1": 1.0,
+              "support": 180
+            },
+            "POSTAL_ADDRESS": {
+              "precision": 1.0,
+              "recall": 0.983,
+              "f1": 0.992,
+              "support": 180
+            },
+            "NONE": {
+              "precision": 0.984,
+              "recall": 1.0,
+              "f1": 0.992,
+              "support": 180
+            }
+          },
+          "hardneg_fp_rate_benchmark_labels": 0.0148,
+          "hardneg_any_tag_rate": 0.0148,
+          "hardneg_fp_by_variant": {
+            "otp": 8
+          },
+          "missed_pii_columns": 3,
+          "ms_per_column": 2.63
+        }
+      }
+    }
+  },
+  "part_b_own_generator_heldout_seed": {
+    "generator_seed": 9001,
+    "columns": 920,
+    "by_sample_size": {
+      "5": {
+        "macro_f1": 0.9546,
+        "per_label": {
+          "aadhaar": {
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0,
+            "support": 40
+          },
+          "pan": {
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0,
+            "support": 40
+          },
+          "gstin": {
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0,
+            "support": 40
+          },
+          "upi": {
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0,
+            "support": 40
+          },
+          "phone": {
+            "precision": 0.952,
+            "recall": 1.0,
+            "f1": 0.976,
+            "support": 40
+          },
+          "pincode": {
+            "precision": 0.884,
+            "recall": 0.95,
+            "f1": 0.916,
+            "support": 40
+          },
+          "passport": {
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0,
+            "support": 40
+          },
+          "voter_id": {
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0,
+            "support": 40
+          },
+          "ifsc": {
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0,
+            "support": 40
+          },
+          "vehicle_reg": {
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0,
+            "support": 40
+          },
+          "bank_account": {
+            "precision": 1.0,
+            "recall": 0.875,
+            "f1": 0.933,
+            "support": 40
+          },
+          "name": {
+            "precision": 0.923,
+            "recall": 0.9,
+            "f1": 0.911,
+            "support": 40
+          },
+          "address": {
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0,
+            "support": 40
+          },
+          "email": {
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0,
+            "support": 40
+          },
+          "dob": {
+            "precision": 1.0,
+            "recall": 0.85,
+            "f1": 0.919,
+            "support": 40
+          },
+          "card": {
+            "precision": 0.952,
+            "recall": 1.0,
+            "f1": 0.976,
+            "support": 40
+          },
+          "iban": {
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0,
+            "support": 40
+          },
+          "ssn": {
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0,
+            "support": 40
+          },
+          "amount": {
+            "precision": 1.0,
+            "recall": 0.425,
+            "f1": 0.596,
+            "support": 40
+          },
+          "free_text": {
+            "precision": 1.0,
+            "recall": 0.975,
+            "f1": 0.987,
+            "support": 40
+          },
+          "none": {
+            "precision": 0.752,
+            "recall": 0.933,
+            "f1": 0.833,
+            "support": 120
+          }
+        },
+        "none_columns_tagged": 0.0667
+      },
+      "20": {
+        "macro_f1": 0.9766,
+        "per_label": {
+          "aadhaar": {
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0,
+            "support": 40
+          },
+          "pan": {
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0,
+            "support": 40
+          },
+          "gstin": {
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0,
+            "support": 40
+          },
+          "upi": {
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0,
+            "support": 40
+          },
+          "phone": {
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0,
+            "support": 40
+          },
+          "pincode": {
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0,
+            "support": 40
+          },
+          "passport": {
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0,
+            "support": 40
+          },
+          "voter_id": {
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0,
+            "support": 40
+          },
+          "ifsc": {
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0,
+            "support": 40
+          },
+          "vehicle_reg": {
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0,
+            "support": 40
+          },
+          "bank_account": {
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0,
+            "support": 40
+          },
+          "name": {
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0,
+            "support": 40
+          },
+          "address": {
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0,
+            "support": 40
+          },
+          "email": {
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0,
+            "support": 40
+          },
+          "dob": {
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0,
+            "support": 40
+          },
+          "card": {
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0,
+            "support": 40
+          },
+          "iban": {
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0,
+            "support": 40
+          },
+          "ssn": {
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0,
+            "support": 40
+          },
+          "amount": {
+            "precision": 1.0,
+            "recall": 0.425,
+            "f1": 0.596,
+            "support": 40
+          },
+          "free_text": {
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0,
+            "support": 40
+          },
+          "none": {
+            "precision": 0.839,
+            "recall": 1.0,
+            "f1": 0.913,
+            "support": 120
+          }
+        },
+        "none_columns_tagged": 0.0
+      },
+      "50": {
+        "macro_f1": 0.9759,
+        "per_label": {
+          "aadhaar": {
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0,
+            "support": 40
+          },
+          "pan": {
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0,
+            "support": 40
+          },
+          "gstin": {
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0,
+            "support": 40
+          },
+          "upi": {
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0,
+            "support": 40
+          },
+          "phone": {
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0,
+            "support": 40
+          },
+          "pincode": {
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0,
+            "support": 40
+          },
+          "passport": {
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0,
+            "support": 40
+          },
+          "voter_id": {
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0,
+            "support": 40
+          },
+          "ifsc": {
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0,
+            "support": 40
+          },
+          "vehicle_reg": {
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0,
+            "support": 40
+          },
+          "bank_account": {
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0,
+            "support": 40
+          },
+          "name": {
+            "precision": 1.0,
+            "recall": 0.975,
+            "f1": 0.987,
+            "support": 40
+          },
+          "address": {
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0,
+            "support": 40
+          },
+          "email": {
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0,
+            "support": 40
+          },
+          "dob": {
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0,
+            "support": 40
+          },
+          "card": {
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0,
+            "support": 40
+          },
+          "iban": {
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0,
+            "support": 40
+          },
+          "ssn": {
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0,
+            "support": 40
+          },
+          "amount": {
+            "precision": 1.0,
+            "recall": 0.425,
+            "f1": 0.596,
+            "support": 40
+          },
+          "free_text": {
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0,
+            "support": 40
+          },
+          "none": {
+            "precision": 0.833,
+            "recall": 1.0,
+            "f1": 0.909,
+            "support": 120
+          }
+        },
+        "none_columns_tagged": 0.0
+      },
+      "200": {
+        "macro_f1": 0.9766,
+        "per_label": {
+          "aadhaar": {
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0,
+            "support": 40
+          },
+          "pan": {
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0,
+            "support": 40
+          },
+          "gstin": {
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0,
+            "support": 40
+          },
+          "upi": {
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0,
+            "support": 40
+          },
+          "phone": {
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0,
+            "support": 40
+          },
+          "pincode": {
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0,
+            "support": 40
+          },
+          "passport": {
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0,
+            "support": 40
+          },
+          "voter_id": {
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0,
+            "support": 40
+          },
+          "ifsc": {
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0,
+            "support": 40
+          },
+          "vehicle_reg": {
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0,
+            "support": 40
+          },
+          "bank_account": {
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0,
+            "support": 40
+          },
+          "name": {
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0,
+            "support": 40
+          },
+          "address": {
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0,
+            "support": 40
+          },
+          "email": {
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0,
+            "support": 40
+          },
+          "dob": {
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0,
+            "support": 40
+          },
+          "card": {
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0,
+            "support": 40
+          },
+          "iban": {
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0,
+            "support": 40
+          },
+          "ssn": {
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0,
+            "support": 40
+          },
+          "amount": {
+            "precision": 1.0,
+            "recall": 0.425,
+            "f1": 0.596,
+            "support": 40
+          },
+          "free_text": {
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0,
+            "support": 40
+          },
+          "none": {
+            "precision": 0.839,
+            "recall": 1.0,
+            "f1": 0.913,
+            "support": 120
+          }
+        },
+        "none_columns_tagged": 0.0
+      }
+    }
+  }
+}

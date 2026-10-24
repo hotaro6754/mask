@@ -180,3 +180,47 @@ Status labels: **IMPLEMENTED** (in the code and covered by tests), **NOT IMPLEME
 | open-policy-agent/opa | Apache-2.0 | Explain modes; decision-log masking | Yes | Explain levels, audit-log masking |
 | cossacklabs/acra | Apache-2.0 (CE) | SQL censor deny/allow; unparsed-query log | Yes | Query-firewall stage |
 | fastapi/typer + Textualize/rich | MIT | `show_locals=False`, `NO_COLOR`, `print_json` | Yes | CLI defaults |
+
+---
+
+## E. Addendum (24 Oct 2026): research review, three papers, comparable products
+
+An external research and gap review of MaskGuard (24 Oct 2026) pointed to three IEEE papers and a set of comparable
+products. This section records what each says, what we changed because of it, and what we still do not claim. The
+paper summaries come from reading the papers. Product descriptions come from their public documentation as cited in
+the review; we did not install or run those products.
+
+### Papers
+
+| Paper | What it shows | What MaskGuard does with it |
+|---|---|---|
+| Fotache, Munteanu, Strimbei, Hrubaru. *Framework for the Assessment of Data Masking Performance Penalties in SQL Database Servers. Case Study: Oracle.* IEEE Access 11 (2023), 18520–18541. [doi:10.1109/ACCESS.2023.3247486](https://doi.org/10.1109/ACCESS.2023.3247486) | A method for measuring masking cost: the same random queries with and without masking, at several data sizes (TPC-H at 1, 10, 50 and 100 GB, 2,000 generated queries), compared by median and spread. On Oracle's built-in redaction, the median penalty was small (about 11%). | `bench/scale.py` follows the method on a smaller scale: the same queries directly and through the gateway, at several table sizes and query shapes, p50 and p95, with the environment recorded ([EVALUATION.md §6](EVALUATION.md#6-performance)). Our numbers are not comparable to theirs: a gateway that rewrites SQL in another process is not database-internal redaction, and our tables are far smaller. |
+| Pappachan, Zhang, He, Mehrotra. *Preventing Inferences through Data Dependencies on Sensitive Data.* IEEE TKDE 36(10) (2024), 5308–5327. [doi:10.1109/TKDE.2023.3336630](https://doi.org/10.1109/TKDE.2023.3336630) | Hiding a cell is not enough: denial constraints and function-based dependencies (a tax rate determined by a salary band, a city by a postcode) let an attacker infer the hidden value from cells that are shown. Their *full deniability* model counts any narrowing of a hidden value as leakage. In their experiments a data-cleaning tool (HoloClean) reconstructed hidden cells from such dependencies. | MaskGuard's attack tests cover query-level inference (predicates, ordering, joins, aggregates, small groups) on all three databases ([test_attack_matrix.py](../tests/test_attack_matrix.py)). They do **not** cover inference through business dependencies between columns that are shown and columns that are hidden. We state this as a known limit, not as solved: a column that determines a hidden one should itself be tagged. |
+| Prabowo et al. *Privacy-Preserving Tools and Technologies: Government Adoption and Challenges.* IEEE Access 13 (2025), 33904–33934. [doi:10.1109/ACCESS.2025.3540878](https://doi.org/10.1109/ACCESS.2025.3540878) | A systematic review of privacy-enhancing technologies in government. It lists masking's weakness as limited protection against sophisticated attacks, and names privacy impact assessment and the privacy–utility balance as open problems. | Used as motivation only ([ROADMAP.md](ROADMAP.md)). A survey is not evidence that MaskGuard is better than any product. |
+
+### Comparable products
+
+| Product | What it does | How MaskGuard differs |
+|---|---|---|
+| [PostgreSQL Anonymizer](https://postgresql-anonymizer.readthedocs.io/en/stable/) | Static and dynamic masking inside PostgreSQL: masking rules as security labels, masked views or roles, anonymised dumps, many masking functions. | The closest technical comparison (studied at source level in §B.10). It is PostgreSQL only and has no column discovery from values. MaskGuard is one gateway for SQLite, PostgreSQL and MySQL, and adds discovery. |
+| [Microsoft SQL Server Dynamic Data Masking](https://learn.microsoft.com/en-us/sql/relational-databases/security/dynamic-data-masking) | Built-in masking of query results, with simple masks and an UNMASK permission. Microsoft's documentation warns that it does not stop users who can run ad-hoc queries from inferring masked values, for example with predicates or brute force. | That warning describes the gap MaskGuard targets: it masks inside the query, so `WHERE`, `JOIN`, `ORDER BY` and aggregates run on masked values. Like DDM, it does not protect against someone who has direct database credentials. |
+| [Apache Ranger](https://apache.github.io/ranger/) | Central policies, tag-based column masking with per-engine SQL templates, and audit across a Hadoop-style data platform. | An enterprise policy system with an engine plugin per platform. MaskGuard took two ideas from it: dialect templates and the policy version in each audit entry (§B.11). |
+| [Microsoft Presidio](https://microsoft.github.io/presidio/) | PII detection and anonymisation in text and structured data, with regular expressions, checksums, NER and context words. | A detection library, not a query gateway. It is the natural candidate for names and addresses inside free text, which MaskGuard does not detect yet. |
+| [Google Cloud Sensitive Data Protection](https://cloud.google.com/sensitive-data-protection/docs), [Amazon Macie](https://docs.aws.amazon.com/macie/latest/user/discovery-asdd.html) | Managed discovery by sampling, plus transformations (redaction, masking, tokenisation, bucketing). | Cloud services for discovery and de-identification. MaskGuard runs locally and enforces masking on each query. |
+
+**What we do not claim.** We do not claim to be the first dynamic masking tool or the first AI-based PII detector.
+What MaskGuard combines is:
+- column discovery from names and values, including misleading names and Indian identifiers;
+- one masking policy enforced inside the SQL for three databases;
+- unreviewed columns hidden until reviewed;
+- attack and inference tests per role and database;
+- a local, reviewable audit trail and integrity proofs.
+
+### Datasets (and licence cautions)
+
+| Dataset | Use | Caution |
+|---|---|---|
+| [bharat-pii-bench](https://github.com/dnanatihor/bharat-pii-bench) (Apache-2.0) | Column scanner (T2) and identifiers in text (T3): our external benchmark. | Synthetic. We exported it with the benchmark's own scripts (`bench/bpb_export.py`) and never tuned on the holdout seeds. |
+| [ai4privacy/pii-masking-300k](https://huggingface.co/datasets/ai4privacy/pii-masking-300k) | Names and addresses in prose (future NER work). | Read the dataset's own licence terms before training on it or redistributing it. It is text-level, not a column benchmark. |
+| Kaggle Bank Customer Churn | A realistic banking schema shape. | Provenance and licence unclear: use it only to derive a synthetic fixture with the same columns, and never commit the file. |
+| [mbazouz/synthetic-bank-dataset](https://github.com/mbazouz/synthetic-bank-dataset) | Generator for customers, accounts, cards, loans and transactions. | PolyForm Noncommercial 1.0.0. Not used. A hackathon with prizes may count as commercial use. |

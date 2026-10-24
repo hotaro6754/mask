@@ -74,6 +74,10 @@ are listed with their status in the report.
 
 ## 5. Test totals (this run)
 
+> **Dated snapshot (13 Oct 2026).** The 416 below is the count at that time. Later releases added tests (513 in
+> 1.0.3, 18 Oct; more in 1.1.0), so the README's current figure is higher. The README and `docs/EVALUATION.md` §7
+> give the current count with its date and commit. Neither number replaces the other.
+
 | Check | Result |
 |---|---|
 | `pytest` on SQLite + PostgreSQL 16 + MySQL 8.4 (`MASKGUARD_TEST_PG`, `MASKGUARD_TEST_MYSQL` set) | **416 passed, 0 failed, 0 skipped** (8 min 31 s; rerun after the audit fixes on 13 Oct) |

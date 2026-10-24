@@ -94,7 +94,7 @@ the gateway.
 | Action | SQL emitted | Notes |
 |---|---|---|
 | partial | `mg_partial(col, prefix, suffix)` / `mg_email(col)` / `mg_bucket(num, 10000)` | Separators kept, so formats stay readable. Output is byte-identical across SQLite (Python UDF), PostgreSQL (PL/pgSQL) and MySQL (stored function) |
-| hmac | `mg_hmac(col)`, keyed HMAC-SHA256, 16 hex characters | Deterministic, so joins and counts still work. The key comes from `MASKGUARD_HMAC_KEY` (fail closed if missing). It is **not** encryption: tokens can't be reversed, but equal values give equal tokens (frequency analysis) |
+| hmac | `mg_token(col, scope, 32)`, keyed HMAC-SHA256, 32 hex characters (128 bits; `hmac.length` 16–64). Scope is empty by default, or `table.column` with `hmac: {scope: column}` | Deterministic, so joins and counts still work (across columns only with the default global scope). Pseudonymous, not anonymous. The key comes from `MASKGUARD_HMAC_KEY` (fail closed if missing). It is **not** encryption: tokens can't be reversed, but equal values give equal tokens (frequency analysis) |
 | redact_text | `mg_redact_text(col)` | 21 ordered patterns: identifiers inside text become `[PHONE]`, `[AADHAAR]` and so on |
 | aggregate | `LEAST(GREATEST(col, lo), hi)` inside the view, plus Laplace noise on SUM/AVG/COUNT | Any other use of the column is redacted. Bounds are per table and column (`dp.bounds.<table>.<col>`); a reference that can't be tied to one table gets no noisy release. Not a formal DP guarantee: known gaps and the proposed fix are in `docs/design/PRIVACY_ACCOUNTING.md`. Refused in production (the gateway rejects the query before charging any budget) |
 | redact | `'REDACTED'` / typed NULL | |
