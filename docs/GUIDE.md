@@ -1319,7 +1319,7 @@ request id you can look up in the audit log.
 | If you want… | Read |
 |---|---|
 | The overview with screenshots | [README.md](../README.md) |
-| To watch it | [demo_full.mp4](demo_full.mp4) (10 minutes, captioned) |
+| To watch it | [demo_full.mp4](demo_full.mp4) (12 minutes, captioned) |
 | The exact demo commands and expected output | [DEMO_RUNBOOK.md](DEMO_RUNBOOK.md) |
 | The security boundary and design | [ARCHITECTURE.md](ARCHITECTURE.md) |
 | How every number was measured | [EVALUATION.md](EVALUATION.md) |

@@ -101,7 +101,7 @@ Upgrade with `pip install -U maskguard`. On your own database, review the `UNREV
 - [Beginner's guide](https://github.com/hotaro6754/mask/blob/claude/zealous-bell-me62fn/docs/GUIDE.md): every term,
   with diagrams and step-by-step workflows
 - [Deployment guide](https://github.com/hotaro6754/mask/blob/claude/zealous-bell-me62fn/docs/DEPLOYMENT.md)
-- [10-minute walkthrough video](https://github.com/hotaro6754/mask/blob/claude/zealous-bell-me62fn/docs/demo_full.mp4)
+- [12-minute walkthrough video](https://github.com/hotaro6754/mask/blob/claude/zealous-bell-me62fn/docs/demo_full.mp4)
 
 Noisy analyst aggregates are experimental and refused in production until an independent privacy review. Licensed
 under Apache-2.0.

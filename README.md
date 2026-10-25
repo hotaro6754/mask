@@ -19,7 +19,7 @@ every query so each role sees only what its policy allows. Stored data never cha
 [Deployment guide](docs/DEPLOYMENT.md) · [FAQ](#faq)
 
 <a href="https://github.com/hotaro6754/mask/blob/claude/zealous-bell-me62fn/docs/demo_full.mp4">
-  <img src="docs/img/demo-video.png" alt="Watch the full MaskGuard walkthrough (10 minutes)" width="820">
+  <img src="docs/img/demo-video.png" alt="Watch the full MaskGuard walkthrough (12 minutes)" width="820">
 </a>
 
 </div>
@@ -511,16 +511,18 @@ MaskGuard component.
 ## Submission material
 
 - `docs/MaskGuard_Round1_Submission.pptx`: the Round 1 deck.
-- [`docs/demo_full.mp4`](docs/demo_full.mp4): the full walkthrough of 1.0.3 (10 minutes, captioned, no audio). It covers:
+- [`docs/demo_full.mp4`](docs/demo_full.mp4): the full walkthrough of 1.1.0 (12 minutes, captioned, no audio; every
+  terminal and browser scene is a real recording of the 1.1.0 wheel). It covers:
   - the problem, and how MaskGuard sorts and hides;
   - **your own database**: first run, connecting a clinic database it has never seen, automatic discovery (health
     data, money, staff names, misleading column names), unreviewed columns hidden, review in two commands, the four
-    roles, free text, a guessing attempt and the integrity proof;
-  - how the masking works on the demo bank: rewritten SQL, firewall, 17 attacks, the threat engine, the console;
+    roles with 128-bit tokens, free text, a guessing attempt and the integrity proof;
+  - how the masking works on the demo bank: rewritten SQL, firewall, 17 attacks, the threat engine, a policy change
+    refused until confirmed, the audit chain head and `--anchor`, the console;
   - the Control Room;
   - production on the clinic database: refusals, read-only account, the CLI proof as a real account, the audit log;
   - the 45-check end-to-end test in isolated containers, recorded live;
-  - what is not claimed: the privacy review status.
+  - evidence and limits: the attack matrix and a latency run recorded live, the privacy review status.
 - `docs/demo.mp4`: the earlier, shorter walkthrough.
 - `docs/IMPLEMENTATION_REPORT.md`: requirements matrix with evidence-based status, test totals and remaining work.
 - `docs/EVALUATION.md` and `docs/eval/*.json`: every number behind the claims above.
