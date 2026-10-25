@@ -55,7 +55,9 @@ read-only account: it refuses to start on any unsafe setting.
   upgrading, run `maskguard db-install` once on PostgreSQL or MySQL**: production refuses to start until the new
   `mg_token` function is installed.
 - **Scanner:** samples non-empty values, so a mostly-empty column is classified on real data. A column with even one
-  email, PAN or IBAN among ordinary values is tagged for review, and stays masked.
+  email, PAN or IBAN among ordinary values is tagged for review, and stays masked. **Fix:** with the full 200-value
+  sample, 1.0.x read postal-address columns as non-PII (the model was trained on 20–60 values); it now scores blocks
+  of 20 and averages them: macro-F1 1.000 at 200 values on bharat-pii-bench (was 0.917).
 - **Policy edits:** changing a rule between `partial`, `redact_text`, `hmac` and `aggregate` now needs confirmation and
   a reason. Each of the four reveals something the others hide, so none is "stricter" than another.
 - **Audit:** the log file is readable only by its owner. `maskguard audit verify` prints the chain head to record

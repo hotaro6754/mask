@@ -76,3 +76,22 @@ def test_rule_kind_threshold():
 def test_model_metadata_is_present():
     clf = Classifier.get()
     assert clf.kinds == synth.KINDS and clf.booster.num_feature() == len(FEATURE_NAMES)
+
+
+def test_a_long_sample_is_scored_in_training_sized_blocks():
+    """Features such as the shortest and longest value drift as a sample grows; with 200 values an address column was
+    read as non-PII. The model now averages blocks of 20 values, so 200 values are no worse than 20."""
+    from maskguard.ml.model import blocks
+    r = random.Random(11)
+    values = [synth.address(r) for _ in range(200)]
+    values[17], values[133], values[150] = "??", "x", values[3] * 4  # malformed and outlier values, as in real data
+    assert [len(b) for b in blocks(values)] == [20] * 10 and len(blocks(values[:20])) == 1
+    for n in (20, 60, 200):
+        assert decide("col_07", values[:n])["kind"] == "address", n
+
+
+def test_a_leading_zero_anywhere_rules_out_pin_codes():
+    r = random.Random(3)
+    otps = [f"{r.randint(100000, 999999)}" for _ in range(60)]
+    otps[45] = "012345"  # in the third block: averaging alone would outvote it
+    assert decide("field_c", otps)["kind"] != "pincode"

@@ -191,6 +191,7 @@ repository and a JSON file in `docs/eval/`.
 |---|---|---|
 | PII discovery with misleading column names, macro-F1 (bharat-pii-bench, unseen seeds), **5 sample values** per column | **0.965** | 0.844 |
 | Same, 20 sample values per column | **0.999** | 0.844 |
+| Same, 200 sample values per column (what the scanner reads by default; 0% false alarms) | **1.000** | 0.844 (22.2% false alarms) |
 | False alarms on look-alike data (order numbers, SKUs, OTPs…), 5 / 20 values | **6.3% / 1.5%** | 22.2% |
 | PII leaks across 17 bypass and inference attacks | **0 / 17** | 15 / 17 on PostgreSQL, 14 / 17 on SQLite and MySQL (naive masking) |
 | Simulated insider attacks detected (normal users blocked) | **95–100% (0%)** | — |
@@ -208,7 +209,7 @@ development, off in production, not claimed.
 
 | Capability | Status | Evidence |
 |---|---|---|
-| Column discovery from names and sample values (identifiers, Indian formats, misleading names) | Measured | bharat-pii-bench holdout at 5/10/20 values, per-label precision/recall: [EVALUATION §1](docs/EVALUATION.md#1-pii-discovery-ml-scanner--external-benchmark), `docs/eval/scanner_*.json` |
+| Column discovery from names and sample values (identifiers, Indian formats, misleading names) | Measured | bharat-pii-bench holdout at 5 to 200 values, per-label precision/recall: [EVALUATION §1](docs/EVALUATION.md#1-pii-discovery-ml-scanner--external-benchmark), `docs/eval/scanner_*.json` |
 | Health data, staff names, personal attributes, money | Tested | Clinic database in `scripts/e2e/` and `tests/test_onboarding.py`; no public benchmark |
 | Mostly-empty, mixed and sparse columns | Tested | `tests/test_sampling.py` (null-heavy case on all three databases) |
 | Unreviewed columns hidden until a person approves them | Tested | `tests/test_hardening.py`, e2e checks |

@@ -18,7 +18,7 @@ once on seeds **301–360** (2,880 T2 columns + 540 hard-negative columns), whic
 | Detector | Truthful | Obfuscated | Misleading | Hard-negative false positives |
 |---|---|---|---|---|
 | bharat-pii-bench `regex_checksum` (their baseline) | 0.844 | 0.844 | 0.844 | 22.2% |
-| MaskGuard v1 (rules + header words) | 0.450 | 0.259 | 0.259 | 0.0% |
+| MaskGuard v1 (rules + header words; 1.1 run) | 0.386 | 0.259 | 0.259 | 0.0% |
 | MaskGuard ML only (LightGBM) | 0.986 | 0.997 | 0.997 | 1.5% |
 | **MaskGuard hybrid (checksums + LightGBM)** | **0.999** | **0.999** | **0.999** | **1.5%** |
 
@@ -49,13 +49,42 @@ or IBAN in an ordinary column → tag for review) flagged 46 of 60 `pan_sku` dec
 product codes pass the PAN check by chance. The band now ignores columns where most values already have the
 identifier's shape; the numbers above are after that fix, and identical to the hybrid's own hard-negative rate.
 
-50 and 200 values could not be scored on the benchmark without re-exporting it, which needs running the benchmark's
-own code; we did not. Instead, part B of the same script uses MaskGuard's own generator on a held-out seed (9001; 920
-columns, 200 values each). That is the distribution the model was trained on, so it shows the effect of sample size
-only, not generalisation: macro-F1 0.955 at 5 values, 0.977 at 20, 0.976 at 50, 0.977 at 200, and non-PII columns
-tagged 6.7% at 5 values, 0% from 20 up. More values than 20 did not help. (`amount` recall is 0.43 at every size by
-design: money is tagged only when the column name ties it to a person; `unit_price` is not personal.)
-`docs/eval/scanner_sampling.json`.
+**50 and 200 values, and a scanner fix (25 Oct 2026).** The production scanner reads up to 200 values per column, so
+we exported the benchmark again with its own scripts at 200 values per column (`bench/bpb_export.py … 200`): the same
+holdout seeds 301–360 (hard negatives from seed 777), and separately a development set (seeds 1–60, hard-negative seed
+555) for any decision. The first run exposed a defect: **more values made the scanner worse.** Every postal-address
+column was read as non-PII at 200 values (macro-F1 0.917, 180 PII columns missed). Several of the model's features
+are extremes, such as the shortest and the longest value, and they drift as a sample grows. The model was trained on
+columns of 20–60 values. Those columns stayed `UNREVIEWED`, so they were masked, but their label was wrong.
+
+The fix: the model now scores blocks of 20 values (the training minimum), up to 10 blocks, and averages them, so
+all 200 values are used. Columns of up to 20 values are scored exactly as before, and the results above are
+unchanged. One fact is checked on the whole sample instead of being averaged away: a six-digit value starting with 0
+rules out Indian PIN codes. We compared the first 20 values against blocks of 20, 30 and 40 on the development set
+only, and then scored the holdout once:
+
+| Values per column (200-value export) | Macro-F1 truthful / obfuscated / misleading | PII columns missed (of 2,880) | Hard-negative columns tagged (of 540) | ms per column |
+|---|---|---|---|---|
+| 5 | 0.983 / 0.975 / 0.975 | 69 | 7.6% | 1.0 |
+| 20 | 0.985 / 0.985 / 0.985 | 42 | 1.8% | 2.1 |
+| 50 | 0.996 / 0.998 / 0.998 | 8 | 0.2% | 4.4 |
+| **200** | **1.000 / 1.000 / 1.000** | **0** | **0%** | 17 |
+
+Before the fix the same holdout scored 0.959 / 0.968 / 0.968 at 50 values and 0.917 at 200. The benchmark's
+`regex_checksum` baseline scores 0.844 with 22.2% hard-negative false positives at 200 values, the same as at 20. On the development set,
+blocks of 20 also gave 1.000 at 200 values. The 20-value rows here differ from the table above because the 200-value
+export draws different values for the same seeds. `docs/eval/scanner_sampling_200.json`;
+`tests/test_ml_scanner.py` keeps a 200-value address column and a leading-zero OTP column as regressions.
+
+Part B of `bench/eval_sampling.py` uses MaskGuard's own generator on a held-out seed (9001; 920 columns of 200
+values). It is the training distribution, so it only shows the effect of sample size: macro-F1 0.955 at 5 values and
+0.977 at 20, 50 and 200. `amount` recall is 0.43 at every size by design: money is tagged only when the column name
+ties it to a person (`unit_price` is not personal). `docs/eval/scanner_sampling.json`.
+
+**The rules-only fallback** (used when LightGBM can't load) scores 0.386 / 0.259 / 0.259 on the 20-value holdout,
+down from 0.450 on truthful names before 1.0.2. Since 1.0.2 it checks free text before the column name, so
+`postal_address` columns, whose values contain PIN codes, are tagged `PII_IN_TEXT`. They are still masked, and more
+strictly for support, but the benchmark's label is `POSTAL_ADDRESS`.
 
 **Not covered by this benchmark (added in 1.0.3):** health data (ICD-10 codes and blood groups by value, health words
 by column name), names with a title, personal attributes by column name, and more money headers. They sit outside the

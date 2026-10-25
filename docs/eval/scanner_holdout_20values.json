@@ -2,8 +2,8 @@
   "columns": 3420,
   "max_values": null,
   "ms_per_column": {
-    "ml": 1.57,
-    "hybrid": 2.26
+    "ml": 1.06,
+    "hybrid": 1.5
   },
   "results": {
     "bpb regex_checksum": {
@@ -27,7 +27,7 @@
       }
     },
     "MaskGuard v1 rules": {
-      "truthful": 0.45,
+      "truthful": 0.3864,
       "obfuscated": 0.2591,
       "misleading": 0.2591,
       "hardneg_fp_rate": 0.0,

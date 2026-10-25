@@ -7,7 +7,7 @@ Decision order (fail closed):
   3. review band: if the model is not confident the column is non-PII (none + amount + free_text < 0.5) and
      some PII kind has p >= 0.25, the column is still tagged (and masked), marked "review"
 """
-import gzip, json, os, random, time
+import gzip, json, os, random, re, time
 
 import numpy as np
 
@@ -67,11 +67,33 @@ class Classifier:
         return cls._instance
 
     def proba(self, header, values):
-        return self.booster.predict(column_features(header, values)[None, :])[0]
+        return self.proba_many([(header, values)])[0]
 
     def proba_many(self, columns):
-        X = np.stack([column_features(h, v) for h, v in columns])
-        return self.booster.predict(X)
+        """Class probabilities per column, averaged over blocks of BLOCK values (see blocks())."""
+        feats, owner = [], []
+        for i, (h, v) in enumerate(columns):
+            for b in blocks(v):
+                feats.append(column_features(h, b))
+                owner.append(i)
+        p, owner = self.booster.predict(np.stack(feats)), np.asarray(owner)
+        return np.stack([p[owner == i].mean(0) for i in range(len(columns))])
+
+
+# The model was trained on columns of 20-60 values, and several features are extremes (shortest and longest value,
+# fewest digits ...) that drift as a sample grows: with 200 values every postal-address column of bharat-pii-bench was
+# read as non-PII. So it scores blocks of BLOCK values, the training minimum, and averages them; up to 200 values are
+# still used. Up to BLOCK values this is exactly one block, as before. Chosen on a development export (seeds 1-60).
+BLOCK, MAX_BLOCKS = 20, 10
+_NOT_PIN = re.compile(r"0\d{5}")
+
+
+def blocks(values):
+    vals = list(values)
+    if len(vals) <= BLOCK:
+        return [vals]
+    parts = [vals[i:i + BLOCK] for i in range(0, min(len(vals), BLOCK * MAX_BLOCKS), BLOCK)]
+    return [b for b in parts if len(b) >= BLOCK // 2]  # a short tail block would be a different distribution
 
 
 def rule_kind(values, threshold=0.6):
@@ -99,6 +121,10 @@ def decide(header, values, probs=None, kinds=None):
     rk, rr = rule_kind(values)
     if probs is None:
         probs = Classifier.get().proba(header, values)
+    if "pincode" in kinds and any(_NOT_PIN.fullmatch(str(v).strip()) for v in values if v is not None):
+        probs = np.array(probs, dtype=float)  # Indian PIN codes never start with 0: a whole-sample fact, not a
+        probs[kinds.index("pincode")] = 0.0   # block average (one such value is enough to rule them out)
+        probs = probs / (probs.sum() or 1.0)
     order = np.argsort(probs)[::-1]
     top, p = kinds[order[0]], float(probs[order[0]])
     top3 = {kinds[i]: round(float(probs[i]), 3) for i in order[:3]}

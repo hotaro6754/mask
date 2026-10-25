@@ -1,6 +1,8 @@
 """How the scanner degrades with fewer sampled values per column, with per-label precision and recall.
 
     uv run python bench/eval_sampling.py bpb_holdout.json --out docs/eval/scanner_sampling.json
+    uv run python bench/eval_sampling.py bpb_holdout_200.json --sizes 5,20,50,200 --no-generator \
+        --out docs/eval/scanner_sampling_200.json     (an export with 200 values per column: bpb_export.py ... 200)
 
 Part A: the bharat-pii-bench T2 holdout (seeds 301-360, never used for tuning; hard negatives from seed 777). The
 export has 20 values per column, so it is scored at 5, 10 and 20 values. Detectors: the hybrid decision alone and
@@ -96,9 +98,12 @@ def main():
     ap.add_argument("columns", help="bench/bpb_export.py output (20 values per column)")
     ap.add_argument("--out")
     ap.add_argument("--per-kind", type=int, default=40)
+    ap.add_argument("--sizes", default="5,10,20", help="values per column to score the benchmark export at")
+    ap.add_argument("--no-generator", action="store_true", help="skip part B (own generator)")
     args = ap.parse_args()
-    report = {"part_a_bharat_holdout": part_a(json.load(open(args.columns)), (5, 10, 20)),
-              "part_b_own_generator_heldout_seed": part_b((5, 20, 50, 200), args.per_kind)}
+    report = {"part_a_bharat_holdout": part_a(json.load(open(args.columns)), [int(x) for x in args.sizes.split(",")])}
+    if not args.no_generator:
+        report["part_b_own_generator_heldout_seed"] = part_b((5, 20, 50, 200), args.per_kind)
     if args.out:
         json.dump(report, open(args.out, "w"), indent=2)
 

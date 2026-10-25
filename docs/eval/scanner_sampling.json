@@ -114,7 +114,7 @@
             "otp": 34
           },
           "missed_pii_columns": 88,
-          "ms_per_column": 1.46
+          "ms_per_column": 0.94
         },
         "scanner": {
           "macro_f1": {
@@ -226,7 +226,7 @@
             "otp": 34
           },
           "missed_pii_columns": 82,
-          "ms_per_column": 1.55
+          "ms_per_column": 0.89
         }
       },
       "10": {
@@ -340,7 +340,7 @@
             "otp": 19
           },
           "missed_pii_columns": 21,
-          "ms_per_column": 1.86
+          "ms_per_column": 1.26
         },
         "scanner": {
           "macro_f1": {
@@ -452,7 +452,7 @@
             "otp": 19
           },
           "missed_pii_columns": 21,
-          "ms_per_column": 1.8
+          "ms_per_column": 1.29
         }
       },
       "20": {
@@ -566,7 +566,7 @@
             "otp": 8
           },
           "missed_pii_columns": 3,
-          "ms_per_column": 2.7
+          "ms_per_column": 1.71
         },
         "scanner": {
           "macro_f1": {
@@ -678,7 +678,7 @@
             "otp": 8
           },
           "missed_pii_columns": 3,
-          "ms_per_column": 2.63
+          "ms_per_column": 1.89
         }
       }
     }
@@ -952,7 +952,7 @@
         "none_columns_tagged": 0.0
       },
       "50": {
-        "macro_f1": 0.9759,
+        "macro_f1": 0.9766,
         "per_label": {
           "aadhaar": {
             "precision": 1.0,
@@ -1022,8 +1022,8 @@
           },
           "name": {
             "precision": 1.0,
-            "recall": 0.975,
-            "f1": 0.987,
+            "recall": 1.0,
+            "f1": 1.0,
             "support": 40
           },
           "address": {
@@ -1075,9 +1075,9 @@
             "support": 40
           },
           "none": {
-            "precision": 0.833,
+            "precision": 0.839,
             "recall": 1.0,
-            "f1": 0.909,
+            "f1": 0.913,
             "support": 120
           }
         },
