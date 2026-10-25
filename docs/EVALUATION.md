@@ -29,6 +29,34 @@ the two are indistinguishable from values alone.
 
 `bench/bpb_export.py` (run in the benchmark's venv) → `bench/eval_scanner.py` → `docs/eval/scanner_holdout_*.json`.
 
+**How many values does the scanner need? (1.1, 24 Oct 2026)** `bench/eval_sampling.py` scores the same holdout at 5,
+10 and 20 values per column (the export has 20). It uses non-null values first, as the scanner reads them. It scores
+both the hybrid decision and the **full production scanner** (`classify_column`: hybrid + value patterns + free text
++ the sparse-identifier band + header rules). For hard negatives it counts *any* tag as a false alarm.
+
+| Values per column | Macro-F1 truthful / obfuscated / misleading | PII columns missed (of 2,880) | Hard-negative columns tagged (of 540) | ms per column |
+|---|---|---|---|---|
+| 5 | 0.972 / 0.968 / 0.968 | 82 | 6.3% (all OTP columns) | 1.6 |
+| 10 | 0.989 / 0.995 / 0.995 | 21 | 3.5% (OTP) | 1.8 |
+| 20 | 0.999 / 0.999 / 0.999 | 3 | 1.5% (OTP) | 2.6 |
+
+Per label at 5 values, the weakest recalls are postal address (0.78), bank account number (0.82) and date of birth
+(0.91); precision is 1.0 for all three. At 10 values every label is at or above 0.92 recall; at 20, all above 0.97.
+A missed column is not exposed: it stays `UNREVIEWED`, which is masked for every role except admin.
+
+The first run of this benchmark caught a regression before release: the new sparse-identifier band (one email, PAN
+or IBAN in an ordinary column → tag for review) flagged 46 of 60 `pan_sku` decoy columns, because a few PAN-shaped
+product codes pass the PAN check by chance. The band now ignores columns where most values already have the
+identifier's shape; the numbers above are after that fix, and identical to the hybrid's own hard-negative rate.
+
+50 and 200 values could not be scored on the benchmark without re-exporting it, which needs running the benchmark's
+own code; we did not. Instead, part B of the same script uses MaskGuard's own generator on a held-out seed (9001; 920
+columns, 200 values each). That is the distribution the model was trained on, so it shows the effect of sample size
+only, not generalisation: macro-F1 0.955 at 5 values, 0.977 at 20, 0.976 at 50, 0.977 at 200, and non-PII columns
+tagged 6.7% at 5 values, 0% from 20 up. More values than 20 did not help. (`amount` recall is 0.43 at every size by
+design: money is tagged only when the column name ties it to a person; `unit_price` is not personal.)
+`docs/eval/scanner_sampling.json`.
+
 **Not covered by this benchmark (added in 1.0.3):** health data (ICD-10 codes and blood groups by value, health words
 by column name), names with a title, personal attributes by column name, and more money headers. They sit outside the
 ML decision the benchmark scores, and money maps to its `NONE` label, so the numbers above are unchanged. They were
@@ -67,6 +95,27 @@ firewall cases (stacked statements, writes, catalog reads, dangerous functions).
 
 Run on every CI build (`.github/workflows/ci.yml`); tests assert zero leaks on all three databases. Re-measured on
 13 Oct 2026 with the current policy (SQLite naive count rose from 13 to 14 after the Auditor role and row filters were added).
+
+**Attack matrix (1.1, 24 Oct 2026).** `tests/test_attack_matrix.py` crosses database × role (support, analyst,
+auditor) × attack family:
+- 40 queries in 12 families: aliases (including one named like a mask function), quoted and schema-qualified names,
+  wildcards, expressions (`upper`, `CONCAT`, `substr`, `replace`, `CASE`), nested and table-shadowing CTEs,
+  correlated subqueries, `JOIN … USING`, window functions, `UNION ALL` / `INTERSECT` / `EXCEPT`, `GROUP BY` on a
+  protected column, comments and optimizer hints;
+- 10 predicate oracles on three protected columns, each filtering on the first customer's real value (equality,
+  `LIKE` prefix, `BETWEEN`, `IN`, a function on both sides, `HAVING`, `EXISTS`, inside a CTE, a scalar subquery,
+  inside `CASE`). Admin must get the row back, and the other roles must get nothing;
+- 7 query shapes against support's row filter (frozen accounts must never appear);
+- user calls to the mask functions themselves;
+- a seeded fuzzer: 120 random compositions per role of functions, misleading aliases, CTE, derived-table and union
+  wrappers, a third with a real-value filter;
+- a column added after the scan.
+
+A case passes when the gateway refuses the query, or when no cell contains a raw protected value: whole, or the first
+10 characters of a value of 12 or more characters. **672 cases, all passing, on SQLite, PostgreSQL 16 and MySQL 8.4**
+(24 Oct 2026). At least 100 of the 120 fuzz queries must actually run, so the fuzzer can't pass by being refused.
+This tests query-level inference. It does not test inference through business dependencies between columns that are
+shown and columns that are hidden (Pappachan et al., TKDE 2024; see [REFERENCE_RESEARCH.md §E](REFERENCE_RESEARCH.md)).
 
 ## 4. Insider-threat engine — simulated sessions
 

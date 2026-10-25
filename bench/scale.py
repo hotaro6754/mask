@@ -40,8 +40,10 @@ def timed(fn, n):
 
 
 def run(db, rows, n, roles, tmp):
+    # seed_if_empty marks this as the demo schema, so the demo's reviewed approvals (ids, city, status ...) apply, as
+    # in `maskguard demo`. Without them every key is UNREVIEWED and masked, and joins would compare NULLs.
     app = config.build(config.Settings(db=db, audit=f"{tmp}/audit-{rows}.jsonl", registry_out=f"{tmp}/reg.yaml",
-                                       seed_if_empty=False))
+                                       seed_if_empty=True))
     t0 = time.perf_counter()
     make_db(app.backend, n=rows)
     seed_s = time.perf_counter() - t0
@@ -54,19 +56,23 @@ def run(db, rows, n, roles, tmp):
     threat = gw.threat
     res = {"rows_per_table": rows, "seed_seconds": round(seed_s, 1), "scan_seconds": round(scan_s, 2), "shapes": {}}
     for name, sql in SHAPES.items():
-        app.backend.execute(sql)  # warm the cache once; every number below is a warm run
+        direct_rows = len(app.backend.execute(sql)[1])  # also warms the cache: every number below is a warm run
         direct = timed(lambda: app.backend.execute(sql), n)
-        entry = {"direct": {"p50": round(statistics.median(direct), 2), "p95": round(pct(direct, .95), 2)}}
+        entry = {"direct": {"p50": round(statistics.median(direct), 2), "p95": round(pct(direct, .95), 2),
+                            "rows": direct_rows}}
         for role in roles:
             s = app.auth.login(*config.DEMO_ACCOUNTS[role])
             for mode in ("core", "full"):
                 gw.threat = threat if mode == "full" else None
                 if threat:
                     threat.alert = threat.block = 1000  # score every query, never block the benchmark loop
-                gw.query(s, sql, observe=mode == "full")
+                got = len(gw.query(s, sql, observe=mode == "full").rows)
+                # same rows as direct, except where support's row filter hides frozen accounts or small groups vanish
+                assert got > 0, f"{role} got no rows for {name}: the comparison would be meaningless"
                 g = timed(lambda: gw.query(s, sql, observe=mode == "full"), n)
                 entry[f"{role}_{mode}"] = {"p50": round(statistics.median(g), 2), "p95": round(pct(g, .95), 2),
-                                           "overhead_p50": round(statistics.median(g) - statistics.median(direct), 2)}
+                                           "overhead_p50": round(statistics.median(g) - statistics.median(direct), 2),
+                                           "rows": got}
         res["shapes"][name] = entry
         print(f"{rows:>7} {name:10} direct p50 {entry['direct']['p50']:7.2f}  " + "  ".join(
             f"{k} {v['p50']:7.2f}/{v['p95']:7.2f}" for k, v in entry.items() if k != "direct"), flush=True)

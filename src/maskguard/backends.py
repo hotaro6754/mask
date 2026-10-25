@@ -326,9 +326,10 @@ class MySQLBackend(Backend):
             c.execute("SET SESSION sql_mode = CONCAT(@@sql_mode, ',ANSI_QUOTES')")  # "ident" like the other engines
             c.execute("SET @maskguard_hmac_key = %s", (key,))
             c.execute(f"SET SESSION max_execution_time = {int(statement_timeout_ms)}")
-            # materialise each masked view once instead of merging it into the outer query; otherwise masking
-            # functions re-run per row of every join/cross product
-            c.execute("SET SESSION optimizer_switch = 'derived_merge=off'")
+            # merge masked views into the outer query, so mask functions run only on rows that are returned (with
+            # merging off, ORDER BY ... LIMIT masked every row of the table first: seconds at 10,000 rows). The
+            # rewriter adds NO_MERGE for views joined on a masked column, which would otherwise re-run per row pair.
+            c.execute("SET SESSION optimizer_switch = 'derived_merge=on'")
             if install:
                 _mysql_install(c)
         if not install:

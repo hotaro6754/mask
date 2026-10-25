@@ -248,6 +248,31 @@ def action_for(meta, role, policy):
     return policy["roles"][role].get(tag, policy["default_action"])  # no rule for UNREVIEWED -> default (fail closed)
 
 
+def _materialize_joined(owners, masked_cols):
+    """MySQL merges each masked view into the outer query (fast: functions run only on the rows that come back). But a
+    join *on a masked column* would then re-run the mask function for every pair of rows compared; such views get a
+    NO_MERGE hint so MySQL computes them once. Returns {select: [aliases]}."""
+    out = {}
+    for select, aliases in owners.items():
+        conds = [j.args["on"] for j in select.args.get("joins") or [] if j.args.get("on") is not None]
+        names = [i.name.lower() for j in select.args.get("joins") or [] for i in (j.args.get("using") or [])]
+        where = select.args.get("where")
+        if where is not None:  # comma joins: a comparison between two columns
+            conds += [p for p in where.find_all(exp.EQ, exp.NEQ, exp.GT, exp.GTE, exp.LT, exp.LTE, exp.NullSafeEQ)
+                      if len(list(p.find_all(exp.Column))) > 1]
+        hit = set()
+        for c in (col for cond in conds for col in cond.find_all(exp.Column)):
+            if c.table:
+                if c.name.lower() in masked_cols.get(c.table.lower(), ()):
+                    hit.add(c.table.lower())
+            else:
+                names.append(c.name.lower())
+        hit |= {a for a in aliases for n in names if n in masked_cols.get(a, ())}
+        if hit:
+            out[select] = sorted(hit)
+    return out
+
+
 def rewrite(sql, role, registry, policy, dialect="sqlite", schema=None):
     if role not in policy["roles"]:
         raise Rejected(f"unknown role: {role}")
@@ -277,7 +302,7 @@ def rewrite(sql, role, registry, policy, dialect="sqlite", schema=None):
 
     real_names = {t.lower(): t for t in registry}  # canonical spelling as found in the database
     registry = {t.lower(): cols for t, cols in registry.items()}
-    masked, jobs = [], []
+    masked, jobs, owners = [], [], {}
     for scope in traverse_scope(tree):
         for table in scope.tables:
             if isinstance(scope.sources.get(table.alias_or_name), exp.Table):  # base table, not CTE/subquery
@@ -286,6 +311,8 @@ def rewrite(sql, role, registry, policy, dialect="sqlite", schema=None):
                 if table.name.lower() not in registry:
                     raise Rejected(f"table not registered: {table.name}")
                 jobs.append(table)
+                if isinstance(scope.expression, exp.Select):
+                    owners.setdefault(scope.expression, []).append(table.alias_or_name.lower())
     shape = _shape(tree, jobs, registry, role, policy)
     dp_cols = _dp_columns(jobs, registry, role, policy)
     refs = [_dp_key(c, dp_cols) for c in tree.find_all(exp.Column)]
@@ -294,6 +321,11 @@ def rewrite(sql, role, registry, policy, dialect="sqlite", schema=None):
     if used and _dp_eligible(tree, dp_cols):
         dp_plan = _dp_plan(tree, dp_cols, policy)
         dp_plan["columns"] = sorted(used)
+    no_merge = {}
+    if dialect == "mysql":
+        masked_cols = {t.alias_or_name.lower(): {c.lower() for c, m in registry[t.name.lower()].items()
+                                                 if action_for(m, role, policy) != "allow"} for t in jobs}
+        no_merge = _materialize_joined(owners, masked_cols)
     for table in jobs:
         projections = []
         for col, meta in registry[table.name.lower()].items():
@@ -312,6 +344,9 @@ def rewrite(sql, role, registry, policy, dialect="sqlite", schema=None):
             view = view.where(cond)
             masked.append(f"{table.name.lower()}:row_filter")
         table.replace(view.subquery(table.alias_or_name))
+    for select, aliases in no_merge.items():
+        select.set("hint", exp.Hint(expressions=[exp.Anonymous(this="NO_MERGE", expressions=[exp.to_identifier(a)])
+                                                 for a in aliases]))
 
     cap = (policy.get("max_rows") or {}).get(role)
     if cap:

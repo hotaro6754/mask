@@ -48,6 +48,21 @@ read-only account: it refuses to start on any unsafe setting.
 - **Tests:** 513 tests on SQLite, PostgreSQL 16 and MySQL 8.4.
 - **Latency:** about 8 ms added per query.
 
+## What's new in 1.1.0
+
+- **Analyst tokens are 128-bit** (32 hex characters; a 1.0.x token is the first half of the new one). The optional
+  `hmac: {scope: column}` gives each column its own tokens, so equal values can't be linked across columns. **After
+  upgrading, run `maskguard db-install` once on PostgreSQL or MySQL**: production refuses to start until the new
+  `mg_token` function is installed.
+- **Scanner:** samples non-empty values, so a mostly-empty column is classified on real data. A column with even one
+  email, PAN or IBAN among ordinary values is tagged for review, and stays masked.
+- **Policy edits:** changing a rule between `partial`, `redact_text`, `hmac` and `aggregate` now needs confirmation and
+  a reason. Each of the four reveals something the others hide, so none is "stricter" than another.
+- **Audit:** the log file is readable only by its owner. `maskguard audit verify` prints the chain head to record
+  elsewhere, and `--anchor <head>` later proves that entry is still in the chain.
+- **Evidence:** an attack matrix and seeded fuzzer (672 cases, 0 leaks, on all three databases), the scanner measured
+  at 5/10/20 values with per-label precision and recall, and latency at 300, 10,000 and 100,000 rows.
+
 ## What's new in 1.0.3
 
 - **Your own database, in one step:** the first run asks "demo data or my own database"; `maskguard connect URL`

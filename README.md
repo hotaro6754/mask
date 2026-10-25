@@ -200,6 +200,34 @@ repository and a JSON file in `docs/eval/`.
 The attack suite is evidence for those 17 attack shapes, not a proof against every possible query. The threat
 engine was evaluated on simulated sessions.
 
+### Evidence status
+
+What each claim rests on, as of 1.1.0 (25 Oct 2026). **Implemented**: in the code. **Tested**: automated tests run on
+every push. **Measured**: a benchmark script with its result file in `docs/eval/`. **Experimental**: works in
+development, off in production, not claimed.
+
+| Capability | Status | Evidence |
+|---|---|---|
+| Column discovery from names and sample values (identifiers, Indian formats, misleading names) | Measured | bharat-pii-bench holdout at 5/10/20 values, per-label precision/recall: [EVALUATION §1](docs/EVALUATION.md#1-pii-discovery-ml-scanner--external-benchmark), `docs/eval/scanner_*.json` |
+| Health data, staff names, personal attributes, money | Tested | Clinic database in `scripts/e2e/` and `tests/test_onboarding.py`; no public benchmark |
+| Mostly-empty, mixed and sparse columns | Tested | `tests/test_sampling.py` (null-heavy case on all three databases) |
+| Unreviewed columns hidden until a person approves them | Tested | `tests/test_hardening.py`, e2e checks |
+| Masking inside the SQL, by role, on SQLite / PostgreSQL / MySQL | Tested | `tests/test_attacks.py`, `tests/test_attack_matrix.py` (672 cases, 0 leaks) |
+| Inference through predicates, joins, ordering, aggregates | Tested | 10 predicate oracles × 3 columns × 3 roles × 3 databases; small-group suppression |
+| Inference through business dependencies between columns | **Not covered** | Known limit (Pappachan et al., TKDE 2024) |
+| Statement firewall, read-only execution | Tested | `tests/test_attacks.py`, DB-level write refusal in e2e |
+| Stored data unchanged | Tested | Table digests before/after the attack suite; `maskguard integrity proof` |
+| Analyst tokens: 128-bit, optional per-column scope, same on every database | Tested | `tests/test_tokens.py` |
+| Policy edits validated, versioned, audited; weakening needs a reason | Tested | `tests/test_policy_integrity.py`, `tests/test_api_v1.py` |
+| Hash-chained audit without values, owner-only, anchorable head | Tested | `tests/test_policy_integrity.py`, `tests/test_attacks.py` |
+| Latency overhead by table size and query shape | Measured | `bench/scale.py` → `docs/eval/perf_*.json` ([EVALUATION §6](docs/EVALUATION.md#6-performance)) |
+| Insider-threat detection | Measured on simulations | `bench/eval_threat.py` → `docs/eval/threat_sim.json` |
+| Identifiers inside free text | Measured | bharat-pii-bench T3 (13 types 100%; names and addresses 0%) |
+| Noisy aggregates for analysts | **Experimental** | Off in production; not a differential-privacy guarantee ([design review](docs/design/PRIVACY_ACCOUNTING.md)) |
+| PostgreSQL wire proxy | Tested, open review items | `tests/test_proxy.py`; `Describe` path and row filters under unusual shapes are open |
+
+Benchmarks here use synthetic data. They show behaviour on those formats and sizes, not on every production schema.
+
 ## Quick start
 
 Pick one way to install:
@@ -450,10 +478,16 @@ The suite also includes:
 - The threat engine was evaluated on simulated sessions; recalibrate it on real normal traffic. Its state is per
   process.
 - Names and addresses inside free text need NER, which isn't integrated yet.
+- Masking hides values; it does not stop inference through business rules between columns. If a shown column
+  determines a hidden one (a tax band from a salary, a district from a postcode), tag the shown column too.
+- The scanner reads up to 200 non-empty values per column, in storage order. Personal data that appears only in rows
+  beyond those can be missed; such a column stays `UNREVIEWED` (masked) unless someone approves it.
+- Analyst tokens with the default `global` scope link equal values across tables, which is what makes joins work. Use
+  `hmac: {scope: column}` if that linkability isn't wanted.
 - Applications must not hold direct database credentials, or they bypass the gateway.
 - Noisy aggregates are experimental and off in production (above).
-- The audit hash chain is unkeyed and local. It catches accidental or partial edits, not someone who can rewrite the
-  whole file on the host. It also assumes **one writing process**: if the API and CLI commands (or several workers)
+- The audit hash chain is unkeyed and local. On its own it catches accidental or partial edits, not someone who can
+  rewrite the whole file on the host; record `maskguard audit verify`'s head elsewhere and check it with `--anchor`. It also assumes **one writing process**: if the API and CLI commands (or several workers)
   append to the same audit file, the chain forks and verification reports it broken.
 - The PostgreSQL proxy has no TLS of its own, so production keeps it on loopback. Its `Describe` path (which skips
   some gateway checks) and row filters under unusual query shapes are open items for the independent review. Its

@@ -129,3 +129,19 @@ def test_admin_is_not_reported_as_leaking(env):
 ])
 def test_ordinary_boolean_logic_is_allowed(env, sql):
     assert env.run("support", sql)[1]
+
+
+def test_mysql_materializes_only_views_joined_on_a_masked_column(sqlite_env):
+    """MySQL merges masked views (mask functions then run only on returned rows); a join on a masked column would
+    re-run them per row pair, so those views alone get NO_MERGE. Client hints are still stripped."""
+    from maskguard.rewriter import rewrite
+    gw = sqlite_env.gw
+    sql = lambda q: rewrite(q, "support", gw.registry, gw.policy, "mysql", "bank").sql
+    assert sql("SELECT count(*) FROM users u JOIN users v ON u.email = v.email").startswith(
+        "SELECT /*+ NO_MERGE(u) NO_MERGE(v) */")
+    assert "/*+" not in sql("SELECT u.email FROM users u JOIN accounts a ON a.user_id = u.id ORDER BY u.id LIMIT 5")
+    assert "NO_MERGE(u)" in sql("SELECT u.id FROM users u, users w WHERE u.phone = w.phone")
+    with pytest.raises(Rejected):  # a client's own hint is never passed on
+        sql("SELECT /*+ MAX_EXECUTION_TIME(999999) */ u.email FROM users u JOIN users v ON u.email = v.email")
+    assert "/*+" not in rewrite("SELECT count(*) FROM users u JOIN users v ON u.email = v.email", "support",
+                                gw.registry, gw.policy, "sqlite").sql

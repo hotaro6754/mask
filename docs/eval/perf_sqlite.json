@@ -1,0 +1,601 @@
+{
+  "environment": {
+    "backend": "sqlite",
+    "machine": "x86_64",
+    "os": "Linux",
+    "python": "3.13.16",
+    "cpus": 4,
+    "timed_runs_per_cell": 30,
+    "cache": "warm",
+    "units": "ms"
+  },
+  "shapes": {
+    "projection": "SELECT id, email, phone, pan FROM users WHERE id > 10 ORDER BY id LIMIT 100",
+    "filter": "SELECT * FROM users WHERE city = 'Pune' LIMIT 50",
+    "join": "SELECT a.credit_card, u.email FROM accounts a JOIN users u ON u.id = a.user_id ORDER BY a.id LIMIT 50",
+    "cte": "WITH c AS (SELECT id, email, ssn FROM users) SELECT * FROM c ORDER BY id LIMIT 50",
+    "aggregate": "SELECT status, count(*) FROM accounts GROUP BY status",
+    "point": "SELECT name, email FROM users WHERE id = 42"
+  },
+  "results": [
+    {
+      "rows_per_table": 300,
+      "seed_seconds": 0.1,
+      "scan_seconds": 0.24,
+      "shapes": {
+        "projection": {
+          "direct": {
+            "p50": 0.09,
+            "p95": 0.12,
+            "rows": 100
+          },
+          "analyst_core": {
+            "p50": 5.57,
+            "p95": 7.58,
+            "overhead_p50": 5.48,
+            "rows": 100
+          },
+          "analyst_full": {
+            "p50": 5.98,
+            "p95": 7.24,
+            "overhead_p50": 5.89,
+            "rows": 100
+          },
+          "support_core": {
+            "p50": 5.08,
+            "p95": 5.7,
+            "overhead_p50": 4.99,
+            "rows": 100
+          },
+          "support_full": {
+            "p50": 5.38,
+            "p95": 5.87,
+            "overhead_p50": 5.29,
+            "rows": 100
+          }
+        },
+        "filter": {
+          "direct": {
+            "p50": 0.03,
+            "p95": 0.06,
+            "rows": 2
+          },
+          "analyst_core": {
+            "p50": 4.2,
+            "p95": 4.9,
+            "overhead_p50": 4.17,
+            "rows": 2
+          },
+          "analyst_full": {
+            "p50": 4.58,
+            "p95": 4.93,
+            "overhead_p50": 4.55,
+            "rows": 2
+          },
+          "support_core": {
+            "p50": 3.89,
+            "p95": 4.83,
+            "overhead_p50": 3.86,
+            "rows": 2
+          },
+          "support_full": {
+            "p50": 4.47,
+            "p95": 5.04,
+            "overhead_p50": 4.44,
+            "rows": 2
+          }
+        },
+        "join": {
+          "direct": {
+            "p50": 0.04,
+            "p95": 0.06,
+            "rows": 50
+          },
+          "analyst_core": {
+            "p50": 6.08,
+            "p95": 7.44,
+            "overhead_p50": 6.04,
+            "rows": 50
+          },
+          "analyst_full": {
+            "p50": 7.04,
+            "p95": 7.78,
+            "overhead_p50": 7.0,
+            "rows": 50
+          },
+          "support_core": {
+            "p50": 6.92,
+            "p95": 8.18,
+            "overhead_p50": 6.88,
+            "rows": 50
+          },
+          "support_full": {
+            "p50": 7.24,
+            "p95": 8.92,
+            "overhead_p50": 7.2,
+            "rows": 50
+          }
+        },
+        "cte": {
+          "direct": {
+            "p50": 0.05,
+            "p95": 0.07,
+            "rows": 50
+          },
+          "analyst_core": {
+            "p50": 5.26,
+            "p95": 6.49,
+            "overhead_p50": 5.21,
+            "rows": 50
+          },
+          "analyst_full": {
+            "p50": 5.75,
+            "p95": 6.53,
+            "overhead_p50": 5.71,
+            "rows": 50
+          },
+          "support_core": {
+            "p50": 5.12,
+            "p95": 5.83,
+            "overhead_p50": 5.07,
+            "rows": 50
+          },
+          "support_full": {
+            "p50": 5.52,
+            "p95": 5.95,
+            "overhead_p50": 5.48,
+            "rows": 50
+          }
+        },
+        "aggregate": {
+          "direct": {
+            "p50": 0.05,
+            "p95": 0.06,
+            "rows": 2
+          },
+          "analyst_core": {
+            "p50": 2.92,
+            "p95": 3.92,
+            "overhead_p50": 2.87,
+            "rows": 2
+          },
+          "analyst_full": {
+            "p50": 3.56,
+            "p95": 4.09,
+            "overhead_p50": 3.51,
+            "rows": 2
+          },
+          "support_core": {
+            "p50": 3.87,
+            "p95": 5.2,
+            "overhead_p50": 3.82,
+            "rows": 1
+          },
+          "support_full": {
+            "p50": 4.43,
+            "p95": 5.78,
+            "overhead_p50": 4.39,
+            "rows": 1
+          }
+        },
+        "point": {
+          "direct": {
+            "p50": 0.01,
+            "p95": 0.02,
+            "rows": 1
+          },
+          "analyst_core": {
+            "p50": 4.44,
+            "p95": 5.09,
+            "overhead_p50": 4.44,
+            "rows": 1
+          },
+          "analyst_full": {
+            "p50": 4.78,
+            "p95": 5.77,
+            "overhead_p50": 4.77,
+            "rows": 1
+          },
+          "support_core": {
+            "p50": 4.5,
+            "p95": 5.21,
+            "overhead_p50": 4.49,
+            "rows": 1
+          },
+          "support_full": {
+            "p50": 5.18,
+            "p95": 5.91,
+            "overhead_p50": 5.17,
+            "rows": 1
+          }
+        }
+      }
+    },
+    {
+      "rows_per_table": 10000,
+      "seed_seconds": 1.8,
+      "scan_seconds": 0.28,
+      "shapes": {
+        "projection": {
+          "direct": {
+            "p50": 0.11,
+            "p95": 0.13,
+            "rows": 100
+          },
+          "analyst_core": {
+            "p50": 5.86,
+            "p95": 6.87,
+            "overhead_p50": 5.74,
+            "rows": 100
+          },
+          "analyst_full": {
+            "p50": 6.03,
+            "p95": 6.74,
+            "overhead_p50": 5.92,
+            "rows": 100
+          },
+          "support_core": {
+            "p50": 5.3,
+            "p95": 6.01,
+            "overhead_p50": 5.18,
+            "rows": 100
+          },
+          "support_full": {
+            "p50": 5.76,
+            "p95": 7.28,
+            "overhead_p50": 5.64,
+            "rows": 100
+          }
+        },
+        "filter": {
+          "direct": {
+            "p50": 0.72,
+            "p95": 0.93,
+            "rows": 34
+          },
+          "analyst_core": {
+            "p50": 5.37,
+            "p95": 6.62,
+            "overhead_p50": 4.65,
+            "rows": 34
+          },
+          "analyst_full": {
+            "p50": 6.21,
+            "p95": 7.69,
+            "overhead_p50": 5.49,
+            "rows": 34
+          },
+          "support_core": {
+            "p50": 5.29,
+            "p95": 5.96,
+            "overhead_p50": 4.57,
+            "rows": 34
+          },
+          "support_full": {
+            "p50": 8.02,
+            "p95": 9.29,
+            "overhead_p50": 7.3,
+            "rows": 34
+          }
+        },
+        "join": {
+          "direct": {
+            "p50": 0.04,
+            "p95": 0.05,
+            "rows": 50
+          },
+          "analyst_core": {
+            "p50": 6.16,
+            "p95": 6.89,
+            "overhead_p50": 6.12,
+            "rows": 50
+          },
+          "analyst_full": {
+            "p50": 6.66,
+            "p95": 7.53,
+            "overhead_p50": 6.62,
+            "rows": 50
+          },
+          "support_core": {
+            "p50": 7.1,
+            "p95": 8.42,
+            "overhead_p50": 7.06,
+            "rows": 50
+          },
+          "support_full": {
+            "p50": 7.47,
+            "p95": 8.55,
+            "overhead_p50": 7.43,
+            "rows": 50
+          }
+        },
+        "cte": {
+          "direct": {
+            "p50": 0.05,
+            "p95": 0.07,
+            "rows": 50
+          },
+          "analyst_core": {
+            "p50": 5.4,
+            "p95": 6.34,
+            "overhead_p50": 5.35,
+            "rows": 50
+          },
+          "analyst_full": {
+            "p50": 6.62,
+            "p95": 7.79,
+            "overhead_p50": 6.57,
+            "rows": 50
+          },
+          "support_core": {
+            "p50": 5.68,
+            "p95": 6.38,
+            "overhead_p50": 5.63,
+            "rows": 50
+          },
+          "support_full": {
+            "p50": 5.74,
+            "p95": 6.88,
+            "overhead_p50": 5.69,
+            "rows": 50
+          }
+        },
+        "aggregate": {
+          "direct": {
+            "p50": 1.57,
+            "p95": 1.75,
+            "rows": 2
+          },
+          "analyst_core": {
+            "p50": 4.81,
+            "p95": 5.6,
+            "overhead_p50": 3.24,
+            "rows": 2
+          },
+          "analyst_full": {
+            "p50": 5.07,
+            "p95": 5.95,
+            "overhead_p50": 3.51,
+            "rows": 2
+          },
+          "support_core": {
+            "p50": 5.2,
+            "p95": 6.65,
+            "overhead_p50": 3.64,
+            "rows": 1
+          },
+          "support_full": {
+            "p50": 5.55,
+            "p95": 6.29,
+            "overhead_p50": 3.99,
+            "rows": 1
+          }
+        },
+        "point": {
+          "direct": {
+            "p50": 0.01,
+            "p95": 0.02,
+            "rows": 1
+          },
+          "analyst_core": {
+            "p50": 4.43,
+            "p95": 5.14,
+            "overhead_p50": 4.41,
+            "rows": 1
+          },
+          "analyst_full": {
+            "p50": 4.95,
+            "p95": 5.74,
+            "overhead_p50": 4.93,
+            "rows": 1
+          },
+          "support_core": {
+            "p50": 4.32,
+            "p95": 5.17,
+            "overhead_p50": 4.31,
+            "rows": 1
+          },
+          "support_full": {
+            "p50": 4.75,
+            "p95": 5.31,
+            "overhead_p50": 4.74,
+            "rows": 1
+          }
+        }
+      }
+    },
+    {
+      "rows_per_table": 100000,
+      "seed_seconds": 18.4,
+      "scan_seconds": 0.29,
+      "shapes": {
+        "projection": {
+          "direct": {
+            "p50": 0.1,
+            "p95": 0.12,
+            "rows": 100
+          },
+          "analyst_core": {
+            "p50": 5.77,
+            "p95": 6.48,
+            "overhead_p50": 5.67,
+            "rows": 100
+          },
+          "analyst_full": {
+            "p50": 6.3,
+            "p95": 7.06,
+            "overhead_p50": 6.2,
+            "rows": 100
+          },
+          "support_core": {
+            "p50": 5.67,
+            "p95": 6.68,
+            "overhead_p50": 5.58,
+            "rows": 100
+          },
+          "support_full": {
+            "p50": 5.64,
+            "p95": 6.43,
+            "overhead_p50": 5.54,
+            "rows": 100
+          }
+        },
+        "filter": {
+          "direct": {
+            "p50": 0.93,
+            "p95": 1.13,
+            "rows": 50
+          },
+          "analyst_core": {
+            "p50": 6.45,
+            "p95": 7.59,
+            "overhead_p50": 5.51,
+            "rows": 50
+          },
+          "analyst_full": {
+            "p50": 6.33,
+            "p95": 6.96,
+            "overhead_p50": 5.4,
+            "rows": 50
+          },
+          "support_core": {
+            "p50": 6.02,
+            "p95": 8.21,
+            "overhead_p50": 5.08,
+            "rows": 50
+          },
+          "support_full": {
+            "p50": 6.2,
+            "p95": 8.38,
+            "overhead_p50": 5.27,
+            "rows": 50
+          }
+        },
+        "join": {
+          "direct": {
+            "p50": 0.04,
+            "p95": 0.07,
+            "rows": 50
+          },
+          "analyst_core": {
+            "p50": 6.43,
+            "p95": 6.98,
+            "overhead_p50": 6.39,
+            "rows": 50
+          },
+          "analyst_full": {
+            "p50": 6.61,
+            "p95": 7.77,
+            "overhead_p50": 6.57,
+            "rows": 50
+          },
+          "support_core": {
+            "p50": 7.11,
+            "p95": 10.0,
+            "overhead_p50": 7.07,
+            "rows": 50
+          },
+          "support_full": {
+            "p50": 7.57,
+            "p95": 9.01,
+            "overhead_p50": 7.53,
+            "rows": 50
+          }
+        },
+        "cte": {
+          "direct": {
+            "p50": 0.05,
+            "p95": 0.07,
+            "rows": 50
+          },
+          "analyst_core": {
+            "p50": 5.54,
+            "p95": 7.83,
+            "overhead_p50": 5.49,
+            "rows": 50
+          },
+          "analyst_full": {
+            "p50": 5.97,
+            "p95": 6.8,
+            "overhead_p50": 5.92,
+            "rows": 50
+          },
+          "support_core": {
+            "p50": 5.33,
+            "p95": 6.9,
+            "overhead_p50": 5.28,
+            "rows": 50
+          },
+          "support_full": {
+            "p50": 5.64,
+            "p95": 6.35,
+            "overhead_p50": 5.59,
+            "rows": 50
+          }
+        },
+        "aggregate": {
+          "direct": {
+            "p50": 22.44,
+            "p95": 24.64,
+            "rows": 2
+          },
+          "analyst_core": {
+            "p50": 26.03,
+            "p95": 30.27,
+            "overhead_p50": 3.59,
+            "rows": 2
+          },
+          "analyst_full": {
+            "p50": 27.01,
+            "p95": 31.59,
+            "overhead_p50": 4.57,
+            "rows": 2
+          },
+          "support_core": {
+            "p50": 17.65,
+            "p95": 30.4,
+            "overhead_p50": -4.79,
+            "rows": 1
+          },
+          "support_full": {
+            "p50": 17.22,
+            "p95": 26.41,
+            "overhead_p50": -5.22,
+            "rows": 1
+          }
+        },
+        "point": {
+          "direct": {
+            "p50": 0.01,
+            "p95": 0.02,
+            "rows": 1
+          },
+          "analyst_core": {
+            "p50": 4.66,
+            "p95": 6.09,
+            "overhead_p50": 4.65,
+            "rows": 1
+          },
+          "analyst_full": {
+            "p50": 4.85,
+            "p95": 5.45,
+            "overhead_p50": 4.84,
+            "rows": 1
+          },
+          "support_core": {
+            "p50": 4.31,
+            "p95": 5.04,
+            "overhead_p50": 4.29,
+            "rows": 1
+          },
+          "support_full": {
+            "p50": 5.17,
+            "p95": 6.26,
+            "overhead_p50": 5.15,
+            "rows": 1
+          }
+        }
+      }
+    }
+  ]
+}
