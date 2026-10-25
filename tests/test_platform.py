@@ -100,7 +100,9 @@ def test_postgres_functions_match_python():
     for v in ["ravi@bank.in", "noatsign", "a@", "@b.c"]:
         assert b.admin_query("SELECT mg_email(%s)", (v,))[1][0][0] == masks.email(v)
     for v in ["ravi@bank.in", "123-45-6789"]:
-        assert b.admin_query("SELECT mg_hmac(%s)", (v,))[1][0][0] == masks.token(v)
+        assert b.admin_query("SELECT mg_hmac(%s)", (v,))[1][0][0] == masks.token(v, 16)  # 1.0.x function, kept
+        for scope, n in [("", 32), ("users.ssn", 32), ("t.c", 64)]:
+            assert b.admin_query("SELECT mg_token(%s, %s, %s)", (v, scope, n))[1][0][0] == masks.token(v, n, scope)
 
 
 def test_dashboard_renders_for_every_role(tmp_path, monkeypatch):
@@ -133,7 +135,9 @@ def test_mysql_functions_match_python():
     for v in ["ravi@bank.in", "noatsign", "a@", "@b.c"]:
         assert q("SELECT mg_email(%s)", v) == masks.email(v)
     for v in ["ravi@bank.in", "123-45-6789", "x" * 200]:
-        assert q("SELECT mg_hmac(%s)", v) == masks.token(v)
+        assert q("SELECT mg_hmac(%s)", v) == masks.token(v, 16)  # 1.0.x function, kept
+        for scope, n in [("", 32), ("users.ssn", 32), ("t.c", 64)]:
+            assert q("SELECT mg_token(%s, %s, %s)", v, scope, n) == masks.token(v, n, scope)
     for t in ["Call 98765 43210 or mail a@b.co", "Aadhaar 2345 6789 0124, PAN ABCPK1234L", "दर्ज मूल्य 12 जनवरी 1961 है।",
               "UPI ravi.k@okaxis, card 4111-1111-1111-1111, pin 560001"]:
         assert q("SELECT mg_redact_text(%s)", t) == textpii.redact(t)
