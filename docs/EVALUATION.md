@@ -158,21 +158,84 @@ recovers the exact balance. `bench/eval_dp.py` → `docs/eval/dp.json`.
 
 ## 6. Performance
 
-`make bench`: 800 queries as Analyst (4 query shapes, including a DP aggregate), 300 rows per table, 4-CPU Linux VM,
-with every feature on: rewriting, masking functions, DP noise, threat scoring and the audit write.
+**Method** (after Fotache et al., IEEE Access 2023: the same queries with and without masking, several sizes and
+shapes, median and spread). `bench/scale.py` seeds the demo schema at 300, 10,000 and 100,000 rows per table and runs
+six query shapes directly and through the gateway, 30 warm runs each:
+- a projection with `ORDER BY … LIMIT 100`;
+- a filter;
+- a two-table join;
+- a CTE;
+- a full-table `GROUP BY` aggregate;
+- a point lookup.
 
-| Backend | Direct p50 | Through MaskGuard p50 | Added p50 |
+Every shape must return rows through the gateway (the script asserts it), and row counts are recorded.
+"All features on" means rewriting, mask functions, threat scoring and the audit write. Setup: 4-CPU Linux VM (Intel
+Xeon 2.1 GHz), Python 3.13, SQLite 3.45, PostgreSQL 16 and MySQL 8.4 on the same machine, 25 Oct 2026.
+`docs/eval/perf_{sqlite,postgres,mysql}.json`.
+
+**SQLite** (ms, p50 / p95; gateway = all features on, as the analyst and as support)
+
+| Shape | 300 rows: direct · analyst · support | 10,000 rows: direct · analyst · support | 100,000 rows: direct · analyst · support |
 |---|---|---|---|
-| SQLite | 0.21 ms | 8.6 ms | 8.3 ms |
-| PostgreSQL 16 | 1.1 ms | 9.2 ms | 8.1 ms |
-| MySQL 8.4 | 2.3 ms | 23.7 ms | 21.4 ms |
+| projection | 0.09 · 6.0 / 7.2 · 5.4 / 5.9 | 0.11 · 6.0 / 6.7 · 5.8 / 7.3 | 0.10 · 6.3 / 7.1 · 5.6 / 6.4 |
+| filter | 0.03 · 4.6 / 4.9 · 4.5 / 5.0 | 0.72 · 6.2 / 7.7 · 8.0 / 9.3 | 0.93 · 6.3 / 7.0 · 6.2 / 8.4 |
+| join | 0.04 · 7.0 / 7.8 · 7.2 / 8.9 | 0.04 · 6.7 / 7.5 · 7.5 / 8.6 | 0.04 · 6.6 / 7.8 · 7.6 / 9.0 |
+| cte | 0.05 · 5.8 / 6.5 · 5.5 / 6.0 | 0.05 · 6.6 / 7.8 · 5.7 / 6.9 | 0.05 · 6.0 / 6.8 · 5.6 / 6.3 |
+| aggregate | 0.05 · 3.6 / 4.1 · 4.4 / 5.8 | 1.57 · 5.1 / 6.0 · 5.5 / 6.3 | 22.44 · 27.0 / 31.6 · 17.2 / 26.4 |
+| point | 0.01 · 4.8 / 5.8 · 5.2 / 5.9 | 0.01 · 5.0 / 5.7 · 4.8 / 5.3 | 0.01 · 4.8 / 5.5 · 5.2 / 6.3 |
 
-MySQL's stored functions (character loops, HMAC built from SHA2) are slower than PL/pgSQL or Python UDFs, and the
-gateway materialises each masked view once per query there. Threat scoring uses a direct tree walk over the fitted
-IsolationForest (0.22 ms per call; identical to scikit-learn's `score_samples` to 1e-16, tested) instead of the
-library call (~15 ms per call).
+**PostgreSQL 16** (ms, p50 / p95; gateway = all features on, as the analyst and as support)
+
+| Shape | 300 rows: direct · analyst · support | 10,000 rows: direct · analyst · support | 100,000 rows: direct · analyst · support |
+|---|---|---|---|
+| projection | 0.33 · 7.0 / 8.6 · 7.2 / 8.4 | 0.27 · 5.7 / 6.4 · 6.5 / 7.6 | 0.27 · 6.2 / 7.0 · 6.9 / 8.6 |
+| filter | 0.24 · 5.2 / 6.7 · 5.0 / 7.2 | 1.03 · 5.7 / 6.4 · 6.5 / 7.5 | 1.32 · 6.6 / 8.1 · 7.1 / 8.2 |
+| join | 0.30 · 6.7 / 9.8 · 8.9 / 11.8 | 0.27 · 6.5 / 7.8 · 8.1 / 10.0 | 0.29 · 7.3 / 7.9 · 8.6 / 10.1 |
+| cte | 0.24 · 6.6 / 7.9 · 7.3 / 9.3 | 0.23 · 5.9 / 6.5 · 6.0 / 7.1 | 0.28 · 7.0 / 10.6 · 6.4 / 7.3 |
+| aggregate | 0.30 · 4.2 / 4.8 · 4.8 / 5.5 | 1.37 · 5.7 / 6.5 · 6.5 / 7.5 | 11.44 · 16.1 / 18.6 · 16.6 / 23.4 |
+| point | 0.21 · 5.3 / 6.2 · 5.2 / 5.8 | 0.21 · 5.2 / 6.3 · 5.1 / 5.7 | 0.27 · 5.1 / 6.1 · 5.3 / 6.3 |
+
+**MySQL 8.4** (ms, p50 / p95; gateway = all features on, as the analyst and as support)
+
+| Shape | 300 rows: direct · analyst · support | 10,000 rows: direct · analyst · support | 100,000 rows: direct · analyst · support |
+|---|---|---|---|
+| projection | 1.00 · 9.8 / 11.2 · 16.1 / 17.7 | 0.99 · 9.2 / 11.4 · 15.5 / 19.3 | 1.01 · 11.1 / 14.9 · 16.4 / 25.2 |
+| filter | 0.62 · 6.6 / 11.6 · 6.6 / 7.9 | 5.21 · 12.1 / 14.9 · 17.9 / 29.2 | 7.76 · 14.4 / 17.0 · 22.0 / 37.4 |
+| join | 0.69 · 8.7 / 10.6 · 13.5 / 18.1 | 0.65 · 9.5 / 13.1 · 14.3 / 19.5 | 0.73 · 9.5 / 14.7 · 13.3 / 15.8 |
+| cte | 0.82 · 9.9 / 11.3 · 10.3 / 12.2 | 0.78 · 9.4 / 12.4 · 11.1 / 17.5 | 0.74 · 7.9 / 8.8 · 10.9 / 15.7 |
+| aggregate | 0.78 · 5.5 / 7.1 · 6.7 / 7.4 | 8.15 · 12.6 / 14.6 · 11.5 / 13.2 | 70.88 · 80.7 / 109.2 · 64.5 / 120.2 |
+| point | 0.41 · 7.1 / 8.4 · 6.7 / 7.9 | 0.39 · 6.9 / 9.2 · 8.3 / 9.8 | 0.45 · 8.0 / 10.2 · 7.0 / 9.7 |
+
+**Reading it.** The gateway adds a roughly constant 4–8 ms on SQLite and PostgreSQL and 6–22 ms on MySQL, whatever
+the table size, for every shape that reads a bounded number of rows. That time goes to parsing, rewriting, the audit
+write and a second round trip. The one shape that reads the whole table, a `GROUP BY` over every account, grows with
+the table in the direct query too: through the gateway it costs about 5 ms more on SQLite and PostgreSQL. On MySQL it is
+within the measurement spread of the direct query (65–81 ms against 71 ms at 100,000 rows). Support's aggregate returns one group, not two, because
+its row filter hides frozen accounts.
+
+**A MySQL fix found by this benchmark (1.1).** Up to 1.0.3 the MySQL backend turned off `derived_merge`, so each masked
+view was computed in full before the outer query ran: `ORDER BY … LIMIT 100` masked every row of the table first. At
+10,000 rows that took 0.35 s (analyst) to 2.5 s (support), and at 100,000 rows such queries exceeded the 5-second
+statement limit and were refused. Views are now merged into the query, so mask functions run only on rows that are
+returned. A view whose masked column is used in a join condition gets a `NO_MERGE` hint, because a merged view would
+re-run the function for every pair of rows compared; for that case the time is unchanged. Results are identical in
+both modes, except the order of rows that tie on a masked value. The full test suite and the attack matrix pass with
+the change on all three databases.
+
+Threat scoring uses a direct tree walk over the fitted IsolationForest: 0.22 ms per call, identical to scikit-learn's
+`score_samples` to 1e-16 (tested), instead of the library call (~15 ms per call).
+
+**Limits.** Synthetic tables of 3 narrow tables, one machine, warm cache, one client at a time. Not comparable to
+Fotache et al.'s Oracle/TPC-H numbers. Wider schemas, cold caches and concurrent clients are not measured. The 1.0.x
+figures (`make bench`: 8.3 / 8.1 / 21.4 ms added on SQLite / PostgreSQL / MySQL at 300 rows) used a different query
+mix and are superseded.
 
 ## 7. Tests
+
+**25 Oct 2026, version 1.1.0: 1,227 passed, 1 skipped, 6 expected failures** (the documented noisy-aggregate gaps)
+with `MASKGUARD_TEST_PG` and `MASKGUARD_TEST_MYSQL` set, on SQLite 3.45, PostgreSQL 16 and MySQL 8.4. Earlier figures
+(416 on 13 Oct, 513 for 1.0.3 on 18 Oct) are snapshots of smaller suites. The count grew mainly through the attack
+matrix (672 cases).
 
 The full suite runs against SQLite, PostgreSQL 16 and MySQL 8.4 (CI services), including: masking per role,
 attack suite, free-text redaction parity (Python vs PL/pgSQL vs MySQL, byte-identical), HMAC parity across engines,

@@ -10,7 +10,7 @@ every query so each role sees only what its policy allows. Stored data never cha
 [![CI](https://github.com/hotaro6754/mask/actions/workflows/ci.yml/badge.svg?branch=claude/zealous-bell-me62fn)](https://github.com/hotaro6754/mask/actions/workflows/ci.yml?query=branch%3Aclaude%2Fzealous-bell-me62fn)
 ![Python](https://img.shields.io/badge/python-3.10%2B-3776AB)
 ![Databases](https://img.shields.io/badge/databases-SQLite%20%C2%B7%20PostgreSQL%20%C2%B7%20MySQL-4c8)
-![Tests](https://img.shields.io/badge/tests-513%20passed-brightgreen)
+![Tests](https://img.shields.io/badge/tests-1227%20passed-brightgreen)
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue)](LICENSE)
 [![PyPI](https://img.shields.io/pypi/v/maskguard)](https://pypi.org/project/maskguard/)
 
@@ -194,8 +194,8 @@ repository and a JSON file in `docs/eval/`.
 | False alarms on look-alike data (order numbers, SKUs, OTPs…), 5 / 20 values | **6.3% / 1.5%** | 22.2% |
 | PII leaks across 17 bypass and inference attacks | **0 / 17** | 15 / 17 on PostgreSQL, 14 / 17 on SQLite and MySQL (naive masking) |
 | Simulated insider attacks detected (normal users blocked) | **95–100% (0%)** | — |
-| Added latency per query, p50, all features on | ~8 ms (SQLite, PostgreSQL), ~21 ms (MySQL) | — |
-| Tests | **513 passed** on SQLite, PostgreSQL 16 and MySQL 8.4, plus 121 Postman assertions | — |
+| Added latency per query, p50, all features on, 300 to 100,000 rows | 4–8 ms (SQLite, PostgreSQL), 6–22 ms (MySQL) | — |
+| Tests | **1,227 passed** on SQLite, PostgreSQL 16 and MySQL 8.4 (incl. 672 attack-matrix cases, 0 leaks), plus 121 Postman assertions | — |
 
 The attack suite is evidence for those 17 attack shapes, not a proof against every possible query. The threat
 engine was evaluated on simulated sessions.
@@ -566,7 +566,7 @@ the columns itself, masks inside the query, and applies one policy across databa
 They can get masking code quickly; MaskGuard itself was built with AI assistance. Getting code is the easy part.
 Knowing it can't be bypassed is the hard part:
 - the obvious version masks the output, which leaks 14–15 of our 17 attacks;
-- MaskGuard is checked on every push by an attack suite, 513 tests on three databases and 121 API assertions;
+- MaskGuard is checked on every push by an attack suite, 1,227 tests on three databases (including a 672-case attack matrix) and 121 API assertions;
 - a security bug doesn't crash, it silently leaks, so untested security code is a liability.
 
 The value is the tested, verified behaviour, not the lines of code.
@@ -714,8 +714,10 @@ for every role except admin until you approve it as `PUBLIC` there (`maskguard p
 <details>
 <summary><b>How much slower are queries?</b></summary>
 
-About 8 ms added per query (median) on SQLite and PostgreSQL, about 21 ms on MySQL, with every feature on. Each
-query has a 5-second timeout on PostgreSQL and MySQL.
+About 4–8 ms added per query (median) on SQLite and PostgreSQL and 6–22 ms on MySQL, with every feature on, measured
+at 300, 10,000 and 100,000 rows per table. The added time does not grow with the table for queries that return a
+bounded number of rows ([EVALUATION §6](docs/EVALUATION.md#6-performance)). Each query has a 5-second timeout on
+PostgreSQL and MySQL.
 </details>
 
 <details>
