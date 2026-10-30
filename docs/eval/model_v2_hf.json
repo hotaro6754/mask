@@ -1,77 +1,13 @@
 {
- "nemotron_dev": {
-  "pii_columns": 1080,
-  "kind_accuracy": 0.9991,
-  "protected_rate": 1.0,
-  "missed_pii_columns": 0,
-  "by_condition_protected": {
-   "misleading": 1.0,
-   "obfuscated": 1.0,
-   "truthful": 1.0
-  },
-  "per_class": {
-   "address": {
-    "n": 120,
-    "kind": 1.0,
-    "protected": 1.0
-   },
-   "bank_account": {
-    "n": 120,
-    "kind": 0.992,
-    "protected": 1.0
-   },
-   "card": {
-    "n": 120,
-    "kind": 1.0,
-    "protected": 1.0
-   },
-   "dob": {
-    "n": 120,
-    "kind": 1.0,
-    "protected": 1.0
-   },
-   "email": {
-    "n": 120,
-    "kind": 1.0,
-    "protected": 1.0
-   },
-   "name": {
-    "n": 120,
-    "kind": 1.0,
-    "protected": 1.0
-   },
-   "none": {
-    "n": 120,
-    "kind": 1.0,
-    "protected": 0.0
-   },
-   "phone": {
-    "n": 120,
-    "kind": 1.0,
-    "protected": 1.0
-   },
-   "ssn": {
-    "n": 120,
-    "kind": 1.0,
-    "protected": 1.0
-   },
-   "vehicle_reg": {
-    "n": 120,
-    "kind": 1.0,
-    "protected": 1.0
-   }
-  },
-  "non_personal_false_tag_rate": 0.0
- },
  "gretelen_test": {
   "pii_columns": 1080,
   "kind_accuracy": 0.7769,
-  "protected_rate": 0.8222,
-  "missed_pii_columns": 192,
+  "protected_rate": 0.8398,
+  "missed_pii_columns": 173,
   "by_condition_protected": {
    "misleading": 0.7917,
    "obfuscated": 0.8028,
-   "truthful": 0.8722
+   "truthful": 0.925
   },
   "per_class": {
    "address": {
@@ -122,7 +58,7 @@
    "vehicle_reg": {
     "n": 120,
     "kind": 0.0,
-    "protected": 0.142
+    "protected": 0.3
    }
   },
   "non_personal_false_tag_rate": 0.1
@@ -130,12 +66,12 @@
  "urchade_test": {
   "pii_columns": 1080,
   "kind_accuracy": 0.7907,
-  "protected_rate": 0.9528,
-  "missed_pii_columns": 51,
+  "protected_rate": 0.9546,
+  "missed_pii_columns": 49,
   "by_condition_protected": {
    "misleading": 0.9417,
    "obfuscated": 0.9222,
-   "truthful": 0.9944
+   "truthful": 1.0
   },
   "per_class": {
    "address": {
@@ -171,7 +107,7 @@
    "name": {
     "n": 120,
     "kind": 0.975,
-    "protected": 0.983
+    "protected": 0.992
    },
    "none": {
     "n": 120,
@@ -181,7 +117,7 @@
    "passport": {
     "n": 120,
     "kind": 0.7,
-    "protected": 0.967
+    "protected": 0.975
    },
    "phone": {
     "n": 120,
@@ -191,15 +127,53 @@
   },
   "non_personal_false_tag_rate": 0.0417
  },
+ "openpii_test": {
+  "pii_columns": 600,
+  "kind_accuracy": 0.885,
+  "protected_rate": 0.9133,
+  "missed_pii_columns": 52,
+  "by_condition_protected": {
+   "misleading": 0.875,
+   "obfuscated": 0.885,
+   "truthful": 0.98
+  },
+  "per_class": {
+   "card": {
+    "n": 120,
+    "kind": 0.967,
+    "protected": 1.0
+   },
+   "email": {
+    "n": 120,
+    "kind": 1.0,
+    "protected": 1.0
+   },
+   "name": {
+    "n": 120,
+    "kind": 0.475,
+    "protected": 0.583
+   },
+   "passport": {
+    "n": 120,
+    "kind": 0.983,
+    "protected": 0.983
+   },
+   "phone": {
+    "n": 120,
+    "kind": 1.0,
+    "protected": 1.0
+   }
+  }
+ },
  "indiapii_test": {
   "pii_columns": 1680,
   "kind_accuracy": 0.8506,
-  "protected_rate": 0.9304,
-  "missed_pii_columns": 117,
+  "protected_rate": 0.9482,
+  "missed_pii_columns": 87,
   "by_condition_protected": {
-   "misleading": 0.9196,
-   "obfuscated": 0.9161,
-   "truthful": 0.9554
+   "misleading": 0.9286,
+   "obfuscated": 0.9286,
+   "truthful": 0.9875
   },
   "per_class": {
    "aadhaar": {
@@ -235,7 +209,7 @@
    "name": {
     "n": 120,
     "kind": 0.008,
-    "protected": 0.125
+    "protected": 0.275
    },
    "none": {
     "n": 120,
@@ -250,7 +224,7 @@
    "passport": {
     "n": 120,
     "kind": 0.9,
-    "protected": 0.9
+    "protected": 1.0
    },
    "phone": {
     "n": 120,
@@ -358,43 +332,5 @@
    }
   },
   "non_personal_false_tag_rate": 0.2417
- },
- "openpii_test": {
-  "pii_columns": 600,
-  "kind_accuracy": 0.885,
-  "protected_rate": 0.9133,
-  "missed_pii_columns": 52,
-  "by_condition_protected": {
-   "misleading": 0.875,
-   "obfuscated": 0.885,
-   "truthful": 0.98
-  },
-  "per_class": {
-   "card": {
-    "n": 120,
-    "kind": 0.967,
-    "protected": 1.0
-   },
-   "email": {
-    "n": 120,
-    "kind": 1.0,
-    "protected": 1.0
-   },
-   "name": {
-    "n": 120,
-    "kind": 0.475,
-    "protected": 0.583
-   },
-   "passport": {
-    "n": 120,
-    "kind": 0.983,
-    "protected": 0.983
-   },
-   "phone": {
-    "n": 120,
-    "kind": 1.0,
-    "protected": 1.0
-   }
-  }
  }
 }

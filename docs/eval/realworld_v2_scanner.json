@@ -1,0 +1,21 @@
+{
+ "columns": 740,
+ "model_false_pii": 19,
+ "model_false_pii_rate": 0.0257,
+ "scanner_tagged": 30,
+ "scanner_tagged_rate": 0.0405,
+ "model_wrong_kinds": {
+  "name": 19
+ },
+ "scanner_by_source": {
+  "co2-ppm/data/co2-mm-mlo.csv": "0/60",
+  "covid-19/data/reference.csv": "1/160",
+  "currency-codes/data/codes-all.csv": "8/100",
+  "gold-prices/data/monthly.csv": "0/20",
+  "house-prices-us/data/cities-month-NSA.csv": "0/60",
+  "media-types/data/media-types.csv": "0/60",
+  "population/data/population.csv": "7/80",
+  "top-level-domain-names/data/top-level-domain-names.csv": "0/60",
+  "un-locode/data/code-list.csv": "14/140"
+ }
+}

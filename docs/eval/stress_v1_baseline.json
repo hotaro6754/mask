@@ -1,0 +1,181 @@
+{
+ "columns": 2800,
+ "results": {
+  "clean": {
+   "pii_columns": 2560,
+   "protected": 0.8805,
+   "missed": 306,
+   "non_personal_columns": 240,
+   "false_tag_rate": 0.2958,
+   "ms_per_column": 6.37,
+   "top_misses": {
+    "gretelen/vehicle_reg": 40,
+    "gretelen/bank_account": 37,
+    "urchade/bank_account": 35,
+    "indiapii/name": 31,
+    "openpii/phone": 31,
+    "openpii/name": 27
+   }
+  },
+  "placeholders": {
+   "pii_columns": 2560,
+   "protected": 0.4895,
+   "missed": 1307,
+   "non_personal_columns": 240,
+   "false_tag_rate": 0.0292,
+   "ms_per_column": 6.46,
+   "top_misses": {
+    "gretelen/name": 40,
+    "gretelen/vehicle_reg": 40,
+    "urchade/name": 40,
+    "indiapii/name": 40,
+    "indiapii/pincode": 40,
+    "indiapii/voter_id": 40
+   }
+  },
+  "tiny": {
+   "pii_columns": 2560,
+   "protected": 0.827,
+   "missed": 443,
+   "non_personal_columns": 240,
+   "false_tag_rate": 0.3292,
+   "ms_per_column": 1.98,
+   "top_misses": {
+    "gretelen/vehicle_reg": 37,
+    "urchade/passport": 37,
+    "openpii/name": 35,
+    "indiapii/name": 33,
+    "openpii/passport": 33,
+    "gretelen/bank_account": 32
+   }
+  },
+  "mixed": {
+   "pii_columns": 2560,
+   "protected": 0.8441,
+   "missed": 399,
+   "non_personal_columns": 240,
+   "false_tag_rate": 0.2125,
+   "ms_per_column": 8.31,
+   "top_misses": {
+    "gretelen/vehicle_reg": 38,
+    "urchade/bank_account": 34,
+    "gretelen/bank_account": 32,
+    "openpii/phone": 30,
+    "openpii/name": 26,
+    "indiapii/name": 25
+   }
+  },
+  "case_space": {
+   "pii_columns": 2560,
+   "protected": 0.916,
+   "missed": 215,
+   "non_personal_columns": 240,
+   "false_tag_rate": 0.5625,
+   "ms_per_column": 7.51,
+   "top_misses": {
+    "gretelen/vehicle_reg": 40,
+    "urchade/bank_account": 35,
+    "gretelen/bank_account": 32,
+    "openpii/phone": 31,
+    "urchade/address": 21,
+    "gretelen/phone": 20
+   }
+  },
+  "reformat": {
+   "pii_columns": 2560,
+   "protected": 0.8531,
+   "missed": 376,
+   "non_personal_columns": 240,
+   "false_tag_rate": 0.2958,
+   "ms_per_column": 5.51,
+   "top_misses": {
+    "indiapii/pincode": 40,
+    "bharat/IN_PINCODE": 40,
+    "gretelen/bank_account": 37,
+    "gretelen/vehicle_reg": 31,
+    "indiapii/name": 31,
+    "ylemis/phone": 30
+   }
+  },
+  "half_masked": {
+   "pii_columns": 2560,
+   "protected": 0.8754,
+   "missed": 319,
+   "non_personal_columns": 240,
+   "false_tag_rate": 0.2875,
+   "ms_per_column": 5.32,
+   "top_misses": {
+    "indiapii/name": 29,
+    "indiapii/address": 27,
+    "openpii/name": 27,
+    "urchade/name": 26,
+    "gretelen/name": 25,
+    "ylemis/name": 24
+   }
+  },
+  "numbers": {
+   "pii_columns": 2560,
+   "protected": 0.8805,
+   "missed": 306,
+   "non_personal_columns": 240,
+   "false_tag_rate": 0.2958,
+   "ms_per_column": 5.34,
+   "top_misses": {
+    "gretelen/vehicle_reg": 40,
+    "gretelen/bank_account": 37,
+    "urchade/bank_account": 35,
+    "indiapii/name": 31,
+    "openpii/phone": 31,
+    "openpii/name": 27
+   }
+  },
+  "quoted": {
+   "pii_columns": 2560,
+   "protected": 0.35,
+   "missed": 1664,
+   "non_personal_columns": 240,
+   "false_tag_rate": 0.225,
+   "ms_per_column": 8.38,
+   "top_misses": {
+    "gretelen/vehicle_reg": 40,
+    "urchade/passport": 40,
+    "indiapii/gstin": 40,
+    "indiapii/ifsc": 40,
+    "indiapii/passport": 40,
+    "indiapii/pincode": 40
+   }
+  },
+  "nbsp": {
+   "pii_columns": 2560,
+   "protected": 0.843,
+   "missed": 402,
+   "non_personal_columns": 240,
+   "false_tag_rate": 0.1,
+   "ms_per_column": 7.68,
+   "top_misses": {
+    "gretelen/vehicle_reg": 40,
+    "gretelen/bank_account": 37,
+    "urchade/bank_account": 35,
+    "openpii/phone": 31,
+    "indiapii/name": 30,
+    "gretelen/name": 27
+   }
+  },
+  "low_card": {
+   "pii_columns": 2560,
+   "protected": 0.7289,
+   "missed": 694,
+   "non_personal_columns": 240,
+   "false_tag_rate": 0.0375,
+   "ms_per_column": 12.77,
+   "top_misses": {
+    "gretelen/name": 40,
+    "urchade/name": 40,
+    "indiapii/name": 40,
+    "ylemis/name": 40,
+    "openpii/name": 40,
+    "gretelen/bank_account": 39
+   }
+  }
+ }
+}

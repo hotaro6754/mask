@@ -67,6 +67,7 @@ As detection scores (sensitive columns against not-personal ones; the 14 judgeme
 |---|---|---|---|
 | First contact (1.1.0) | 0.73 (22 of 30 tagged) | 0.63 (22 of 35) | 0.68 |
 | After the fixes below | 0.81 (35 of 43 tagged) | 1.00 (35 of 35) | 0.90 |
+| Model version 2 (30 Oct 2026, [model card](MODEL_CARD.md)) | 0.83 (35 of 42 tagged) | 1.00 (35 of 35) | 0.91 |
 
 The fixes were made after seeing this dataset, so the second row is not a blind score; the first row is.
 

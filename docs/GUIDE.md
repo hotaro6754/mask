@@ -219,7 +219,7 @@ Partly, yes, and MaskGuard itself was built with an AI assistant. An AI can writ
 
 - **The quick version is usually display masking**, which our attack suite breaks in 14–15 of 17 attacks.
 - **Security bugs are silent.** Broken masking doesn't crash; it leaks, and nobody notices until data is gone.
-- **The value is the checking:** an attack suite, 1,235 tests on three databases, 121 API checks, a security
+- **The value is the checking:** an attack suite, 1,244 tests on three databases, 121 API checks, a security
   comparison with an existing product, a production profile verified live, and a privacy audit that found and
   documented its own gaps.
 
@@ -446,7 +446,7 @@ users:
 table is blocked until it has been scanned.
 
 How well does it work? On an independent Indian-PII benchmark with deliberately misleading column names, it scores
-0.965 F1 with 5 sample values per column (0.999 with 20), against 0.844 for the benchmark's own baseline. **F1** is a
+0.977 F1 with 5 sample values per column (0.999 with 20), against 0.844 for the benchmark's own baseline. **F1** is a
 score from 0 to 1 that balances "found all the PII" against "did not flag non-PII".
 
 ## 10. The policy: who sees what
@@ -1033,7 +1033,7 @@ production aggregates.
 
 | Check | What it proves | Command |
 |---|---|---|
-| **Test suite** (pytest) | 1,235 tests on SQLite, PostgreSQL 16 and MySQL 8.4: masking, attack matrix, firewall, roles, scanner, threat engine, API, CLI, production refusals, DP findings, audit hardening | `uv run pytest -q` |
+| **Test suite** (pytest) | 1,244 tests on SQLite, PostgreSQL 16 and MySQL 8.4: masking, attack matrix, firewall, roles, scanner, threat engine, API, CLI, production refusals, DP findings, audit hardening | `uv run pytest -q` |
 | **Attack suite** | 0 of 17 PII attacks leak; 4 of 4 unsafe statements rejected | `uv run maskguard attack --role support` |
 | **Security regression** | Attack suite as every role + audit chain + integrity proof | `uv run maskguard test` |
 | **Postman / Newman** | 55 API requests, 121 assertions, including 26 negative and security cases | `make postman` |

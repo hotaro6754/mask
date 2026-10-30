@@ -189,16 +189,18 @@ repository and a JSON file in `docs/eval/`.
 
 | | MaskGuard | Baseline |
 |---|---|---|
-| PII discovery with misleading column names, macro-F1 (bharat-pii-bench, unseen seeds), **5 sample values** per column | **0.965** | 0.844 |
+| PII discovery with misleading column names, macro-F1 (bharat-pii-bench, unseen seeds), **5 sample values** per column | **0.977** | 0.844 |
 | Same, 20 sample values per column | **0.999** | 0.844 |
 | Same, 200 sample values per column (what the scanner reads by default; 0% false alarms) | **1.000** | 0.844 (22.2% false alarms) |
 | False alarms on look-alike data (order numbers, SKUs, OTPs…), 5 / 20 values | **6.3% / 1.5%** | 22.2% |
+| PII columns protected on **5 public Hugging Face datasets never trained on** (5,880 PII columns, real-world formats; [model card](docs/MODEL_CARD.md)) | **93.9%** | 84.0% (our model version 1) |
+| Same columns **damaged 11 ways real exports are** ("NULL" text, quoted CSV values, half-masked, regrouped digits…) | **90.9%** | 77.2% (version 1) |
 | **Organisers' Saffron Bank pack** (9 tables, 120 columns, 129,260 rows): sensitive columns found | **35 / 35** (22 on first contact; [what we fixed](docs/SAFFRON_VALIDATION.md)) | — |
 | Same, raw values returned to Support or Analyst, 13,700 masked cells, as the organisers' users | **0** on SQLite, PostgreSQL and MySQL | — |
 | PII leaks across 17 bypass and inference attacks | **0 / 17** | 15 / 17 on PostgreSQL, 14 / 17 on SQLite and MySQL (naive masking) |
 | Simulated insider attacks detected (normal users blocked) | **95–100% (0%)** | — |
 | Added latency per query, p50, all features on, 300 to 100,000 rows | 4–8 ms (SQLite, PostgreSQL), 6–22 ms (MySQL) | — |
-| Tests | **1,235 passed** on SQLite, PostgreSQL 16 and MySQL 8.4 (incl. 672 attack-matrix cases, 0 leaks), plus 121 Postman assertions | — |
+| Tests | **1,244 passed** on SQLite, PostgreSQL 16 and MySQL 8.4 (incl. 672 attack-matrix cases, 0 leaks), plus 121 Postman assertions | — |
 
 The attack suite is evidence for those 17 attack shapes, not a proof against every possible query. The threat
 engine was evaluated on simulated sessions.
@@ -580,7 +582,7 @@ the columns itself, masks inside the query, and applies one policy across databa
 They can get masking code quickly; MaskGuard itself was built with AI assistance. Getting code is the easy part.
 Knowing it can't be bypassed is the hard part:
 - the obvious version masks the output, which leaks 14–15 of our 17 attacks;
-- MaskGuard is checked on every push by an attack suite, 1,235 tests on three databases (including a 672-case attack matrix) and 121 API assertions;
+- MaskGuard is checked on every push by an attack suite, 1,244 tests on three databases (including a 672-case attack matrix) and 121 API assertions;
 - a security bug doesn't crash, it silently leaks, so untested security code is a liability.
 
 The value is the tested, verified behaviour, not the lines of code.

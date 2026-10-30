@@ -41,11 +41,11 @@ read-only account: it refuses to start on any unsafe setting.
 
 ## Results
 
-- **PII discovery:** 0.965 F1 with misleading column names and 5 sample values per column; the benchmark baseline
+- **PII discovery:** 0.977 F1 with misleading column names and 5 sample values per column; the benchmark baseline
   scores 0.844.
 - **Attack suite:** 0 of the 17 bypass and inference attacks in its suite leak, against 14–15 of 17 for output-only
   masking. That is evidence for those attack shapes, not a proof for every query.
-- **Tests:** 1,235 tests on SQLite, PostgreSQL 16 and MySQL 8.4.
+- **Tests:** 1,244 tests on SQLite, PostgreSQL 16 and MySQL 8.4.
 - **Latency:** about 8 ms added per query.
 
 ## What's new in 1.1.0

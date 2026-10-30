@@ -100,26 +100,28 @@ The jury asks "how will this hold up long term, and which short-term shortcuts d
 **30-second version:**
 > We use machine learning only where rules fail. Finding personal data is a pattern problem: column names lie, and
 > real identifiers fail their own checksums. A LightGBM model reads the values. On a public benchmark with misleading
-> column names, rules alone score 0.84 and rules plus the model score 0.97 or more. On your Saffron Bank data, the first
+> column names, rules alone score 0.84 and rules plus the model score 0.97 or more. On five public datasets it never
+> trained on, it protects 94% of PII columns, and 91% after we damage the data the way real exports are damaged. On your Saffron Bank data, the first
 > run found 22 of 35 sensitive columns, and none of the 13 misses leaked, because unsure means hidden. The second place is
 > spotting unusual query behaviour, with an IsolationForest. We kept AI out of the access decision on purpose:
 > who sees what is a deterministic policy, so every mask is explainable and testable. AI suggests a tag, the policy
-> decides, and a person approves. And yes, we used AI coding assistants to build it. Every change is gated by 1,235
+> decides, and a person approves. And yes, we used AI coding assistants to build it. Every change is gated by 1,244
 > tests on three databases.
 
 **Follow-ups to expect:**
 
 | Question | Answer |
 |---|---|
-| Why LightGBM, not an LLM? | It is fast (about 2.6 ms per column at 20 values) and runs offline, so no customer data leaves the bank. It is small, explainable through its features, and measured: 0.84 → 0.97 over rules alone on the public benchmark. An LLM would send samples of personal data to a model to decide whether they are personal. |
+| Why LightGBM, not an LLM? | It is fast (about 3 ms per column at 20 values) and runs offline, so no customer data leaves the bank. It is small, explainable through its features, and measured: 0.84 → 0.97 over rules alone on the public benchmark. An LLM would send samples of personal data to a model to decide whether they are personal. |
 | What was it trained on? | Only synthetic columns from our own generator: 6,900 columns, 20 kinds plus look-alikes, in 8 locales, with 40% truthful, 30% generic and 30% misleading column names. Never real personal data, never the benchmark, never your data. Full details: `docs/MODEL_CARD.md`. |
 | Did you train on our Saffron Bank data? | "No. The model hasn't changed since 12 October. Your data was a test. What we changed after seeing it were six general rules around the model (money abbreviations, PANs that fail the check, account names…), and we re-ran the public benchmark to make sure nothing got worse." |
 | Isn't 0.999 too good to be true? | "On a synthetic benchmark, yes, read it as the ceiling: the data is clean. That's why we show the hard numbers next to it. On your data, first contact was F1 0.68 (22 of 35 found). After general fixes it is 0.90, with 8 false alarms on the bank's own branch details. And none of it leaked, because unsure columns stay hidden: we checked 1,300 values from the 13 missed columns as Support and Analyst, and 0 came back real." (Slide 6.) |
 | So the AI can never cause a leak? | "Not on its own. The one way was a person approving a wrong suggestion without looking: on first contact two account-number columns were wrongly suggested as public. That is fixed (a column named like a sensitive kind is never suggested public), and approvals are recorded in the audit log." |
 | Isn't 0.90 tuned to our data? | "Partly, yes. The fixes were made after seeing it, which is why we also show the first-contact 0.68. The fixes are general rules, and we re-checked that the public benchmark didn't get worse. The safety net doesn't depend on accuracy." |
 | What if the model is wrong? | A miss is not a leak. The column stays `UNREVIEWED`, so it is masked for every role except admin, until a person reviews it. A false alarm only means a reviewer approves the column. |
+| Real bank data is messy. Does it still work? | "We tested exactly that. We took 2,800 columns from public datasets the model never saw and damaged them 11 ways real exports are damaged: \"NULL\" typed as text, values in quotes, half already masked by an old system, phone numbers regrouped, only three values. Version 1 protected 77% of the PII columns; version 2 protects 91%. Quoted CSV values went from 35% to 96%. The hardest cases left are columns with two or three values, where nothing could tell from the values alone, so the column name decides, and anything unsure stays masked." (`docs/MODEL_CARD.md`, `bench/stress.py`) |
 | Why not let AI decide access? | Access must be reproducible and auditable. The same query by the same role must always give the same answer, and an auditor must be able to read the reason. |
-| How did you use AI to build it? | As a pair programmer under our design and review. Nothing merges without tests: 1,235 automated tests, 45 container checks and 121 Postman assertions, all in CI. |
+| How did you use AI to build it? | As a pair programmer under our design and review. Nothing merges without tests: 1,244 automated tests, 45 container checks and 121 Postman assertions, all in CI. |
 | What about names and addresses inside free text? | Not solved yet, and we say so. Identifiers inside text (phones, PAN, Aadhaar, UPI, email, dates of birth) are redacted. Names inside prose need NER, which is next. |
 
 ### 2.4 Solution completeness (7): functional, not a prototype
@@ -178,7 +180,7 @@ The line for encryption and quantum-safe approaches:
 | What they built | What it really does | Our calm answer |
 |---|---|---|
 | **Post-quantum encryption** (Kyber / ML-KEM, Dilithium) of the data or the tokens | Protects stored or transmitted data against a future quantum attacker | "Good for outsiders. It doesn't decide what each employee sees after decryption, and it doesn't find the PII. Our masking already uses only symmetric cryptography (HMAC-SHA-256, SHA-256), which quantum computers don't break the way they break RSA." |
-| **Quantum ML** (QSVM, VQC in Qiskit or PennyLane) to classify columns | Runs on a simulator on a normal computer, or on cloud quantum hardware | "On table data, recent benchmarks find quantum classifiers don't beat tuned classical models. Ours runs offline in about 3 ms a column from a 0.45 MB file, and we show its real accuracy, misses included." |
+| **Quantum ML** (QSVM, VQC in Qiskit or PennyLane) to classify columns | Runs on a simulator on a normal computer, or on cloud quantum hardware | "On table data, recent benchmarks find quantum classifiers don't beat tuned classical models. Ours runs offline in about 3 ms a column from a 0.71 MB file, and we show its real accuracy, misses included." |
 | **Quantum random numbers** for tokens or keys | Better randomness for key generation | "Our keys come from the operating system's cryptographic random generator (256-bit). Randomness isn't the weak point in masking; who sees what is." |
 
 Rules:
@@ -190,7 +192,7 @@ Rules:
   masking layer itself has nothing a quantum computer breaks."
 
 Why no LLM, in one breath: customer data would leave the bank (or need GPUs), the same column could get different
-answers on different days, each call costs money and seconds, and a prompt can be manipulated. A 0.45 MB LightGBM
+answers on different days, each call costs money and seconds, and a prompt can be manipulated. A 0.71 MB LightGBM
 model has none of those problems, and the accuracy is shown honestly on slide 6.
 
 ### 2.8 If the slot is shorter
@@ -209,14 +211,16 @@ model has none of those problems, and the accuracy is shown honestly on slide 6.
 |---|---|---|
 | Saffron sensitive columns tagged | 35/35 (first contact 22/35) | `docs/SAFFRON_VALIDATION.md` §3 |
 | Raw values leaked, Saffron, 3 DBs | 0 of 13,700 masked cells per DB | `docs/eval/saffron_masking.json` |
-| Discovery, organisers' data (detection F1) | 0.68 first contact (precision 0.73, recall 0.63); 0.90 after fixes (0.81, 1.00) | `docs/SAFFRON_VALIDATION.md` §3 |
-| Discovery, public benchmark, misleading names | 0.97 (5 values), 0.999 (20 values): synthetic, so an upper bound | `docs/EVALUATION.md` |
+| Discovery, organisers' data (detection F1) | 0.68 first contact (precision 0.73, recall 0.63); 0.90 after fixes (0.81, 1.00); 0.91 with model version 2 (7 false alarms) | `docs/SAFFRON_VALIDATION.md` §3 |
+| Discovery, public benchmark, misleading names | 0.977 (5 values), 0.999 (20 values): synthetic, so an upper bound | `docs/EVALUATION.md` |
+| Discovery, 5 public datasets never trained on | 93.9% of 5,880 PII columns protected (version 1: 84.0%) | `docs/MODEL_CARD.md` |
+| Same data, damaged 11 ways ("NULL" text, quotes, half-masked…) | 90.9% protected (version 1: 77.2%); quoted CSV values 35% → 96% | `docs/MODEL_CARD.md`, `bench/stress.py` |
 | Benchmark's own baseline | 0.844, with 22.2% false alarms on hard negatives | same |
 | Our false alarms | 1.5% at 20 values (all OTP columns), 0% at 200 | same |
 | Attacks | 0/17 leak; output-only masking leaks 14/17 | `maskguard attack` |
 | Attack matrix | 672 cases, 0 leaks (12 families × 3 roles × 3 DBs + fuzzer) | `tests/test_attack_matrix.py` |
 | Latency added | 4–8 ms SQLite/PostgreSQL, 6–22 ms MySQL, 300 → 100,000 rows | `docs/EVALUATION.md` §6 |
-| Tests | 1,235 passed, 1 skipped, 6 xfailed; 45 container checks; 121 Postman assertions | CI |
+| Tests | 1,244 passed, 1 skipped, 6 xfailed; 45 container checks; 121 Postman assertions | CI |
 | Tokens | 128-bit keyed (32 hex), optionally scoped per column | `mg_token` |
 | Market | $1.47 B (2025) → $2.60 B (2030), 12% a year | Knowledge Sourcing Intelligence |
 | Breach cost, India | ₹22 crore average, 2025 | IBM Cost of a Data Breach 2025 |
@@ -395,7 +399,7 @@ evidence must be easy to find from the README:
 | Baselines | The benchmark's own `regex_checksum` (0.844), our rules-only v1 (0.386), naive output masking (14/17 leaks) |
 | Results on the provided dataset | `docs/SAFFRON_VALIDATION.md`, `docs/eval/saffron_masking.json` |
 | Reproducibility | `bench/` scripts, result JSON in `docs/eval/`, commands in each doc |
-| Tests and CI | 1,235 tests, GitHub Actions on every push, badge in the README |
+| Tests and CI | 1,244 tests, GitHub Actions on every push, badge in the README |
 | Honest limits | README "Known limits", `docs/design/PRIVACY_ACCOUNTING.md` |
 
 Before the freeze, make sure the README's evidence table links each of these, and that every number in the deck
@@ -452,7 +456,7 @@ Nobody can promise a result, but the position is strong, and the risks are known
 **Where we are strong:**
 - **Completeness (7 marks, the largest share):** it runs on the organisers' own data, on all three of their
   databases, as their own users, with a dashboard and a command line. Most teams will show their own sample data.
-- **The AI evaluation (30% of the final score):** accuracy against a named baseline on an external benchmark, 1,235
+- **The AI evaluation (30% of the final score):** accuracy against a named baseline on an external benchmark, 1,244
   tests, results files and reproduce commands. An automated code reviewer finds all of it from the README.
 - **Role of AI:** a deliberate, defensible choice (classic ML, no LLM, AI never decides access), with a number.
 - **Honesty:** we show our first-contact miss (22 of 35) and the fix. Judges trust teams that do.

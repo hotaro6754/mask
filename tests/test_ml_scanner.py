@@ -95,3 +95,40 @@ def test_a_leading_zero_anywhere_rules_out_pin_codes():
     otps = [f"{r.randint(100000, 999999)}" for _ in range(60)]
     otps[45] = "012345"  # in the third block: averaging alone would outvote it
     assert decide("field_c", otps)["kind"] != "pincode"
+
+
+def test_messy_values_are_read_as_a_person_reads_them():
+    """bench/stress.py: quoted CSV values, placeholder text for missing data, legacy-masked values, NBSP."""
+    pans = ["ABCPK1234F", "BNZPM2501F", "AAACR5055K", "CLMPS0921Q", "DXEPK7712R"] * 6
+    assert scanner.classify_column("col_3", [f'"{v}"' for v in pans])["kind"] == "pan"
+    holey = [v if i % 5 == 0 else ("NULL", "N/A", "", "-")[i % 4] for i, v in enumerate(pans * 5)]
+    assert scanner.classify_column("col_3", holey)["kind"] == "pan"
+    assert scanner.detection_sample(['  "a b" ', "x y", "NULL", None, 5]) == ["a b", "x y", 5]
+    half = ["XXXXXX" + v[-4:] if i % 2 else v for i, v in enumerate(pans)]
+    assert scanner.detection_sample(half) == pans[::2]
+    masked = ["XXXX XXXX 1234", "XXXX XXXX 9876", "XXXX XXXX 5555"] * 5
+    assert scanner.detection_sample(masked) == masked  # all masked: read as is (masked Aadhaar is still Aadhaar)
+    assert scanner.classify_column("col_9", masked)["kind"] == "aadhaar"
+
+
+def test_pin_codes_with_a_space_or_a_default_zero_are_still_pin_codes():
+    pins = ["530017", "500081", "110001", "560034", "400053", "600028"] * 5
+    assert scanner.classify_column("col_2", [v[:3] + " " + v[3:] for v in pins])["kind"] == "pincode"
+    assert scanner.classify_column("col_2", [int(v) for v in pins] + [0] * 10)["kind"] == "pincode"
+
+
+def test_headers_that_name_a_person_or_an_identifier_win_over_a_confident_model():
+    few = ["Ravi Kumar", "Sita Devi"] * 20  # a few names repeated: the model reads a category
+    assert scanner.classify_column("customer_name", few)["kind"] == "name"
+    assert scanner.classify_column("branch_name", ["MG Road", "Banjara Hills"] * 20) is None
+    r = random.Random(4)  # distinct codes in a format the model has not seen (gretel-pii-masking-en-v1 style)
+    plates = [f"{r.choice('CKNS')}{r.randint(10, 99)}-{r.randint(1000, 9999)}-{r.randint(100, 999)}" for _ in range(20)]
+    assert scanner.classify_column("vehicle_no", plates) is not None
+    assert scanner.classify_column("account_id", list(range(1000, 1040))) is None  # an internal key, not masked
+    assert scanner.classify_column("pan_verified", ["Y", "N"] * 10) is None
+
+
+def test_passport_numbers_written_with_a_space_are_still_passports():
+    r = random.Random(8)  # indiapii-bench writes about half of its passports as "J12 34567"
+    nums = [f"{r.choice('ABCJKLMNPRSTVZ')}{r.randint(1000000, 9999999)}" for _ in range(30)]
+    assert scanner.classify_column("column3", [n[:3] + " " + n[3:] if i % 2 else n for i, n in enumerate(nums)]) is not None

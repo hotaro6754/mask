@@ -92,6 +92,27 @@ ML decision the benchmark scores, and money maps to its `NONE` label, so the num
 checked on the synthetic clinic database of `scripts/e2e/` (13 of 13 sensitive columns found, the 12-digit decoy not
 flagged) and by `tests/test_onboarding.py`; that is a check, not a benchmark result.
 
+**Model version 2 and messy data (30 Oct 2026).** The classifier was retrained on public data (Nemotron-PII, Gretel
+finance, public business datasets; see [MODEL_CARD.md](MODEL_CARD.md)) and the scanner now reads values as a person
+would (quotes, placeholders, legacy-masked values, spaced PIN codes and passports) and trusts column names that name an
+identifier or a person. The same holdout, the full production scanner:
+
+| Values per column | Export | Macro-F1 truthful / obfuscated / misleading | PII columns missed (of 2,880) | Hard-negative columns tagged (of 540) |
+|---|---|---|---|---|
+| 5 | 20-value | 0.994 / 0.979 / 0.977 | 50 (was 82) | 6.3% (unchanged) |
+| 10 | 20-value | 1.000 / 0.998 / 0.998 | 4 (was 21) | 3.5% |
+| 20 | 20-value | 1.000 / 0.999 / 0.999 | 2 (was 3) | 1.5% |
+| 5 | 200-value | 0.994 / 0.973 / 0.973 | 62 (was 69) | 7.6% |
+| 20 | 200-value | 1.000 / 1.000 / 1.000 | 0 (was 42) | 1.8% |
+| 50 / 200 | 200-value | 1.000 / 1.000 / 1.000 | 0 / 0 (was 8 / 0) | 0.2% / 0% |
+
+`docs/eval/scanner_sampling_v2.json`, `docs/eval/scanner_sampling_200_v2.json`. This benchmark is synthetic and the
+numbers are near the ceiling, so the harder evidence is elsewhere: five Hugging Face test sets never trained on
+(missed PII columns 938 → 361), the organisers' Saffron Bank data (35 of 35, unchanged) and a stress test that damages
+2,800 test columns in 11 ways real exports do (missed PII columns 6,431 → 2,565; quoted CSV values 35% → 96%
+protected, "NULL"/"N/A" text 49% → 79%). Both are in [MODEL_CARD.md](MODEL_CARD.md); `bench/stress.py` →
+`docs/eval/stress_v1_baseline.json`, `docs/eval/stress_v2.json`.
+
 ## 2. PII inside free text — external benchmark
 
 **Data.** bharat-pii-bench T3: 4,500 sentences (English, Hindi, Hinglish; seeds 401–403), one identifier each.
@@ -261,8 +282,8 @@ mix and are superseded.
 
 ## 7. Tests
 
-**30 Oct 2026, version 1.1.0: 1,235 passed, 1 skipped, 6 expected failures** (the documented noisy-aggregate gaps)
-with `MASKGUARD_TEST_PG` and `MASKGUARD_TEST_MYSQL` set, on SQLite 3.45, PostgreSQL 16 and MySQL 8.4. Earlier figures
+**30 Oct 2026, model version 2: 1,244 passed, 1 skipped, 6 expected failures** (the documented noisy-aggregate
+gaps; version 1.1.0 earlier that day: 1,235) with `MASKGUARD_TEST_PG` and `MASKGUARD_TEST_MYSQL` set, on SQLite 3.45, PostgreSQL 16 and MySQL 8.4. Earlier figures
 (416 on 13 Oct, 513 for 1.0.3 on 18 Oct) are snapshots of smaller suites. The count grew mainly through the attack
 matrix (672 cases).
 

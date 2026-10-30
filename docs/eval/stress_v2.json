@@ -1,0 +1,181 @@
+{
+ "columns": 2800,
+ "results": {
+  "clean": {
+   "pii_columns": 2560,
+   "protected": 0.9547,
+   "missed": 116,
+   "non_personal_columns": 240,
+   "false_tag_rate": 0.1375,
+   "ms_per_column": 5.38,
+   "top_misses": {
+    "indiapii/name": 32,
+    "gretelen/bank_account": 29,
+    "gretelen/vehicle_reg": 27,
+    "openpii/name": 17,
+    "urchade/dob": 7,
+    "urchade/address": 1
+   }
+  },
+  "placeholders": {
+   "pii_columns": 2560,
+   "protected": 0.791,
+   "missed": 535,
+   "non_personal_columns": 240,
+   "false_tag_rate": 0.0375,
+   "ms_per_column": 1.68,
+   "top_misses": {
+    "indiapii/name": 36,
+    "openpii/name": 33,
+    "urchade/address": 31,
+    "urchade/name": 29,
+    "gretelen/vehicle_reg": 28,
+    "gretelen/name": 27
+   }
+  },
+  "tiny": {
+   "pii_columns": 2560,
+   "protected": 0.8992,
+   "missed": 258,
+   "non_personal_columns": 240,
+   "false_tag_rate": 0.1708,
+   "ms_per_column": 0.93,
+   "top_misses": {
+    "urchade/dob": 33,
+    "indiapii/name": 27,
+    "gretelen/bank_account": 23,
+    "gretelen/vehicle_reg": 22,
+    "openpii/name": 19,
+    "bharat/DATE_OF_BIRTH": 17
+   }
+  },
+  "mixed": {
+   "pii_columns": 2560,
+   "protected": 0.8785,
+   "missed": 311,
+   "non_personal_columns": 240,
+   "false_tag_rate": 0.1833,
+   "ms_per_column": 5.27,
+   "top_misses": {
+    "gretelen/vehicle_reg": 28,
+    "indiapii/name": 27,
+    "openpii/name": 27,
+    "bharat/IN_PASSPORT": 21,
+    "gretelen/name": 20,
+    "openpii/passport": 20
+   }
+  },
+  "case_space": {
+   "pii_columns": 2560,
+   "protected": 0.934,
+   "missed": 169,
+   "non_personal_columns": 240,
+   "false_tag_rate": 0.1917,
+   "ms_per_column": 4.92,
+   "top_misses": {
+    "indiapii/name": 31,
+    "openpii/name": 30,
+    "gretelen/bank_account": 29,
+    "gretelen/vehicle_reg": 27,
+    "gretelen/name": 24,
+    "urchade/name": 16
+   }
+  },
+  "reformat": {
+   "pii_columns": 2560,
+   "protected": 0.9473,
+   "missed": 135,
+   "non_personal_columns": 240,
+   "false_tag_rate": 0.1375,
+   "ms_per_column": 4.99,
+   "top_misses": {
+    "indiapii/name": 32,
+    "ylemis/phone": 31,
+    "gretelen/bank_account": 29,
+    "openpii/name": 17,
+    "openpii/passport": 12,
+    "urchade/dob": 7
+   }
+  },
+  "half_masked": {
+   "pii_columns": 2560,
+   "protected": 0.9359,
+   "missed": 164,
+   "non_personal_columns": 240,
+   "false_tag_rate": 0.125,
+   "ms_per_column": 2.9,
+   "top_misses": {
+    "indiapii/name": 32,
+    "gretelen/bank_account": 26,
+    "bharat/PERSON_NAME": 23,
+    "gretelen/vehicle_reg": 21,
+    "openpii/name": 17,
+    "urchade/dob": 15
+   }
+  },
+  "numbers": {
+   "pii_columns": 2560,
+   "protected": 0.9547,
+   "missed": 116,
+   "non_personal_columns": 240,
+   "false_tag_rate": 0.1375,
+   "ms_per_column": 4.99,
+   "top_misses": {
+    "indiapii/name": 32,
+    "gretelen/bank_account": 29,
+    "gretelen/vehicle_reg": 27,
+    "openpii/name": 17,
+    "urchade/dob": 7,
+    "urchade/address": 1
+   }
+  },
+  "quoted": {
+   "pii_columns": 2560,
+   "protected": 0.9547,
+   "missed": 116,
+   "non_personal_columns": 240,
+   "false_tag_rate": 0.1375,
+   "ms_per_column": 5.23,
+   "top_misses": {
+    "indiapii/name": 32,
+    "gretelen/bank_account": 29,
+    "gretelen/vehicle_reg": 27,
+    "openpii/name": 17,
+    "urchade/dob": 7,
+    "urchade/address": 1
+   }
+  },
+  "nbsp": {
+   "pii_columns": 2560,
+   "protected": 0.9547,
+   "missed": 116,
+   "non_personal_columns": 240,
+   "false_tag_rate": 0.1375,
+   "ms_per_column": 4.69,
+   "top_misses": {
+    "indiapii/name": 32,
+    "gretelen/bank_account": 29,
+    "gretelen/vehicle_reg": 27,
+    "openpii/name": 17,
+    "urchade/dob": 7,
+    "urchade/address": 1
+   }
+  },
+  "low_card": {
+   "pii_columns": 2560,
+   "protected": 0.7934,
+   "missed": 529,
+   "non_personal_columns": 240,
+   "false_tag_rate": 0.0375,
+   "ms_per_column": 5.02,
+   "top_misses": {
+    "gretelen/bank_account": 34,
+    "gretelen/vehicle_reg": 34,
+    "indiapii/name": 32,
+    "urchade/dob": 31,
+    "urchade/name": 31,
+    "ylemis/name": 31
+   }
+  }
+ }
+}

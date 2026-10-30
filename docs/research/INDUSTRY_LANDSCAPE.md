@@ -39,6 +39,7 @@ here either links a source or points to a test or result file in the repository.
 | Claim | Evidence in this repository |
 |---|---|
 | Finds PII from values when column names lie | Version 2 model on 9 test sets never trained on (`docs/MODEL_CARD.md`); `col_7` holding PANs found in the organisers' data |
+| Holds up on messy exports | 2,800 test columns damaged 11 ways ("NULL" text, quotes, half-masked, regrouped digits): 91% of PII columns protected, version 1 77% (`bench/stress.py`, `docs/eval/stress_v2.json`) |
 | Fails closed | Unreviewed columns are masked for every role but admin; 13 first-contact misses on Saffron Bank returned 0 of 1,300 real values (`docs/eval/saffron_first_contact.json`) |
 | Masking happens before filters and joins see the value | 17 named attacks and a 672-case matrix on three engines, 0 leaks; output-only masking leaks 14 of 17 (`docs/EVALUATION.md`) |
 | One role never receives another's view under load | `tests/test_concurrency.py`: 120 interleaved queries on 12 threads, three engines |

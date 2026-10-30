@@ -183,9 +183,90 @@ def _out(kind, conf, evidence, **extra):
     return {"kind": kind, "tag": KIND_TAG[kind], "confidence": conf, "evidence": evidence, **extra}
 
 
+# Text that stands for a missing value (CSV imports often store it as text) and values a legacy system already
+# masked carry no evidence about the column: the scanner reads the rest. Matched in lower case, after stripping.
+PLACEHOLDERS = {"", "null", "none", "nan", "n/a", "na", "nil", "-", "--", "#n/a", "undefined", "?"}
+_QUOTED = re.compile(r"""^(["'`])(.*)\1$""", re.DOTALL)
+_SPACED_ID = re.compile(r"[1-9]\d{2}[ -]\d{3}|[A-Z]\d{2} \d{5}")  # PIN 530 017, passport J12 34567
+_LONG_NUMBER = re.compile(r"\d{5,}")
+_LEGACY_MASKED = re.compile(r"^[Xx*#\u2022]{2,}[0-9A-Za-z]{0,6}$")  # XXXXXX1234, ****5678 (separators removed)
+
+
+# A header that names a person (customer_name, nominee_name, surname): with values that read as names, the column is
+# masked even when the model reads it as a category, as it does when a few names repeat (a branch manager's name).
+PERSON_WORDS = {"full", "first", "last", "middle", "given", "customer", "cust", "client", "holder", "nominee",
+                "applicant", "employee", "emp", "beneficiary", "payee", "payer", "guardian", "father", "mother",
+                "spouse", "patient", "member", "person", "borrower", "insured", "owner", "manager", "agent"}
+PERSON_HEADERS = {"surname", "firstname", "lastname", "fullname", "forename", "givenname"}
+
+
+def _person_header(column):
+    toks = _tokens(column)
+    return bool(toks & PERSON_HEADERS) or ("name" in toks and bool(toks & PERSON_WORDS))
+
+
+def _name_like(sample):
+    vals = [v for v in sample[:200] if isinstance(v, str)]
+    ok = sum(1 for v in vals if 2 <= len(v) <= 60 and len(v.split()) <= 5 and not any(c.isdigit() or c in "@/:" for c in v)
+             and any(c.isalpha() for c in v))
+    return len(vals) >= 3 and ok >= 0.8 * len(sample)
+
+
+# A header made only of identifier words (ssn, pan_no, vehicle_no, account_number, mobile): the column is masked even
+# when the values have a format the model has not seen (ACCT-4929099273, K46-3006-203-20), unless they are a small set
+# of categories (Visa / Mastercard, Savings / Current). Not _id, _key, _type or _verified: account_id is usually an
+# internal key, and masking it would break joins. Uses the model's header vocabulary (maskguard.ml.features).
+ID_HEADER_KINDS = {"bank_account", "vehicle_reg", "passport", "voter_id", "pan", "aadhaar", "card", "iban", "ssn",
+                   "phone", "gstin", "upi", "ifsc"}
+NUMBER_WORDS = {"no", "num", "number", "nbr"}
+# Count only next to a number word (uid_no, registration_no): alone, uid is often a row id, contact a person.
+AMBIGUOUS_ID_WORDS = {"uid", "contact", "cell", "cc", "pin", "registration"}
+
+
+def identifier_header(column, sample):
+    """The identifier kind a header names outright, or None."""
+    from .ml.features import HEADER_WORDS as ML_HEADER_WORDS
+    toks = _tokens(column) - {""}
+    kinds = {ML_HEADER_WORDS.get(t) for t in toks - NUMBER_WORDS}
+    if len(kinds) != 1 or not kinds <= ID_HEADER_KINDS or toks <= AMBIGUOUS_ID_WORDS:
+        return None
+    vals = [str(v) for v in sample[:200]]
+    return kinds.pop() if len(vals) < 3 or len(set(vals)) >= 0.5 * len(vals) else None
+
+
+def detection_sample(values, n=200):
+    """Up to n values as a person reads them: spaces and wrapping quotes stripped, placeholders for missing data
+    dropped. Values already masked are dropped too while at least 3 (and a tenth) real ones remain; a column that is
+    all masked is read as it is (masked Aadhaar is still Aadhaar). Only detection reads this: masking applies to the
+    stored values unchanged. Non-text values (numbers, dates) pass through as they are."""
+    out = []
+    for v in values:
+        if v is None:
+            continue
+        if isinstance(v, str):
+            v = v.replace("\u00a0", " ").strip()
+            m = _QUOTED.match(v)
+            if m:
+                v = m.group(2).strip()
+            if v.lower() in PLACEHOLDERS:
+                continue
+            if _SPACED_ID.fullmatch(v):  # how PIN codes and passport numbers are often written
+                v = v[:3] + v[4:]
+        out.append(v)
+        if len(out) >= n:
+            break
+    nonzero = [v for v in out if str(v).strip() != "0"]
+    if len(out) > len(nonzero) >= 3 and all(_LONG_NUMBER.fullmatch(str(v).strip()) for v in nonzero[:50]):
+        out = nonzero  # 0 as the default of a numeric identifier column (pincode INT DEFAULT 0) means missing
+    real = [v for v in out if not (isinstance(v, str) and _LEGACY_MASKED.match(re.sub(r"[\s\-./]", "", v)))]
+    if len(out) > len(real) >= max(3, len(out) // 10):
+        return real
+    return out
+
+
 def classify_column_rules(column, values, hi=0.8, lo=0.3):
     """v1 scanner: validators + header keywords."""
-    sample = [v for v in values if v is not None][:200]
+    sample = detection_sample(values)
     hk = header_kind(column)
     best_kind, best_ratio = None, 0.0
     for kind, fn in VALIDATORS.items():
@@ -245,7 +326,7 @@ def classify_column(column, values):
     if not ml_available():
         return classify_column_rules(column, values)
     from .ml.model import decide
-    sample = [v for v in values if v is not None][:200]
+    sample = detection_sample(values)
     d = decide(column, sample)
     kind = d["kind"]
     st = None if d["source"] == "checksum" else structural_kind(column, sample)
@@ -266,7 +347,14 @@ def classify_column(column, values):
     sk, sev = sparse_identifiers(sample)
     if sk:
         return _out(sk, "review", sev, source="sparse", probs=d["probs"])
+    if _person_header(column) and _name_like(sample):
+        return _out("name", "medium", f"header names a person and the values read as names; {d['evidence']}",
+                    source="header", probs=d["probs"])
     hk = header_kind(column)  # ML says not PII; a PII header with a non-confident model still masks (fail closed)
+    ik = identifier_header(column, sample)
+    if ik:
+        return _out(ik, "medium" if len(sample) >= 3 else "review",
+                    f"header names a {ik} identifier; {d['evidence']}", source="header", probs=d["probs"])
     if hk in TEXT_ONLY_HEADER_KINDS and _numeric(sample):  # doctor_id, blood_test_no: numbers, not names or health
         return None
     if hk in STRONG_HEADER_KINDS:
@@ -281,6 +369,8 @@ def scan_table(backend, table, sample_size=200):
     entry = {}
     for name, sql_type in backend.columns(table):
         vals = backend.sample(table, name, sample_size)
+        if len(vals) >= sample_size and len(detection_sample(vals)) < sample_size // 4:  # mostly "NULL", "N/A" text
+            vals = backend.sample(table, name, sample_size * 10)
         found = classify_column(name, vals)
         entry[name] = {"type": "num" if is_numeric(sql_type) else "text", "sql_type": sql_type, **(found or {})}
         hint = None if found else suggest_public(name, vals)
