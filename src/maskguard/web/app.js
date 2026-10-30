@@ -416,7 +416,7 @@ PAGES.playground = async (main) => {
   const verify = h("input", { type: "checkbox", checked: st.verify, onchange: (e) => { st.verify = e.target.checked; save(); } });
   const runBtn = h("button", { class: "primary", id: "pg-run", onclick: () => run() }, "▶ Run");
   const controls = card("Query", h("div", { class: "body stack" },
-    h("label", {}, "Dataset", h("div", { class: "mono small" }, `demo_bank · ${S.meta.backend} · synthetic`)),
+    h("label", {}, "Dataset", h("div", { class: "mono small" }, S.meta.demo_data ? `demo_bank · ${S.meta.backend} · synthetic` : `connected database · ${S.meta.backend}`)),
     h("label", {}, "Table", tableSel), tabs, pane,
     h("fieldset", {}, h("legend", {}, demo ? "Run as (demo identities)" : "Run as"), chips,
       !demo ? h("div", { class: "small muted" }, "Demo identities are off: queries run as your own identity only.") : null),

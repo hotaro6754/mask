@@ -30,12 +30,16 @@ minutes plus questions; if the slot is shorter, the cuts are in §2.6.
 
 | # | Parameter | Marks | Slides | Time |
 |---|---|---|---|---|
-| 1 | Context and problem understanding | 5 | 1–2 | 2 min |
-| 2 | Architecture and tech stack: lasting choices, short-term anti-patterns avoided | 5 | 3–4 | 2.5 min |
-| 3 | Role of AI: why, and was it deliberate? | 5 (implied) | 5 | 2 min |
-| 4 | Solution completeness: functional, not a prototype | 7 | 6, 8 | 3 min |
-| 5 | Presentation and demo | 3 | 7 + live demo | 3 min |
-| | Market and close | — | 9–10 | 1 min |
+| 1 | Context and problem understanding | 5 | 1 title, 2 problem (Ravi's story), 3 how it works | 3 min |
+| 2 | Architecture and tech stack: lasting choices, short-term anti-patterns avoided | 5 | 4 architecture | 1.5 min |
+| 3 | Role of AI: why, and was it deliberate? | 5 (implied) | 5 role of AI (dashboard discovery screenshot) | 1.5 min |
+| 5 | Presentation and demo | 3 | 6 dashboard, 7 command line, both live | 3.5 min |
+| 4 | Solution completeness: functional, not a prototype | 7 | 8 proof on the organisers' data | 1.5 min |
+| | Differentiators and market, close | — | 9 why MaskGuard, 10 close | 1.5 min |
+
+**The deck's rule: one message per slide, plain words.** A judge who has seen 40 teams should be able to repeat each
+slide's title as the whole message: everyone sees everything → one gate → AI finds, never decides → dashboard →
+command line → proof → why us → finds it, hides it, proves it.
 
 ### 2.1 Context and problem (5)
 
@@ -115,7 +119,7 @@ The jury asks "how will this hold up long term, and which short-term shortcuts d
 
 ### 2.4 Solution completeness (7): functional, not a prototype
 
-Lead with the organisers' own data (slide 6), then the measurements (slide 8).
+Lead with the organisers' own data (slide 8); the AI accuracy is on slide 5.
 
 - **Data checked first.** All 9 Saffron Bank tables are identical in CSV, SQLite, PostgreSQL and MySQL: 129,260 rows,
   compared cell by cell.
@@ -143,15 +147,32 @@ Lead with the organisers' own data (slide 6), then the measurements (slide 8).
 The live demo script is in §4. Rules:
 - One person drives, one person talks.
 - Never type a long query live: paste it from the cheat sheet.
-- If anything stalls for more than 10 seconds, say "here is the same thing captured this morning" and go to slide 7.
+- If anything stalls for more than 10 seconds, say "here is the same thing captured this morning" and go to slides 6–7.
 
-### 2.6 If the slot is shorter
+### 2.6 Our differentiators: say these in every round
+
+Many teams on this problem use encryption or "quantum" ideas. Do not attack them; place them.
+
+1. **It finds the personal data by itself.** Others assume someone already knows which columns are sensitive. In
+   the organisers' data, `col_7` holds PANs; we found it, with the reason shown in the dashboard.
+2. **Each role gets its own view of the same live data.** No copies, no second database.
+3. **It stops guessing.** A search for a real PAN returns 0 rows for Support. Screen-only masking and encryption
+   don't stop this.
+4. **Proven on their data, on all three databases**, with their users, and both a dashboard and a command line.
+
+The line for encryption and quantum-safe approaches:
+
+> "Encryption, even quantum-safe, keeps outsiders out, and that matters. But once the bank's own app decrypts the
+> data, every employee sees all of it. We answer a different question: what should this employee see? The two work
+> together."
+
+### 2.7 If the slot is shorter
 
 | Slot | Cut |
 |---|---|
-| 10 min | Skip slide 9 and say one line of market; demo only compare + PAN guess |
-| 7 min | Slides 1, 2, 4, 5, 6, 7, 10; demo is slide 7 itself |
-| 5 min | Slides 1, 2, 5, 6, 10, and the 30-second AI answer |
+| 10 min | Skip slide 4's tech-stack talk (leave it on screen); live demo dashboard only, slide 7 as a picture |
+| 7 min | Slides 1, 2, 3, 5, 6, 8, 9, 10; demo is slides 6–7 themselves |
+| 5 min | Slides 1, 3, 6, 8, 9, and the 30-second AI answer |
 
 ---
 
@@ -179,7 +200,7 @@ The live demo script is in §4. Rules:
 
 ---
 
-## 4. Live demo script (about 3 minutes)
+## 4. Live demo script: dashboard, then command line (about 3.5 minutes)
 
 **The night before:** prepare a Saffron run folder by following "Reproduce" in `docs/SAFFRON_VALIDATION.md`:
 1. `maskguard connect` the SQLite copy;
@@ -187,6 +208,20 @@ The live demo script is in §4. Rules:
 3. create `users.yaml` from `data/users.csv`, and set `MASKGUARD_USERS` to it.
 
 Keep the passwords out of the repository and out of the screen recording. Then rehearse the script below twice.
+
+### 4.1 Dashboard (Control Room), 2 minutes
+
+Start it in the prepared folder: `maskguard serve --port 8000`, then open `http://127.0.0.1:8000/`.
+
+1. **PII discovery** (signed in as `admin_anita`): type `pan` in the search box. Point at `col_7`: "the column name says
+   nothing; the scanner read the values and says PAN, and shows its reason, never the value." (This is slide 5.)
+2. **Masking playground** → SQL editor, paste:
+   `SELECT cust_nm, mob_no, pan_no, curr_bal FROM customers JOIN kyc_records USING (customer_id) JOIN accounts USING (customer_id) WHERE customer_id IN ('CIF-007KK65R', 'CIF-00JEQMK0', 'CIF-00JWD3QM') ORDER BY customer_id`
+   and press Run. Sign out, sign in as `support_ravi`, Run again. Then do the same as `analyst_kavya`. (This is slide 6.)
+3. As `support_ravi`, scroll to **Why each field looks the way it does**: every masked field shows its rule.
+4. **Audit explorer**: every query you just ran, who ran it, with no values.
+
+### 4.2 Command line, 1.5 minutes
 
 ```bash
 # 1. Same query, three organiser users (slide 7 shows the captured version)
@@ -206,9 +241,9 @@ maskguard audit verify
 ```
 
 **Fallback order:**
-1. Demo bank with built-in identities: `maskguard compare "SELECT name, ssn, email FROM users ORDER BY id LIMIT 2" --roles admin,support,analyst`
+1. Slides 6 and 7 are real captures from 30 Oct 2026; talk over them.
+2. Demo bank with built-in identities: `maskguard compare "SELECT name, ssn, email FROM users ORDER BY id LIMIT 2" --roles admin,support,analyst`
    and `maskguard attack --role analyst`.
-2. Slide 7, which is real output.
 3. `docs/demo_full.mp4`.
 
 **Pre-flight, 30 minutes before:**
@@ -236,6 +271,8 @@ maskguard audit verify
 | How does a bank adopt it? | `pip install maskguard`, `maskguard connect` a read replica, review the tags, then point the support and analytics tools at the gateway. No schema or application change. |
 | Who pays, and how much? | NBFCs, cooperative and small finance banks, fintechs and hospitals, who are bound by DPDP and can't buy a six-figure platform. Open core: free engine, paid support, DPDP reports and connectors. |
 | What would you do with 90 more days? | NER for names in text, benchmarked before release; a pilot with one NBFC or cooperative bank on a read replica; a DPDP report export. |
+| Other teams use quantum / encryption. Why not you? | Encryption, even quantum-safe, protects data from outsiders and in storage. It does not decide what each employee sees once the bank's app decrypts it, and a support agent can still guess a PAN through a search. MaskGuard answers that question and works alongside any encryption. |
+| Why both a dashboard and a command line? | Compliance and support staff use the dashboard; IT teams and pipelines use the command line and JSON output. Both call the same engine, so the answer never differs. |
 | Differential privacy? | Built, and refused in production on purpose: our own review found cases where noisy aggregates could be averaged out, so production masks instead (decision D11). It is documented rather than hidden. |
 | Why three databases? | Banks run all three; the pack ships all three; and running the same attack matrix on all three is what shows the rewrite is not tied to one dialect. |
 
@@ -344,13 +381,13 @@ appears in a document with a reproducing command.
 The brief names three things.
 
 **1. Validate on the provided dataset, and on the other datasets we used.**
-- Saffron Bank: discovery 35/35, masking 0 leaks on 3 databases (done; slide 6).
+- Saffron Bank: discovery 35/35, masking 0 leaks on 3 databases (done; slide 8).
 - bharat-pii-bench: the external benchmark, unseen seeds, at 5, 20, 50 and 200 values (done; slide 8).
 - Our own generator: held-out seed 9001, used for training-distribution checks (`docs/EVALUATION.md`).
 - The built-in demo bank: the 17-attack suite and the 672-case attack matrix.
 - If time allows, add one more public dataset and report it the same way: answer key first, then score.
 
-**2. Market analysis (slide 9).** Keep to sourced figures:
+**2. Market analysis (slide 9, expand it for Stage 3).** Keep to sourced figures:
 - **Market size:** $1.47 B → $2.60 B, 2025–2030, at 12% a year (Knowledge Sourcing). Estimates by other publishers
   differ ($0.8–3 B, 12–17% a year), so name the source.
 - **Why now:** DPDP obligations from May 2027, and India's breach cost at ₹22 crore (IBM 2025).
