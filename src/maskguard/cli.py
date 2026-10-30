@@ -994,9 +994,11 @@ def dashboard(port: int = 8000, host: str = "127.0.0.1", classic: bool = typer.O
         import subprocess
         _listen_or_fail("classic dashboard", host)
         path = os.path.join(os.path.dirname(__file__), "dashboard.py")
+        theme = ["--theme.base", "light", "--theme.primaryColor", "#1f4f8f", "--theme.backgroundColor", "#ffffff",
+                 "--theme.secondaryBackgroundColor", "#f4f5f7", "--theme.textColor", "#16191f"]  # the Control Room's palette
         raise typer.Exit(subprocess.call([sys.executable, "-m", "streamlit", "run", path, "--server.port", str(port),
                                           "--server.address", host, "--server.headless", "true",
-                                          "--client.toolbarMode", "minimal"]))
+                                          "--client.toolbarMode", "minimal", *theme]))
     _serve(host, port, os.environ.get("MASKGUARD_TLS_CERT"), os.environ.get("MASKGUARD_TLS_KEY"))
 
 

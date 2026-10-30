@@ -145,12 +145,14 @@ function renderIdentity() {
   const box = $("#identity");
   box.replaceChildren();
   const ready = S.ready;
-  box.append(h("span", { class: "who", title: "Readiness from /ready" },
+  box.append(h("span", { class: "pill", title: "Readiness from /ready" },
     h("span", { class: `status-dot ${ready && ready.ready ? "ok" : "bad"}` }),
-    h("span", { class: "muted small" }, ready ? (ready.ready ? "engine ready" : "engine degraded") : "checking…")));
-  if (S.meta) box.append(badge(`${S.meta.backend} · policy ${S.meta.policy_version}`, "b-muted"));
+    ready ? (ready.ready ? "Engine ready" : "Engine degraded") : "Checking…"));
+  if (S.meta) box.append(h("span", { class: "pill mono", title: "Database backend and enforced policy version" }, `${S.meta.backend} · ${S.meta.policy_version}`));
   if (S.me) {
-    box.append(h("span", { class: "who" }, h("span", { class: "muted" }, "signed in as"), h("span", { class: "name" }, S.me.user), badge(S.me.role, "b-info")));
+    const initials = S.me.user.split(/[._@-]+/).filter(Boolean).slice(0, 2).map((p) => p[0].toUpperCase()).join("");
+    box.append(h("span", { class: "who" }, h("span", { class: `avatar r-${S.me.role}`, "aria-hidden": "true" }, initials),
+      h("span", { class: "muted" }, "signed in as"), h("span", { class: "name" }, S.me.user), badge(S.me.role, "b-info")));
   }
   if (S.meta && S.meta.demo_mode) {
     const sel = h("select", { "aria-label": "Switch demo identity", onchange: (e) => e.target.value && signInDemo(e.target.value) },
@@ -162,9 +164,9 @@ function renderIdentity() {
                   : h("button", { class: "small", onclick: openSignIn }, "Sign in"));
   const foot = $("#side-foot");
   foot.replaceChildren(
-    h("div", {}, "env ", h("b", {}, S.meta ? S.meta.environment : "…")),
-    h("div", {}, "demo identities ", h("b", {}, S.meta ? (S.meta.demo_mode ? "on" : "off") : "…")),
-    h("div", {}, "data ", h("b", {}, "synthetic")),
+    h("div", {}, "Environment", h("b", {}, S.meta ? S.meta.environment : "…")),
+    h("div", {}, "Demo logins", h("b", {}, S.meta ? (S.meta.demo_mode ? "on" : "off") : "…")),
+    h("div", {}, "Data", h("b", {}, S.meta ? (S.meta.demo_data ? "demo bank" : "your database") : "…")),
     h("div", {}, h("a", { href: "/docs", target: "_blank", rel: "noopener" }, "OpenAPI docs ↗")));
 }
 
@@ -223,8 +225,8 @@ function activityChart(stats) {
   vals.forEach((v, i) => {
     const x = P.l + i * bw + 1, w = Math.max(2, bw - 2);
     const g = s("g", {});
-    if (v.ok) g.append(s("rect", { x, width: w, y: y(v.ok), height: H - P.b - y(v.ok), rx: 2, fill: "#b8f15a" }));
-    if (v.bad) g.append(s("rect", { x, width: w, y: y(v.ok + v.bad), height: Math.max(0, y(v.ok) - y(v.ok + v.bad) - 2), rx: 2, fill: "#ff6b6b" }));
+    if (v.ok) g.append(s("rect", { x, width: w, y: y(v.ok), height: H - P.b - y(v.ok), rx: 2, class: "bar-ok" }));
+    if (v.bad) g.append(s("rect", { x, width: w, y: y(v.ok + v.bad), height: Math.max(0, y(v.ok) - y(v.ok + v.bad) - 2), rx: 2, class: "bar-bad" }));
     const hit = s("rect", { x: P.l + i * bw, width: bw, y: P.t, height: H - P.t - P.b, fill: "transparent", tabindex: 0,
       "aria-label": `${new Date(v.t * 1000).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}: ${v.ok} allowed, ${v.bad} refused` });
     const show = (e) => tipShow(e, [new Date(v.t * 1000).toLocaleString([], { hour12: false, hour: "2-digit", minute: "2-digit", month: "short", day: "numeric" }) + " +1h", `allowed  ${v.ok}`, `refused  ${v.bad}`]);
@@ -239,8 +241,8 @@ function activityChart(stats) {
     h("div", { class: "table-wrap" }, h("table", {}, h("thead", {}, h("tr", {}, h("th", {}, "Hour"), h("th", {}, "Allowed"), h("th", {}, "Refused"))),
       h("tbody", {}, vals.filter((v) => v.ok || v.bad).map((v) => h("tr", {}, h("td", {}, fmtTime(v.t)), h("td", {}, v.ok), h("td", {}, v.bad)))))));
   return h("div", { class: "chart stack" },
-    h("div", { class: "legend" }, h("span", {}, h("i", { style: { background: "#b8f15a" } }), "Allowed (masked per role)"),
-      h("span", {}, h("i", { style: { background: "#ff6b6b" } }), "Refused (firewall, capability, threat block)")),
+    h("div", { class: "legend" }, h("span", {}, h("i", { style: { background: "var(--chart-ok)" } }), "Allowed (masked per role)"),
+      h("span", {}, h("i", { style: { background: "var(--chart-bad)" } }), "Refused (firewall, capability, threat block)")),
     svg, tbl);
 }
 
@@ -250,7 +252,8 @@ function hbars(rows, colorFor) {
     h("span", {}, tagBadge(label)), h("div", { class: "track" }, h("div", { class: "fill", style: { width: `${(n / max) * 100}%`, background: colorFor(label) } })),
     h("span", { class: "mono" }, n))));
 }
-const TAG_COLOR = { PII_HIGH: "#ff8f8f", FINANCIAL_CONFIDENTIAL: "#e9c46a", PII_MEDIUM: "#f2b84b", PII_IN_TEXT: "#b59cff", HEALTH: "#ff8fc7", UNREVIEWED: "#d9a05b", PUBLIC: "#6b7684" };
+const TAG_COLOR = { PII_HIGH: "var(--tag-high)", FINANCIAL_CONFIDENTIAL: "var(--tag-fin)", PII_MEDIUM: "var(--tag-medium)", PII_IN_TEXT: "var(--tag-text)",
+                    HEALTH: "var(--tag-health)", UNREVIEWED: "var(--tag-unreviewed)", PUBLIC: "var(--tag-public)" };
 
 // ------------------------------------------------------------------ result + explain tables
 
@@ -289,6 +292,8 @@ function explainTable(ex) {
 const PAGES = {};
 const TITLES = { overview: "Overview", playground: "Masking playground", discovery: "PII discovery", policy: "Policy studio", roles: "Role explorer",
                  audit: "Audit explorer", integrity: "Data integrity", api: "API lab", cli: "CLI guide", settings: "Diagnostics" };
+const GROUPS = { overview: "Monitor", audit: "Monitor", integrity: "Monitor", playground: "Protect", discovery: "Protect", policy: "Protect",
+                 roles: "Protect", api: "Build", cli: "Build", settings: "Build" };
 
 PAGES.overview = async (main) => {
   main.append(h("h1", {}, "Overview"),
@@ -301,11 +306,13 @@ PAGES.overview = async (main) => {
   S.ready = ready.data; renderIdentity();
   const cols = tbl.ok ? tbl.data.tables.flatMap((t) => t.columns) : [];
   const sensitive = cols.filter((c) => c.tag !== "PUBLIC" && c.tag !== "UNREVIEWED");
-  const tiles = h("div", { class: "grid cols-4" },
-    card(null, h("div", { class: "stat" }, h("div", { class: "label" }, "Tables protected"), h("div", { class: "value" }, tbl.ok ? tbl.data.tables.length : "—"), h("div", { class: "hint" }, tbl.ok ? `${tbl.data.backend} · ${S.meta && S.meta.demo_data ? "synthetic demo data" : "your database"}` : ""))),
-    card(null, h("div", { class: "stat" }, h("div", { class: "label" }, "Sensitive columns"), h("div", { class: "value" }, tbl.ok ? sensitive.length : "—"), h("div", { class: "hint" }, `of ${cols.length} columns, found by the scanner`))),
-    card(null, h("div", { class: "stat" }, h("div", { class: "label" }, "Roles"), h("div", { class: "value" }, roles.ok ? roles.data.roles.length : "—"), h("div", { class: "hint" }, "default action: deny"))),
-    card(null, h("div", { class: "stat" }, h("div", { class: "label" }, "Policy version"), h("div", { class: "value", style: { fontSize: "18px", marginTop: "12px" } }, S.meta.policy_version), h("div", { class: "hint" }, "written into every audit entry"))));
+  const stat = (label, value, hint, cls = "") => h("div", { class: "stat" }, h("div", { class: "label" }, label),
+    h("div", { class: `value ${cls}` }, value), h("div", { class: "hint" }, hint));
+  const tiles = h("section", { class: "card kpis", "aria-label": "Summary" },
+    stat("Tables protected", tbl.ok ? tbl.data.tables.length : "—", tbl.ok ? `${tbl.data.backend} · ${S.meta && S.meta.demo_data ? "synthetic demo data" : "your database"}` : ""),
+    stat("Sensitive columns", tbl.ok ? sensitive.length : "—", `of ${cols.length} columns, found by the scanner`),
+    stat("Roles", roles.ok ? roles.data.roles.length : "—", "default action: deny"),
+    stat("Policy version", S.meta.policy_version, "written into every audit entry", "code"));
   const checks = ready.data && ready.data.checks ? Object.entries(ready.data.checks) : [];
   const health = card("Service health", h("div", { class: "body" }, h("div", { class: "checks" }, checks.map(([k, v]) => h("div", { class: "check" },
     h("span", {}, k.replace(/_/g, " ")), okBadge(v.ok), h("span", { class: "detail" }, Object.entries(v).filter(([x]) => x !== "ok").map(([x, y]) => `${x}=${y}`).join("  ")))))),
@@ -330,8 +337,8 @@ PAGES.overview = async (main) => {
     const T = stats.data.totals || {};
     const refused = (T.reject || 0) + (T.denied || 0) + (T.blocked || 0) + (T.error || 0);
     split = card("Decisions · 24 h", h("div", { class: "body stack" },
-      h("div", { class: "grid cols-2" }, h("div", { class: "stat" }, h("div", { class: "label" }, "Allowed"), h("div", { class: "value", style: { color: "var(--accent)" } }, T.allow || 0)),
-        h("div", { class: "stat" }, h("div", { class: "label" }, "Refused"), h("div", { class: "value", style: { color: "var(--bad)" } }, refused))),
+      h("div", { class: "grid cols-2" }, h("div", { class: "stat" }, h("div", { class: "label" }, "Allowed"), h("div", { class: "value ok" }, T.allow || 0)),
+        h("div", { class: "stat" }, h("div", { class: "label" }, "Refused"), h("div", { class: "value bad" }, refused))),
       h("dl", { class: "kv" }, h("dt", {}, "Firewall rejects"), h("dd", {}, T.reject || 0), h("dt", {}, "Capability denials"), h("dd", {}, T.denied || 0),
         h("dt", {}, "Threat blocks"), h("dd", {}, T.blocked || 0), h("dt", {}, "Threat alerts"), h("dd", {}, stats.data.threat_alerts),
         h("dt", {}, "Median latency"), h("dd", {}, stats.data.p50_ms === null ? "—" : `${stats.data.p50_ms} ms`))));
@@ -341,13 +348,14 @@ PAGES.overview = async (main) => {
         h("td", {}, decisionBadge(e.decision)), h("td", { class: "small" }, (e.reason || e.target || e.change || "").slice(0, 90)))))))
       : empty("No refusals, denials or policy changes recorded yet."), h("a", { href: "#/audit", class: "btn small" }, "Audit explorer"));
   }
-  const cta = card(null, h("div", { class: "body row" },
-    h("div", { class: "stack", style: { flex: "1" } }, h("h2", {}, "See it work: one query, every role"),
+  const cta = card(null, h("div", { class: "cta" },
+    h("div", { class: "text" }, h("h2", {}, "See it work: one query, every role"),
       h("div", { class: "muted" }, "Run the same SELECT as Admin, Support, Analyst and Auditor. Each run is a real request under that identity's own token; then verify the source tables did not change.")),
     h("a", { href: "#/playground", class: "btn primary" }, "Open the playground →")));
   main.append(tiles, h("div", { style: { height: "16px" } }), cta, h("div", { style: { height: "16px" } }),
     h("div", { class: "grid cols-3" }, h("div", { style: { gridColumn: "span 2" } }, activity), split),
-    h("div", { style: { height: "16px" } }), h("div", { class: "grid cols-3" }, health, integCard, events));
+    h("div", { style: { height: "16px" } }), h("div", { class: "grid cols-3" }, h("div", { style: { gridColumn: "span 2" } }, events),
+      h("div", { class: "stack", style: { gap: "16px" } }, integCard, health)));
 };
 
 function decisionBadge(d) {
@@ -444,13 +452,13 @@ PAGES.playground = async (main) => {
     const grid = h("div", { class: `results ${nCols > 5 ? "wide" : ""}` }, results.map(({ role, res }) => {
       if (!res.ok) {
         return card(null, h("div", {}, h("header", { class: "result-head", style: { padding: "12px 14px", borderBottom: "1px solid var(--border)" } },
-            h("span", { class: "role-name" }, role), badge(res.status === 400 ? "REFUSED" : `HTTP ${res.status}`, "b-bad")),
+            h("span", { class: `role-name r-${role}` }, role), badge(res.status === 400 ? "REFUSED" : `HTTP ${res.status}`, "b-bad")),
           h("div", { class: "body stack" }, h("div", {}, detail(res)), res.rid ? h("div", { class: "mono small muted" }, `request ${res.rid} (see Audit explorer)`) : null)));
       }
       const d = res.data;
       return card(null, h("div", {},
         h("header", { class: "result-head", style: { padding: "12px 14px", borderBottom: "1px solid var(--border)" } },
-          h("span", { class: "role-name" }, role), h("span", { class: "mono small muted" }, d.user), badge("ALLOWED", "b-ok"),
+          h("span", { class: `role-name r-${role}` }, role), h("span", { class: "mono small muted" }, d.user), badge("ALLOWED", "b-ok"),
           d.masked.length ? badge(`${d.masked.length} masked`, "b-warn") : badge("nothing masked", "b-muted")),
         d.rows.length ? resultTable(d, 20) : empty("No rows (small-group suppression or row filter)."),
         h("div", { class: "result-meta" }, h("span", {}, `${d.row_count} rows`), h("span", {}, `${d.ms} ms server`), h("span", {}, `${Math.round(res.ms)} ms round-trip`),
@@ -537,7 +545,7 @@ PAGES.discovery = async (main) => {
   const tagSel = h("select", { "aria-label": "Filter by classification", onchange: (e) => { filt.tag = e.target.value; renderTable(); } },
     h("option", { value: "" }, "All classifications"), Object.keys(TAG_COLOR).map((t) => h("option", { value: t }, t)));
   const search = h("input", { type: "search", placeholder: "Search column or evidence", "aria-label": "Search", oninput: (e) => { filt.q = e.target.value.toLowerCase(); renderTable(); } });
-  const tableList = h("div", { class: "stack" });
+  const tableList = h("div", { class: "chips" });
   const body = h("div", {});
   function renderTable() {
     const ev = Object.fromEntries(tagged.map((t) => [`${t.table}.${t.column}`, t]));
@@ -556,7 +564,7 @@ PAGES.discovery = async (main) => {
   }
   renderTable();
   main.append(h("div", { class: "grid cols-3" },
-    card("Classifications", h("div", { class: "body" }, hbars(Object.entries(counts).sort((a, b) => b[1] - a[1]), (t) => TAG_COLOR[t] || "#6b7684"))),
+    card("Classifications", h("div", { class: "body" }, hbars(Object.entries(counts).sort((a, b) => b[1] - a[1]), (t) => TAG_COLOR[t] || "var(--tag-public)"))),
     card("Scan", h("div", { class: "body stack" }, h("label", {}, "Values sampled per column", sample),
       h("div", { class: "row" }, h("button", { onclick: () => doScan(true) }, "Dry-run scan"),
         h("button", { class: "primary", disabled: !can("scan.run"), title: can("scan.run") ? "" : "Admin only (scan.run)", onclick: () => doScan(false) }, "Rescan & apply")), scanOut)),
@@ -567,7 +575,7 @@ PAGES.discovery = async (main) => {
       h("div", {}, tagBadge("PII_IN_TEXT"), " identifiers inside free text"),
       h("div", { class: "muted" }, "Sampling is probabilistic: no PII in the sample does not prove a column is clean. Force tags in policies/overrides.yaml.")))),
     h("div", { style: { height: "16px" } }),
-    card("Column inventory", h("div", {}, h("div", { class: "body row" }, tagSel, search), h("div", { class: "body", style: { paddingTop: 0 } }, h("div", { class: "chips" }, tableList)), body)));
+    card("Column inventory", h("div", {}, h("div", { class: "body row" }, tagSel, search), h("div", { class: "body", style: { paddingTop: 0 } }, tableList), body)));
 };
 
 // ---------- policy studio
@@ -930,7 +938,7 @@ async function route() {
   const page = (location.hash.replace(/^#\//, "") || "overview").split("?")[0];
   const fn = PAGES[page] ? page : "overview";
   document.querySelectorAll("#nav a").forEach((a) => (a.dataset.page === fn ? a.setAttribute("aria-current", "page") : a.removeAttribute("aria-current")));
-  $("#crumbs").replaceChildren(TITLES[fn], h("small", {}, S.me ? `as ${S.me.user}` : ""));
+  $("#crumbs").replaceChildren(h("span", { class: "group" }, GROUPS[fn]), h("span", {}, TITLES[fn]));
   document.title = `${TITLES[fn]} · MaskGuard`;
   $(".side").classList.remove("open"); $("#menu-btn").setAttribute("aria-expanded", "false");
   tipHide();  // a chart tooltip must not outlive its page
