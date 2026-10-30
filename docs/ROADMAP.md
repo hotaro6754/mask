@@ -2,7 +2,7 @@
 
 | Phase | Scope | Status |
 |---|---|---|
-| 1. ML PII discovery | LightGBM column classifier (85 features incl. checksum pass-rates) + checksum rules, 20 PII kinds incl. Indian IDs; fail-closed review band; evaluated on bharat-pii-bench | **built** |
+| 1. ML PII discovery | LightGBM column classifier (99 features: 79 value statistics incl. checksum pass-rates, 20 column-name hints) + checksum rules, 20 PII kinds incl. Indian IDs; fail-closed review band; evaluated on bharat-pii-bench | **built** |
 | 2. PII inside free text | DB-side redaction of 16 identifier types inside notes/comments (SQLite UDF + generated PL/pgSQL, byte-identical); `PII_IN_TEXT` tag; T3 eval: 100% of structured IDs, 0% over-redaction | **built**; names/addresses in text need NER (ai4privacy-300k / pii-masker, blocked until `huggingface.co` is allowed) |
 | 3. Query-stream threat detection | rules + IsolationForest over 5-min and 24-h windows; alert/block policy; dashboard, API, CLI | **built**: simulated eval 0% normal users blocked (2% alerted), 95–100% of 6 attack types detected, median 8 queries |
 | 4. Differential-privacy aggregates | `aggregate` policy action: clipped SUM/AVG/COUNT + Laplace noise + per-user daily ε budget; any other use fails closed | **experimental, disabled in production** pending `docs/design/PRIVACY_ACCOUNTING.md`; measured: ε=0.5 → AVG error 5.4% (n=150); differencing attack median error ₹22 lakh vs ₹4.45 lakh mean balance |

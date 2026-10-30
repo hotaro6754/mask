@@ -506,7 +506,7 @@ async function verifyIntegrity(box) {
 
 PAGES.discovery = async (main) => {
   main.append(h("h1", {}, "PII discovery"),
-    h("p", { class: "lede" }, "The scanner samples each column (values stay in memory, never displayed or logged), runs checksum validators (Luhn, Verhoeff, PAN, IBAN…) and a LightGBM classifier over 85 value statistics, and tags the column. Checksum hits can't be downgraded; uncertain columns are tagged for review and still masked."));
+    h("p", { class: "lede" }, "The scanner samples each column (values stay in memory, never displayed or logged), runs checksum validators (Luhn, Verhoeff, PAN, IBAN…) and a LightGBM classifier over 99 features (79 value statistics and 20 column-name hints), and tags the column. Checksum hits can't be downgraded; uncertain columns are tagged for review and still masked."));
   if (!can("registry.read")) {
     const t = await tables();
     main.append(card("Columns visible to your role", h("div", { class: "body flush" }, h("div", { class: "table-wrap" }, h("table", {},

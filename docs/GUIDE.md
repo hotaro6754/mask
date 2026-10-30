@@ -384,7 +384,7 @@ the scanner looks at the **values**.
 flowchart TD
     A["New or changed table"] --> B["Sample up to N values per column<br/>(kept in memory, never shown or logged)"]
     B --> C["Checksum validators<br/>Aadhaar · PAN · GSTIN · card · IBAN · EPIC"]
-    B --> D["85 value statistics<br/>(length, digit share, separators, patterns…)"]
+    B --> D["79 value statistics + 20 column-name hints<br/>(length, digit share, separators, patterns…)"]
     D --> E["LightGBM classifier<br/>predicts the PII type + confidence"]
     C --> F{"Checksum hit?"}
     F -- yes --> G["Tag from the checksum<br/>(can never be downgraded)"]

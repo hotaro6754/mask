@@ -109,9 +109,9 @@ Dashboards / CLI ────────────────┘            
                                      Audit log (hash-chained, no literals) ◄── every decision and risk score
 ```
 
-1. **AI PII discovery.** A LightGBM classifier over 85 value statistics, combined with checksum validators
-   (Aadhaar Verhoeff, PAN, GSTIN mod-36, EPIC, card Luhn, IBAN), tags 20 PII types, including Indian IDs and
-   Devanagari names, even when column names lie. Checksum hits can never be downgraded, and uncertain columns are
+1. **AI PII discovery.** A LightGBM classifier over 99 features (79 value statistics and 20 column-name hints),
+   combined with checksum validators (Aadhaar Verhoeff, PAN, GSTIN mod-36, EPIC, card Luhn, IBAN), tags 20 PII types,
+   including Indian IDs and Devanagari names, even when column names lie. Checksum hits can never be downgraded, and uncertain columns are
    still masked for review. A background worker rescans, and new tables are blocked until they're scanned.
 2. **Masking inside the SQL.** Each table in a query is replaced by a masked view for the caller's role:
 
@@ -516,6 +516,8 @@ MaskGuard component.
 - `docs/MaskGuard_Round1_Submission.pptx`: the Round 1 deck.
 - `docs/MaskGuard_Final_Deck.pptx`: the finale deck (12 slides, speaker notes with timings), built on the Saffron Bank
   results.
+- [`docs/MODEL_CARD.md`](docs/MODEL_CARD.md): the PII classifier: what it is, what it was trained on (synthetic
+  data only), how it was tested, and its limits.
 - [`docs/HACKATHON_PREP.md`](docs/HACKATHON_PREP.md): finale preparation: judging parameters, the role-of-AI answer,
   demo script, questions, overnight feedback loop, code-freeze packaging (`scripts/package_submission.sh`), Stage 3.
 - [`docs/demo_full.mp4`](docs/demo_full.mp4): the full walkthrough of 1.1.0 (12 minutes, captioned, no audio; every
