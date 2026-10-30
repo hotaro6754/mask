@@ -3,7 +3,7 @@
 The team's working guide for judging day. It covers what each stage scores, what to say, the live demo, likely
 questions, the overnight feedback loop, the code freeze, and Stage 3.
 
-- **Deck:** `docs/MaskGuard_Final_Deck.pptx`: 10 slides, with speaker notes on every slide carrying timings and the
+- **Deck:** `docs/MaskGuard_Final_Deck.pptx`: 11 slides, with speaker notes on every slide carrying timings and the
   judging parameter each slide answers. The Round 1 deck, `docs/MaskGuard_Round1_Submission.pptx`, is kept as it was.
 - **Evidence for every number:** `docs/EVALUATION.md` (benchmarks, attacks, performance) and
   `docs/SAFFRON_VALIDATION.md` (the organisers' dataset).
@@ -19,26 +19,26 @@ questions, the overnight feedback loop, the code freeze, and Stage 3.
 | 9 pm – 6 am | **Jury feedback round.** Teams act on the jury's feedback, use of AI, completeness, their parameters, experience and suggestions | Feedback loop (§7): small, tested commits only |
 | 6 am | **Code freeze.** Submit a zip that matches git, with no `node_modules` and with the ignore file | `scripts/package_submission.sh TEAMID PSID` (§8) |
 | After the freeze | **Code evaluation.** Final score = Stage 1 (70%) + AI evaluation of the code (30%): how accurate the models are, and against which baselines | The repository answers this on its own (§9) |
-| Stage 3 | **Top 40 → top 10.** Presentation and market analysis | Dataset validation, other datasets, market analysis, 10-slide deck (§10) |
+| Stage 3 | **Top 40 → top 10.** Presentation and market analysis | Dataset validation, other datasets, market analysis, 10-slide deck (§10); our chances (§11) |
 
 ---
 
 ## 2. Stage 1: 25 marks, five parameters
 
 We read the "m" in the brief as marks: 5 + 5 + 5 (role of AI, implied) + 7 + 3 = 25. The deck runs about 12
-minutes plus questions; if the slot is shorter, the cuts are in §2.6.
+minutes plus questions; if the slot is shorter, the cuts are in §2.8.
 
 | # | Parameter | Marks | Slides | Time |
 |---|---|---|---|---|
 | 1 | Context and problem understanding | 5 | 1 title, 2 problem (Ravi's story), 3 how it works | 3 min |
 | 2 | Architecture and tech stack: lasting choices, short-term anti-patterns avoided | 5 | 4 architecture | 1.5 min |
-| 3 | Role of AI: why, and was it deliberate? | 5 (implied) | 5 role of AI (dashboard discovery screenshot) | 1.5 min |
-| 5 | Presentation and demo | 3 | 6 dashboard, 7 command line, both live | 3.5 min |
-| 4 | Solution completeness: functional, not a prototype | 7 | 8 proof on the organisers' data | 1.5 min |
-| | Differentiators and market, close | — | 9 why MaskGuard, 10 close | 1.5 min |
+| 3 | Role of AI: why, and was it deliberate? | 5 (implied) | 5 role of AI (dashboard discovery screenshot), 6 no LLM, no quantum | 2.5 min |
+| 5 | Presentation and demo | 3 | 7 dashboard, 8 command line, both live | 3.5 min |
+| 4 | Solution completeness: functional, not a prototype | 7 | 9 proof on the organisers' data | 1.5 min |
+| | Differentiators and market, close | — | 10 why MaskGuard, 11 close | 1.5 min |
 
 **The deck's rule: one message per slide, plain words.** A judge who has seen 40 teams should be able to repeat each
-slide's title as the whole message: everyone sees everything → one gate → AI finds, never decides → dashboard →
+slide's title as the whole message: everyone sees everything → one gate → AI finds, never decides → classic ML, quantum-safe → dashboard →
 command line → proof → why us → finds it, hides it, proves it.
 
 ### 2.1 Context and problem (5)
@@ -119,7 +119,7 @@ The jury asks "how will this hold up long term, and which short-term shortcuts d
 
 ### 2.4 Solution completeness (7): functional, not a prototype
 
-Lead with the organisers' own data (slide 8); the AI accuracy is on slide 5.
+Lead with the organisers' own data (slide 9); the AI accuracy is on slides 5–6.
 
 - **Data checked first.** All 9 Saffron Bank tables are identical in CSV, SQLite, PostgreSQL and MySQL: 129,260 rows,
   compared cell by cell.
@@ -147,7 +147,7 @@ Lead with the organisers' own data (slide 8); the AI accuracy is on slide 5.
 The live demo script is in §4. Rules:
 - One person drives, one person talks.
 - Never type a long query live: paste it from the cheat sheet.
-- If anything stalls for more than 10 seconds, say "here is the same thing captured this morning" and go to slides 6–7.
+- If anything stalls for more than 10 seconds, say "here is the same thing captured this morning" and go to slides 7–8.
 
 ### 2.6 Our differentiators: say these in every round
 
@@ -166,13 +166,35 @@ The line for encryption and quantum-safe approaches:
 > data, every employee sees all of it. We answer a different question: what should this employee see? The two work
 > together."
 
-### 2.7 If the slot is shorter
+### 2.7 Facing the quantum teams (slide 6)
+
+"Quantum" in this problem usually means one of three things. Know which one a team is using, and answer that one.
+
+| What they built | What it really does | Our calm answer |
+|---|---|---|
+| **Post-quantum encryption** (Kyber / ML-KEM, Dilithium) of the data or the tokens | Protects stored or transmitted data against a future quantum attacker | "Good for outsiders. It doesn't decide what each employee sees after decryption, and it doesn't find the PII. Our masking already uses only symmetric cryptography (HMAC-SHA-256, SHA-256), which quantum computers don't break the way they break RSA." |
+| **Quantum ML** (QSVM, VQC in Qiskit or PennyLane) to classify columns | Runs on a simulator on a normal computer, or on cloud quantum hardware | "On table data, recent benchmarks find quantum classifiers don't beat tuned classical models. Ours is 0.999 on an external benchmark, about 3 ms a column, offline, a 0.45 MB file." |
+| **Quantum random numbers** for tokens or keys | Better randomness for key generation | "Our keys come from the operating system's cryptographic random generator (256-bit). Randomness isn't the weak point in masking; who sees what is." |
+
+Rules:
+- **Never say "quantum is hype".** Say "we chose what works in a bank today, and we're already quantum-safe where it
+  matters."
+- **Turn it into a demo challenge.** "Whatever approach you use, three questions decide it: does it find `col_7`? What
+  does support see when they search a real PAN? Does the data stay in place?" We answer all three live.
+- **If a judge loves quantum:** "Post-quantum TLS is a deployment setting in front of MaskGuard, not a rewrite. The
+  masking layer itself has nothing a quantum computer breaks."
+
+Why no LLM, in one breath: customer data would leave the bank (or need GPUs), the same column could get different
+answers on different days, each call costs money and seconds, and a prompt can be manipulated. A 0.45 MB LightGBM
+model has none of those problems and is measured at 0.999.
+
+### 2.8 If the slot is shorter
 
 | Slot | Cut |
 |---|---|
-| 10 min | Skip slide 4's tech-stack talk (leave it on screen); live demo dashboard only, slide 7 as a picture |
-| 7 min | Slides 1, 2, 3, 5, 6, 8, 9, 10; demo is slides 6–7 themselves |
-| 5 min | Slides 1, 3, 6, 8, 9, and the 30-second AI answer |
+| 10 min | Skip slide 4's tech-stack talk (leave it on screen); live demo dashboard only, slide 8 as a picture |
+| 7 min | Slides 1, 2, 3, 5, 6, 7, 9, 10, 11; demo is slides 7–8 themselves |
+| 5 min | Slides 1, 3, 6, 7, 9, 10, and the 30-second AI answer |
 
 ---
 
@@ -217,14 +239,14 @@ Start it in the prepared folder: `maskguard serve --port 8000`, then open `http:
    nothing; the scanner read the values and says PAN, and shows its reason, never the value." (This is slide 5.)
 2. **Masking playground** → SQL editor, paste:
    `SELECT cust_nm, mob_no, pan_no, curr_bal FROM customers JOIN kyc_records USING (customer_id) JOIN accounts USING (customer_id) WHERE customer_id IN ('CIF-007KK65R', 'CIF-00JEQMK0', 'CIF-00JWD3QM') ORDER BY customer_id`
-   and press Run. Sign out, sign in as `support_ravi`, Run again. Then do the same as `analyst_kavya`. (This is slide 6.)
+   and press Run. Sign out, sign in as `support_ravi`, Run again. Then do the same as `analyst_kavya`. (This is slide 7.)
 3. As `support_ravi`, scroll to **Why each field looks the way it does**: every masked field shows its rule.
 4. **Audit explorer**: every query you just ran, who ran it, with no values.
 
 ### 4.2 Command line, 1.5 minutes
 
 ```bash
-# 1. Same query, three organiser users (slide 7 shows the captured version)
+# 1. Same query, three organiser users (slide 8 shows the captured version)
 maskguard query --user admin_anita   "SELECT cust_nm, mob_no, pan_no, aadhaar_no, account_no, curr_bal FROM customers JOIN kyc_records USING (customer_id) JOIN accounts USING (customer_id) ORDER BY customer_id, open_dt LIMIT 3"
 maskguard query --user support_ravi  "<same query>"
 maskguard query --user analyst_kavya "<same query>"
@@ -241,7 +263,7 @@ maskguard audit verify
 ```
 
 **Fallback order:**
-1. Slides 6 and 7 are real captures from 30 Oct 2026; talk over them.
+1. Slides 7 and 8 are real captures from 30 Oct 2026; talk over them.
 2. Demo bank with built-in identities: `maskguard compare "SELECT name, ssn, email FROM users ORDER BY id LIMIT 2" --roles admin,support,analyst`
    and `maskguard attack --role analyst`.
 3. `docs/demo_full.mp4`.
@@ -266,7 +288,7 @@ maskguard audit verify
 | What does it cost in performance? | 4–8 ms per query on SQLite and PostgreSQL, 6–22 ms on MySQL, measured from 300 to 100,000 rows. Masks run inside the database. |
 | What did your scanner get wrong on our data? | On first contact, 2 account-number columns were suggested PUBLIC and 11 columns were left unreviewed (masked). We fixed the general causes, not the dataset, and checked the external benchmark did not regress. It is all written up. |
 | How do you know you didn't overfit to Saffron Bank? | The answer key was written first, every fix is a general rule (banking abbreviations, checksum-failing identifiers), and the external benchmark (unseen seeds) is unchanged at 0.999. |
-| What can't it do? | Inference through business rules between columns; names inside prose (needs NER); the PostgreSQL proxy has no TLS of its own, so it is loopback-only in production. These are on slide 10 and in the README. |
+| What can't it do? | Inference through business rules between columns; names inside prose (needs NER); the PostgreSQL proxy has no TLS of its own, so it is loopback-only in production. These are on slide 11 and in the README. |
 | Is it DPDP-compliant? | It implements the safeguards DPDP asks for: purpose-based access, minimisation, audit. Compliance is an organisation's whole process, not one tool, so we don't claim certification. |
 | How does a bank adopt it? | `pip install maskguard`, `maskguard connect` a read replica, review the tags, then point the support and analytics tools at the gateway. No schema or application change. |
 | Who pays, and how much? | NBFCs, cooperative and small finance banks, fintechs and hospitals, who are bound by DPDP and can't buy a six-figure platform. Open core: free engine, paid support, DPDP reports and connectors. |
@@ -286,7 +308,7 @@ Honesty rules for every answer:
 
 | Role | During Stage 1 | Overnight |
 |---|---|---|
-| Presenter | Slides 1–6, 9–10, the AI answer | Rewrites the deck from feedback |
+| Presenter | Slides 1–6, 9–11, the AI answer | Rewrites the deck from feedback |
 | Demo driver | Live demo, fallbacks | Implements code changes |
 | Note-taker | Writes every jury question and suggestion verbatim | Runs the feedback log, tests and packaging |
 
@@ -381,13 +403,13 @@ appears in a document with a reproducing command.
 The brief names three things.
 
 **1. Validate on the provided dataset, and on the other datasets we used.**
-- Saffron Bank: discovery 35/35, masking 0 leaks on 3 databases (done; slide 8).
-- bharat-pii-bench: the external benchmark, unseen seeds, at 5, 20, 50 and 200 values (done; slide 8).
+- Saffron Bank: discovery 35/35, masking 0 leaks on 3 databases (done; slide 9).
+- bharat-pii-bench: the external benchmark, unseen seeds, at 5, 20, 50 and 200 values (done; slides 5–6).
 - Our own generator: held-out seed 9001, used for training-distribution checks (`docs/EVALUATION.md`).
 - The built-in demo bank: the 17-attack suite and the 672-case attack matrix.
 - If time allows, add one more public dataset and report it the same way: answer key first, then score.
 
-**2. Market analysis (slide 9, expand it for Stage 3).** Keep to sourced figures:
+**2. Market analysis (slide 10, expand it for Stage 3).** Keep to sourced figures:
 - **Market size:** $1.47 B → $2.60 B, 2025–2030, at 12% a year (Knowledge Sourcing). Estimates by other publishers
   differ ($0.8–3 B, 12–17% a year), so name the source.
 - **Why now:** DPDP obligations from May 2027, and India's breach cost at ₹22 crore (IBM 2025).
@@ -412,15 +434,51 @@ For Stage 3:
 - add one slide on what changed after the jury's feedback;
 - update the numbers if any changed overnight;
 - rehearse the 5-minute cut.
+- **If Stage 3 is strictly 10 slides:** the Stage 1 deck has 11. Fold slide 4 (architecture) into slide 3 (keep its
+  four "built to last" ticks), or show slide 8 (command line) only live, and the feedback slide replaces it.
 
 ---
 
-## 11. Sources
+## 11. Can we win? An honest read
+
+Nobody can promise a result, but the position is strong, and the risks are known and fixable.
+
+**Where we are strong:**
+- **Completeness (7 marks, the largest share):** it runs on the organisers' own data, on all three of their
+  databases, as their own users, with a dashboard and a command line. Most teams will show their own sample data.
+- **The AI evaluation (30% of the final score):** accuracy against a named baseline on an external benchmark, 1,235
+  tests, results files and reproduce commands. An automated code reviewer finds all of it from the README.
+- **Role of AI:** a deliberate, defensible choice (classic ML, no LLM, AI never decides access), with a number.
+- **Honesty:** we show our first-contact miss (22 of 35) and the fix. Judges trust teams that do.
+
+**Where we can lose, and the fix:**
+
+| Risk | Fix |
+|---|---|
+| Judges are impressed by "quantum" and "LLM" words | Slide 6, and the calm answer in §2.7. Turn it into the three-question demo challenge |
+| The talk is too technical | Use the deck's words, not the code's: "find, hide, prove", "Ravi", "0 rows". Rehearse with someone non-technical |
+| The live demo stalls | Prepared folder, pasted queries, slides 7–8 as fallback, video as a last resort |
+| Running over time | Rehearse to 11 minutes; know the 7- and 5-minute cuts (§2.8) |
+| A question we can't answer | "We haven't measured that; here is how we would." Write it down for the overnight round |
+
+**The single most important thing:** a judge should leave able to say in one sentence what we built and why it is
+different. "It finds personal data by itself, hides it inside every query per role, and proved it on our own data:
+35 of 35 found, nothing leaked." Practise until every team member says it the same way.
+
+---
+
+## 12. Sources
 
 - IBM, Cost of a Data Breach 2025, India: in.newsroom.ibm.com/2025-08-07-India-Records-Highest-Average-Cost-of-a-Data-Breach-IBM
 - Knowledge Sourcing Intelligence, Data Masking Market: knowledge-sourcing.com/report/data-masking-market
 - DPDP Rules 2025: Business Today, YourStory and Taxmann coverage of the November 2025 notification
 - Microsoft Learn, Dynamic Data Masking: its limitation note on inference through filters
 - Competitor pricing: review-site estimates (PeerSpot / IT Central Station); vendors do not publish list prices
+- NIST IR 8547 (initial public draft, Nov 2024), Transition to Post-Quantum Cryptography Standards: csrc.nist.gov/pubs/ir/8547/ipd
+  (its retirement plan covers quantum-vulnerable public-key algorithms; symmetric primitives are not scheduled)
+- Bowles, Ahmed & Schuld (2024), "Better than classical? The subtle art of benchmarking quantum machine learning
+  models", arXiv:2403.07059
+- Benchmarking quantum kernel SVMs against classical baselines on tabular data, arXiv:2604.18837 (no significant
+  quantum advantage in 29 pairwise comparisons)
 - Pitch guidance: blog.jetbrains.com/ai/2026/06/how-to-win-a-hackathon-notes-from-the-judging-table/,
   developer.salesforce.com/blogs/2014/07/deliver-winning-pitch-hackathons, blogs.reskilll.com (3-minute pitch)
