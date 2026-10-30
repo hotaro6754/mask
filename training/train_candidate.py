@@ -21,12 +21,18 @@ def main():
     ap.add_argument("out")
     ap.add_argument("--real-weight", type=float, default=1.0, help="sample weight of each real-world column")
     ap.add_argument("--seed", type=int, default=7)
+    ap.add_argument("--extra", nargs="*", default=[], help="more column files ({header, values, label}), e.g. "
+                    "training/hf/cache/nemotron_train.json")
+    ap.add_argument("--extra-weight", type=float, default=1.0)
+    ap.add_argument("--no-realworld", action="store_true")
     a = ap.parse_args()
     import lightgbm as lgb
     t0 = time.time()
     synth, valid = dataset(300, a.seed), dataset(60, a.seed + 1000)
-    real = json.load(open(os.path.join(HERE, "realworld", "cache", "train.json")))
-    cols = [(h, v, k, 1.0) for h, v, k in synth] + [(e["header"], e["values"], e["label"], a.real_weight) for e in real]
+    real = [] if a.no_realworld else json.load(open(os.path.join(HERE, "realworld", "cache", "train.json")))
+    extra = [e for f in a.extra for e in json.load(open(f))]
+    cols = ([(h, v, k, 1.0) for h, v, k in synth] + [(e["header"], e["values"], e["label"], a.real_weight) for e in real]
+            + [(e["header"], e["values"], e["label"], a.extra_weight) for e in extra])
     X = np.stack([column_features(h, v) for h, v, _, _ in cols])
     y = np.array([KINDS.index(k) for _, _, k, _ in cols])
     w = np.array([wt for *_, wt in cols])
@@ -43,6 +49,7 @@ def main():
         f.write(booster.model_to_string(num_iteration=booster.best_iteration))
     meta = {"kinds": KINDS, "features": FEATURE_NAMES, "train_columns": len(cols), "synthetic_columns": len(synth),
             "real_world_columns": len(real), "real_weight": a.real_weight, "seed": a.seed,
+            "extra_files": [os.path.basename(f) for f in a.extra], "extra_columns": len(extra), "extra_weight": a.extra_weight,
             "best_iteration": booster.best_iteration, "synthetic_validation_accuracy": round(acc, 4),
             "trained_seconds": round(time.time() - t0, 1),
             "real_world_manifest": json.load(open(os.path.join(HERE, "realworld", "cache", "manifest.json")))}

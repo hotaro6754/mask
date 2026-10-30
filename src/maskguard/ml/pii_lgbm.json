@@ -123,9 +123,63 @@
     "hdr_generic",
     "hdr_none"
   ],
-  "train_columns": 6900,
+  "train_columns": 14280,
+  "synthetic_columns": 6900,
+  "real_world_columns": 1080,
+  "real_weight": 1.0,
   "seed": 7,
+  "extra_files": [
+    "nemotron_train.json",
+    "gretelfin_train.json"
+  ],
+  "extra_columns": 6300,
+  "extra_weight": 1.0,
   "best_iteration": 127,
-  "synthetic_validation_accuracy": 0.9957,
-  "trained_seconds": 36.4
+  "synthetic_validation_accuracy": 0.9942,
+  "trained_seconds": 46.5,
+  "version": "2",
+  "trained_on": "2026-10-30",
+  "training_data": {
+    "synthetic": "maskguard.ml.synth, 6,900 columns, seed 7",
+    "real_world_negatives": "training/realworld/sources.yaml (train split), 1080 columns",
+    "huggingface": {
+      "nemotron_train": {
+        "id": "nvidia/Nemotron-PII",
+        "licence": "CC-BY-4.0",
+        "role": "train",
+        "columns": 3000,
+        "values_per_class": {
+          "name": 103353,
+          "dob": 12710,
+          "address": 16830,
+          "none": 130053,
+          "phone": 32369,
+          "email": 49934,
+          "card": 9049,
+          "ssn": 4937,
+          "bank_account": 9998,
+          "vehicle_reg": 7134
+        }
+      },
+      "gretelfin_train": {
+        "id": "gretelai/synthetic_pii_finance_multilingual",
+        "licence": "Apache-2.0",
+        "role": "train",
+        "columns": 3300,
+        "values_per_class": {
+          "none": 53087,
+          "name": 63078,
+          "address": 34783,
+          "email": 4702,
+          "phone": 7720,
+          "dob": 2144,
+          "ssn": 1204,
+          "passport": 1303,
+          "card": 1107,
+          "iban": 1671,
+          "bank_account": 1387
+        }
+      }
+    }
+  }
 }

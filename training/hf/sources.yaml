@@ -1,0 +1,76 @@
+# Hugging Face PII datasets turned into classifier columns (convert.py). Every dataset is span-annotated text; the
+# converter pools the values of each label and draws columns of 20-60 values from the pool, the shape the column
+# classifier works on. Licences were read from each dataset card on 2026-10-30.
+#
+# role:
+#   train  may be used to train the shipped model (permissive licence)
+#   dev    used to choose between candidates
+#   test   scored once, never used for training or choices (source-separated: no test dataset shares a source
+#          with training). Non-commercial datasets are test-only.
+#
+# map: dataset label -> classifier class. Labels not listed are ignored: ambiguous ones (city, state, generic
+# dates, user names, customer ids) are left out rather than guessed. "none" marks values that are not personal.
+
+datasets:
+  nemotron:
+    id: nvidia/Nemotron-PII
+    licence: CC-BY-4.0
+    attribution: "Nemotron-PII, NVIDIA (CC BY 4.0)"
+    files: {train: data/train-00000-of-00001.parquet, dev: data/test-00000-of-00001.parquet}
+    role: {train: train, dev: dev}
+    map: {first_name: name, last_name: name, email: email, phone_number: phone, fax_number: phone,
+          street_address: address, date_of_birth: dob, credit_debit_card: card, ssn: ssn,
+          account_number: bank_account, license_plate: vehicle_reg, company_name: none, url: none}
+  gretelfin:
+    id: gretelai/synthetic_pii_finance_multilingual
+    licence: Apache-2.0
+    files: {train: "data/{lang}_train-00000-of-00001.parquet"}
+    languages: [English, Spanish, German, Italian, Dutch, Swedish]
+    role: {train: train}
+    map: {name: name, first_name: name, last_name: name, email: email, phone_number: phone,
+          street_address: address, date_of_birth: dob, credit_card_number: card, ssn: ssn, iban: iban,
+          bban: bank_account, passport_number: passport, company: none}
+  gretelen:
+    id: gretelai/gretel-pii-masking-en-v1
+    licence: Apache-2.0
+    files: {test: data/test-00000-of-00001.parquet}
+    role: {test: test}
+    map: {first_name: name, last_name: name, name: name, email: email, phone_number: phone, street_address: address,
+          address: address, date_of_birth: dob, credit_card_number: card, ssn: ssn, account_number: bank_account,
+          license_plate: vehicle_reg, company_name: none, url: none}
+  urchade:
+    id: urchade/synthetic-pii-ner-mistral-v1
+    licence: Apache-2.0
+    files: {test: data.json}
+    role: {test: test}
+    map: {person: name, name: name, email: email, email address: email, phone number: phone,
+          mobile phone number: phone, mobile number: phone, cell phone number: phone, address: address,
+          birth date: dob, date of birth: dob, birthdate: dob, date_of_birth: dob, credit card number: card,
+          IBAN: iban, bank account number: bank_account, passport number: passport, organization: none}
+  indiapii:
+    id: maskflow-ai/indiapii-bench
+    licence: CC-BY-4.0
+    files: {test: indiapii-v1.0.jsonl}
+    role: {test: test}
+    # NON_VERHOEFF_AADHAAR_SHAPED is not used: the benchmark calls it a negative, but real data (the organisers'
+    # Saffron Bank) holds Aadhaar numbers that fail the check digit; MaskGuard masks them on purpose.
+    map: {PERSON_NAME: name, INDIAN_MOBILE: phone, INDIAN_ADDRESS: address, BANK_ACCOUNT_IN: bank_account,
+          IFSC: ifsc, PAN: pan, AADHAAR: aadhaar, AADHAAR_MASKED: aadhaar, PIN_CODE: pincode, UPI_VPA: upi,
+          VEHICLE_REG: vehicle_reg, VOTER_ID: voter_id, GSTIN: gstin, INDIAN_PASSPORT: passport,
+          VPA_SHAPED_EMAIL: email, ORDER_ID_SHAPED: none, TIMESTAMP_SHAPED: none, PAN_SHAPED_INVOICE_NO: none}
+  ylemis:
+    id: Pranshurs/ylemis-india-pii-benchmark
+    licence: CC0-1.0
+    files: {test: benchmark.jsonl}
+    role: {test: test}
+    map: {person: name, indian_phone: phone, address: address, pan: pan, aadhaar: aadhaar, upi_id: upi,
+          email: email, ifsc: ifsc, voter_id: voter_id, vehicle_registration: vehicle_reg, gstin: gstin,
+          indian_passport: passport, organization: none}
+  openpii:
+    id: ai4privacy/pii-masking-openpii-1.5m
+    licence: "ai4privacy licence (non-commercial): test only, never trained on"
+    files: {test: data/validation.jsonl}
+    role: {test: test}
+    max_records: 200000
+    map: {GIVENNAME: name, SURNAME: name, EMAIL: email, TELEPHONENUM: phone, CREDITCARDNUMBER: card,
+          PASSPORTNUM: passport}

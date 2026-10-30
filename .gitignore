@@ -10,3 +10,4 @@ node_modules/
 dist/
 *.zip
 training/realworld/cache/
+training/hf/cache/
