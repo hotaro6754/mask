@@ -45,8 +45,9 @@ roles_app = typer.Typer(help="Roles, capabilities and their masking rules.", no_
 policy_app = typer.Typer(help="Inspect, explain and change the masking policy.", no_args_is_help=True)
 audit_app = typer.Typer(help="Hash-chained audit trail.", no_args_is_help=True)
 integrity_app = typer.Typer(help="Prove that masking never changes the source data.", invoke_without_command=True)
+users_app = typer.Typer(help="Login accounts for the dashboards, the API and the CLI.", no_args_is_help=True)
 for name, sub in (("db", db_app), ("pii", pii_app), ("roles", roles_app), ("policy", policy_app), ("audit", audit_app),
-                  ("integrity", integrity_app)):
+                  ("integrity", integrity_app), ("users", users_app)):
     app.add_typer(sub, name=name)
 
 
@@ -1027,6 +1028,74 @@ def hash_password_cmd():
     """Hash a password for the users file."""
     from .auth import hash_password
     sys.stdout.write(hash_password(getpass.getpass("password: ")) + "\n")
+
+
+@users_app.command("import")
+def users_import(csv_file: str = typer.Argument(..., help="CSV with a username and a role column (display_name optional)."),
+                 users_file: str = typer.Option("users.yaml", "--out", help="Users file to write (password hashes only)."),
+                 passwords: str = typer.Option("passwords.yaml", "--passwords",
+                                               help="Where the generated passwords go (readable only by you)."),
+                 use: bool = typer.Option(False, "--use", help="Make this folder use the new users file, with demo logins off."),
+                 force: bool = typer.Option(False, "--force", help="Overwrite existing files.")):
+    """Create login accounts from a CSV (for example an HR export): one random password each. The users file holds
+    only PBKDF2 hashes; the passwords are written once to a separate file that only you can read."""
+    import secrets
+
+    import yaml
+
+    from .auth import hash_password
+    roles = set(config._load_yaml(config.Settings().policy).get("roles") or {})
+    with open(csv_file, newline="", encoding="utf-8-sig") as f:
+        rows = list(csv.DictReader(f))
+    cols = {k.strip().lower(): k for k in (rows[0].keys() if rows else [])}
+    if "username" not in cols or "role" not in cols:
+        fail("the CSV needs a 'username' and a 'role' column", USAGE)
+    users, seen = {}, set()
+    for r in rows:
+        name, role = (r[cols["username"]] or "").strip(), (r[cols["role"]] or "").strip().lower()
+        if not name:
+            continue
+        if name in seen:
+            fail(f"username {name!r} appears twice", USAGE)
+        if role not in roles:
+            fail(f"{name}: role {role!r} is not in the policy ({', '.join(sorted(roles))})", USAGE)
+        seen.add(name)
+        users[name] = {"role": role}
+        if "display_name" in cols and (r[cols["display_name"]] or "").strip():
+            users[name]["display_name"] = r[cols["display_name"]].strip()
+    if not users:
+        fail("no users in the CSV", USAGE)
+    for path in (users_file, passwords):
+        if os.path.exists(path) and not force:
+            fail(f"{path} exists: use --force to overwrite it", USAGE)
+    pw = {u: secrets.token_urlsafe(12) for u in users}
+    for u, meta in users.items():
+        meta["password_hash"] = hash_password(pw[u])
+    notes = ("# Login accounts (maskguard users import). Password hashes only.\n",
+             "# Generated passwords (maskguard users import). Hand them out, then delete this file.\n")
+    for path, data, head in ((users_file, {"users": users}, notes[0]), (passwords, pw, notes[1])):
+        fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+        with os.fdopen(fd, "w") as f:
+            f.write(head)
+            yaml.safe_dump(data, f, sort_keys=False, allow_unicode=True)
+        os.chmod(path, 0o600)
+    if use:
+        config.save_settings({"MASKGUARD_USERS": os.path.abspath(users_file), "MASKGUARD_DEMO": "0"})
+    if state["json"]:
+        return emit_json({"users": {u: m["role"] for u, m in users.items()}, "users_file": users_file,
+                          "passwords_file": passwords, "in_use": use})
+    t = Table(box=box.SIMPLE_HEAD, header_style=f"bold {C['muted']}")
+    t.add_column("username"); t.add_column("role"); t.add_column("name")
+    for u, m in users.items():
+        t.add_row(u, m["role"], m.get("display_name", ""))
+    out.print(t)
+    out.print(Text.assemble((f"{len(users)} users", "bold"),
+                            f" → {users_file} (hashes only) · passwords → {passwords} (only you can read it)"))
+    if use:
+        out.print(Text(f"this folder now logs in with {users_file}; demo logins are off "
+                       f"(saved in {config.settings_file()})", style=C["muted"]))
+    else:
+        out.print(Text(f"use it: MASKGUARD_USERS={users_file}, or run again with --use", style=C["muted"]))
 
 
 @app.command("train-scanner")

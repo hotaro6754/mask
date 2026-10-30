@@ -161,3 +161,35 @@ def test_remote_mode_uses_the_api(sqlite_env, monkeypatch, capsys):
         assert entries and entries[0]["channel"] == "rest"
     finally:
         server.should_exit = True; t.join(5); api.state.clear()
+
+
+def test_users_import_from_csv(run, tmp_path, monkeypatch):
+    import stat
+
+    import yaml
+
+    from maskguard.auth import check_password
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("MASKGUARD_CONFIG", str(tmp_path / "maskguard.yaml"))
+    (tmp_path / "staff.csv").write_text("username,display_name,role,email\n"
+                                        "admin_anita,Anita Rao (Admin),Admin,a@x.example\n"
+                                        "support_ravi,Ravi,Support,r@x.example\n"
+                                        "analyst_kavya,,ANALYST,k@x.example\n", encoding="utf-8")
+    rc, out, _ = run("users", "import", "staff.csv", "--use")
+    assert rc == 0 and "3 users" in out
+    users = yaml.safe_load(open("users.yaml"))["users"]
+    pw = yaml.safe_load(open("passwords.yaml"))
+    assert {u: m["role"] for u, m in users.items()} == {"admin_anita": "admin", "support_ravi": "support",
+                                                         "analyst_kavya": "analyst"}
+    assert users["admin_anita"]["display_name"] == "Anita Rao (Admin)" and "display_name" not in users["analyst_kavya"]
+    for u in users:
+        assert check_password(pw[u], users[u]["password_hash"]) and pw[u] not in open("users.yaml").read()
+        assert pw[u] not in out  # passwords go to the file only
+    for f in ("users.yaml", "passwords.yaml"):
+        assert stat.S_IMODE(os.stat(f).st_mode) == 0o600
+    saved = yaml.safe_load(open("maskguard.yaml"))
+    assert saved["MASKGUARD_USERS"] == str(tmp_path / "users.yaml") and saved["MASKGUARD_DEMO"] == "0"
+    assert run("users", "import", "staff.csv")[0] == 2  # files exist: --force needed
+    (tmp_path / "bad.csv").write_text("username,role\nx,superuser\n")
+    rc, _, err = run("users", "import", "bad.csv", "--out", "u2.yaml", "--passwords", "p2.yaml")
+    assert rc == 2 and "superuser" in err and not os.path.exists("u2.yaml")

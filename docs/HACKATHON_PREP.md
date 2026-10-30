@@ -230,10 +230,9 @@ model has none of those problems, and the accuracy is shown honestly on slide 6.
 
 ## 4. Live demo script: dashboard, then command line (about 3.5 minutes)
 
-**The night before:** prepare a Saffron run folder by following "Reproduce" in `docs/SAFFRON_VALIDATION.md`:
-1. `maskguard connect` the SQLite copy;
-2. `pii approve --suggested`, then approve the remaining non-personal columns;
-3. create `users.yaml` from `data/users.csv`, and set `MASKGUARD_USERS` to it.
+**The night before:** prepare a Saffron folder by following [RUN_GUIDE.md](RUN_GUIDE.md) steps 1–4 (connect,
+`maskguard users import users.csv --use`, copy `bench/saffron/reviewed_overrides.yaml`). Keep `passwords.yaml` off
+the projector.
 
 Keep the passwords out of the repository and out of the screen recording. Then rehearse the script below twice.
 

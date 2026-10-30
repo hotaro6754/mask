@@ -424,6 +424,21 @@ def test_read_only_runtime_needs_db_install_then_passes_the_privilege_check(pg_p
     assert "SUPERUSER" in problems and "create objects in schema public" in problems
 
 
+def test_development_uses_functions_db_install_created_when_it_cannot_create_them(pg_prod_db, monkeypatch):
+    """A development connect with an account that may not create functions (for example a hosted database's app
+    user) used to fail even after `maskguard db-install`; it now uses the installed functions, and still fails with
+    the database's own reason when they are missing."""
+    import psycopg
+
+    from maskguard.backends import connect, install_functions
+    monkeypatch.setenv("MASKGUARD_HMAC_KEY", secrets.token_hex(32))
+    with pytest.raises(psycopg.Error):
+        connect(pg_prod_db["gateway"], install=True)
+    install_functions(pg_prod_db["admin"])
+    gw = connect(pg_prod_db["gateway"], install=True)
+    assert gw.execute("SELECT mg_partial(ssn, 0, 4) FROM customers ORDER BY id")[1][0][0] == "XXX-XX-4501"
+
+
 def test_production_build_end_to_end_on_postgres(pg_prod_db, prod, monkeypatch):
     from maskguard.backends import install_functions
     install_functions(pg_prod_db["admin"])

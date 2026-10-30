@@ -88,11 +88,14 @@ class Backend:
     def privilege_problems(self):
         return [f"{self.dialect} has no database accounts to restrict"]
 
-    def _require_functions(self, probe):
-        """Fail closed if the masking functions are missing or this account can't run them."""
+    def _require_functions(self, probe, install_error=None):
+        """Fail closed if the masking functions are missing or this account can't run them. After a failed install
+        (the account may not create functions), functions an owner installed earlier are used instead."""
         try:
             self.execute(probe)
         except Exception as e:
+            if install_error is not None:
+                raise install_error from None
             raise RuntimeError(f"masking functions are missing or not executable by this account ({type(e).__name__}): "
                                "run `maskguard db-install` with an owner account first") from None
 
@@ -165,15 +168,19 @@ class PostgresBackend(Backend):
         self.url = url
         self.conn = psycopg.connect(url, autocommit=True)
         self.lock = threading.Lock()
+        install_error = None
         with self.lock:
             if install:
-                self.conn.execute(PG_FUNCTIONS)
-                self.conn.execute(pg_function_sql())
+                try:
+                    self.conn.execute(PG_FUNCTIONS)
+                    self.conn.execute(pg_function_sql())
+                except psycopg.Error as e:  # e.g. no right to create them: fine if `maskguard db-install` already did
+                    install_error = e
             key = hmac_key if hmac_key is not None else masks._key().decode()
             self.conn.execute("SELECT set_config('maskguard.hmac_key', %s, false)", (key,))
             self.conn.execute(f"SET statement_timeout = {int(statement_timeout_ms)}")
-        if not install:
-            self._require_functions(PG_PROBE)
+        if not install or install_error:
+            self._require_functions(PG_PROBE, install_error)
 
     def privilege_problems(self):
         """Anything beyond read access: role attributes, write/DDL rights on tables, schemas or the database."""
@@ -317,6 +324,7 @@ class MySQLBackend(Backend):
     dialect = "mysql"
 
     def __init__(self, url, hmac_key=None, statement_timeout_ms=5000, install=True):
+        import pymysql
         u = urlparse(url)
         self.default_schema = u.path.lstrip("/") or "bank"
         self.conn = _mysql_connect(url)
@@ -330,10 +338,14 @@ class MySQLBackend(Backend):
             # merging off, ORDER BY ... LIMIT masked every row of the table first: seconds at 10,000 rows). The
             # rewriter adds NO_MERGE for views joined on a masked column, which would otherwise re-run per row pair.
             c.execute("SET SESSION optimizer_switch = 'derived_merge=on'")
+            install_error = None
             if install:
-                _mysql_install(c)
-        if not install:
-            self._require_functions(MYSQL_PROBE)
+                try:
+                    _mysql_install(c)
+                except pymysql.MySQLError as e:  # e.g. binary logging without SUPER: fine if `maskguard db-install` ran
+                    install_error = e
+        if not install or install_error:
+            self._require_functions(MYSQL_PROBE, install_error)
 
     def privilege_problems(self):
         """Parse SHOW GRANTS: only read privileges are allowed, scoped to this database."""

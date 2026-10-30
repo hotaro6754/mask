@@ -516,6 +516,8 @@ MaskGuard component.
 - `docs/MaskGuard_Round1_Submission.pptx`: the Round 1 deck.
 - `docs/MaskGuard_Final_Deck.pptx`: the finale deck (12 slides, speaker notes with timings), built on the Saffron Bank
   results.
+- [`docs/RUN_GUIDE.md`](docs/RUN_GUIDE.md): run it on your own database (SQLite, PostgreSQL, MySQL) with real
+  logins, from the command line, the Control Room and the Streamlit dashboard, step by step.
 - [`docs/MODEL_CARD.md`](docs/MODEL_CARD.md): the PII classifier: what it is, what it was trained on (synthetic
   data only), how it was tested, and its limits.
 - [`docs/HACKATHON_PREP.md`](docs/HACKATHON_PREP.md): finale preparation: judging parameters, the role-of-AI answer,

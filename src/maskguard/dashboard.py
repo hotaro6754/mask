@@ -97,8 +97,11 @@ t_query, t_scan, t_attack, t_threat, t_integrity, t_audit, t_perf = st.tabs(
 
 # ---- query console --------------------------------------------------------------------------------------
 with t_query:
-    pick = st.selectbox("Example", list(EXAMPLES))
-    sql = st.text_area("SQL", EXAMPLES[pick], height=130)
+    # The examples are written for the demo bank; on your own database, offer one query per table instead.
+    examples = EXAMPLES if app.settings.seed_if_empty else {f"Everything in {t}": f"SELECT * FROM {t} LIMIT 10"
+                                                              for t in backend.tables()}
+    pick = st.selectbox("Example", list(examples))
+    sql = st.text_area("SQL", examples[pick], height=130)
     compare = st.checkbox("Compare all roles side by side", value=True, disabled=not DEMO)
     if st.button("Run query", type="primary"):
         if compare and DEMO:

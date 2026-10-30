@@ -1,0 +1,155 @@
+# The review step for the organisers' Saffron Bank pack (TalentAP 2026, B1): the 71 columns a bank reviewer
+# marks as not personal (ids, keys, dates, codes, status lists and the bank's own branch data), from the answer
+# key in truth.py. Column names only, no data. Personal attributes (nominee_rel, risk_cat, …) stay UNREVIEWED,
+# so they remain masked. Use: copy to policies/overrides.yaml in the folder where you ran `maskguard connect`.
+accounts:
+  acct_status:
+    tag: PUBLIC
+  acct_type:
+    tag: PUBLIC
+  branch_code:
+    tag: PUBLIC
+  customer_id:
+    tag: PUBLIC
+  ifsc:
+    tag: PUBLIC
+  int_rate_pct:
+    tag: PUBLIC
+  last_txn_dt:
+    tag: PUBLIC
+  open_dt:
+    tag: PUBLIC
+branches:
+  addr:
+    tag: PUBLIC
+  branch_code:
+    tag: PUBLIC
+  branch_email:
+    tag: PUBLIC
+  branch_nm:
+    tag: PUBLIC
+  branch_phone:
+    tag: PUBLIC
+  city:
+    tag: PUBLIC
+  ifsc:
+    tag: PUBLIC
+  opened_on:
+    tag: PUBLIC
+  pincode:
+    tag: PUBLIC
+  region:
+    tag: PUBLIC
+  state:
+    tag: PUBLIC
+cards:
+  CARD_NETWORK:
+    tag: PUBLIC
+  CARD_REF:
+    tag: PUBLIC
+  CARD_STATUS:
+    tag: PUBLIC
+  CARD_TYPE:
+    tag: PUBLIC
+  CARD_VARIANT:
+    tag: PUBLIC
+  CUSTOMER_ID:
+    tag: PUBLIC
+  ISSUED_ON:
+    tag: PUBLIC
+customers:
+  customer_id:
+    tag: PUBLIC
+  customer_since:
+    tag: PUBLIC
+  home_branch:
+    tag: PUBLIC
+  last_login_ts:
+    tag: PUBLIC
+  preferred_lang:
+    tag: PUBLIC
+  segment:
+    tag: PUBLIC
+  state:
+    tag: PUBLIC
+international_customers:
+  customer_id:
+    tag: PUBLIC
+  fatca_flag:
+    tag: PUBLIC
+  fatca_reported_on:
+    tag: PUBLIC
+  tax_form:
+    tag: PUBLIC
+  tin_country:
+    tag: PUBLIC
+  us_state:
+    tag: PUBLIC
+kyc_records:
+  customer_id:
+    tag: PUBLIC
+  kyc_id:
+    tag: PUBLIC
+  kyc_mode:
+    tag: PUBLIC
+  kyc_status:
+    tag: PUBLIC
+  next_review_dt:
+    tag: PUBLIC
+  ovd_type:
+    tag: PUBLIC
+  verified_by:
+    tag: PUBLIC
+  verified_on:
+    tag: PUBLIC
+loan_applications:
+  app_id:
+    tag: PUBLIC
+  applied_on:
+    tag: PUBLIC
+  customer_id:
+    tag: PUBLIC
+  decision:
+    tag: PUBLIC
+  emp_type:
+    tag: PUBLIC
+  loan_type:
+    tag: PUBLIC
+  roi_pct:
+    tag: PUBLIC
+  tenure_mths:
+    tag: PUBLIC
+support_tickets:
+  assigned_to:
+    tag: PUBLIC
+  category:
+    tag: PUBLIC
+  channel:
+    tag: PUBLIC
+  created_ts:
+    tag: PUBLIC
+  customer_id:
+    tag: PUBLIC
+  priority:
+    tag: PUBLIC
+  resolved_ts:
+    tag: PUBLIC
+  status:
+    tag: PUBLIC
+  ticket_id:
+    tag: PUBLIC
+transactions:
+  channel:
+    tag: PUBLIC
+  dr_cr:
+    tag: PUBLIC
+  ref_no:
+    tag: PUBLIC
+  rrn:
+    tag: PUBLIC
+  txn_id:
+    tag: PUBLIC
+  txn_status:
+    tag: PUBLIC
+  txn_ts:
+    tag: PUBLIC
