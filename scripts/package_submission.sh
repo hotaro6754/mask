@@ -23,7 +23,7 @@ if [ "$no_video" = "--no-video" ]; then
   exclude=(":(exclude)docs/*.mp4")
 fi
 
-git archive --format=zip --prefix="${name}/" -o "${name}.zip" HEAD -- . "${exclude[@]}"
+git archive --format=zip --prefix="${name}/" -o "${name}.zip" HEAD -- . ${exclude[@]+"${exclude[@]}"}
 
 echo "wrote ${name}.zip from $(git rev-parse --short HEAD) ($(du -h "${name}.zip" | cut -f1), $(unzip -Z1 "${name}.zip" | grep -vc '/$') files)"
 bad=$(unzip -Z1 "${name}.zip" | sed "s|^${name}/||" |
