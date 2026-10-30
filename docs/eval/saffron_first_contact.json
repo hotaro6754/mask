@@ -1,0 +1,328 @@
+{
+ "backend": "sqlite",
+ "missed_sensitive_columns": 13,
+ "as_scanned_nobody_approved": {
+  "values_checked": 1300,
+  "raw_values_returned": 0,
+  "columns": {
+   "accounts.account_no": {
+    "suggest": "PUBLIC",
+    "tag": "UNREVIEWED",
+    "support": {
+     "raw_values_returned": 0,
+     "checked": 50
+    },
+    "analyst": {
+     "raw_values_returned": 0,
+     "checked": 50
+    }
+   },
+   "accounts.curr_bal": {
+    "suggest": null,
+    "tag": "UNREVIEWED",
+    "support": {
+     "raw_values_returned": 0,
+     "checked": 50
+    },
+    "analyst": {
+     "raw_values_returned": 0,
+     "checked": 50
+    }
+   },
+   "cards.CREDIT_LIMIT": {
+    "suggest": null,
+    "tag": "UNREVIEWED",
+    "support": {
+     "raw_values_returned": 0,
+     "checked": 50
+    },
+    "analyst": {
+     "raw_values_returned": 0,
+     "checked": 50
+    }
+   },
+   "cards.LINKED_ACCT": {
+    "suggest": null,
+    "tag": "UNREVIEWED",
+    "support": {
+     "raw_values_returned": 0,
+     "checked": 50
+    },
+    "analyst": {
+     "raw_values_returned": 0,
+     "checked": 50
+    }
+   },
+   "customers.addr_line2": {
+    "suggest": null,
+    "tag": "UNREVIEWED",
+    "support": {
+     "raw_values_returned": 0,
+     "checked": 50
+    },
+    "analyst": {
+     "raw_values_returned": 0,
+     "checked": 50
+    }
+   },
+   "international_customers.us_addr": {
+    "suggest": null,
+    "tag": "UNREVIEWED",
+    "support": {
+     "raw_values_returned": 0,
+     "checked": 50
+    },
+    "analyst": {
+     "raw_values_returned": 0,
+     "checked": 50
+    }
+   },
+   "kyc_records.pan_no": {
+    "suggest": null,
+    "tag": "UNREVIEWED",
+    "support": {
+     "raw_values_returned": 0,
+     "checked": 50
+    },
+    "analyst": {
+     "raw_values_returned": 0,
+     "checked": 50
+    }
+   },
+   "loan_applications.amt_requested_inr": {
+    "suggest": null,
+    "tag": "UNREVIEWED",
+    "support": {
+     "raw_values_returned": 0,
+     "checked": 50
+    },
+    "analyst": {
+     "raw_values_returned": 0,
+     "checked": 50
+    }
+   },
+   "loan_applications.col_7": {
+    "suggest": null,
+    "tag": "UNREVIEWED",
+    "support": {
+     "raw_values_returned": 0,
+     "checked": 50
+    },
+    "analyst": {
+     "raw_values_returned": 0,
+     "checked": 50
+    }
+   },
+   "loan_applications.credit_score": {
+    "suggest": null,
+    "tag": "UNREVIEWED",
+    "support": {
+     "raw_values_returned": 0,
+     "checked": 50
+    },
+    "analyst": {
+     "raw_values_returned": 0,
+     "checked": 50
+    }
+   },
+   "loan_applications.sanctioned_amt_inr": {
+    "suggest": null,
+    "tag": "UNREVIEWED",
+    "support": {
+     "raw_values_returned": 0,
+     "checked": 50
+    },
+    "analyst": {
+     "raw_values_returned": 0,
+     "checked": 50
+    }
+   },
+   "transactions.account_no": {
+    "suggest": "PUBLIC",
+    "tag": "UNREVIEWED",
+    "support": {
+     "raw_values_returned": 0,
+     "checked": 50
+    },
+    "analyst": {
+     "raw_values_returned": 0,
+     "checked": 50
+    }
+   },
+   "transactions.bal_after": {
+    "suggest": null,
+    "tag": "UNREVIEWED",
+    "support": {
+     "raw_values_returned": 0,
+     "checked": 50
+    },
+    "analyst": {
+     "raw_values_returned": 0,
+     "checked": 50
+    }
+   }
+  }
+ },
+ "reviewer_blindly_approves_suggestions": {
+  "values_checked": 1300,
+  "raw_values_returned": 200,
+  "columns": {
+   "accounts.account_no": {
+    "suggest": "PUBLIC",
+    "tag": "PUBLIC",
+    "support": {
+     "raw_values_returned": 50,
+     "checked": 50
+    },
+    "analyst": {
+     "raw_values_returned": 50,
+     "checked": 50
+    }
+   },
+   "accounts.curr_bal": {
+    "suggest": null,
+    "tag": "UNREVIEWED",
+    "support": {
+     "raw_values_returned": 0,
+     "checked": 50
+    },
+    "analyst": {
+     "raw_values_returned": 0,
+     "checked": 50
+    }
+   },
+   "cards.CREDIT_LIMIT": {
+    "suggest": null,
+    "tag": "UNREVIEWED",
+    "support": {
+     "raw_values_returned": 0,
+     "checked": 50
+    },
+    "analyst": {
+     "raw_values_returned": 0,
+     "checked": 50
+    }
+   },
+   "cards.LINKED_ACCT": {
+    "suggest": null,
+    "tag": "UNREVIEWED",
+    "support": {
+     "raw_values_returned": 0,
+     "checked": 50
+    },
+    "analyst": {
+     "raw_values_returned": 0,
+     "checked": 50
+    }
+   },
+   "customers.addr_line2": {
+    "suggest": null,
+    "tag": "UNREVIEWED",
+    "support": {
+     "raw_values_returned": 0,
+     "checked": 50
+    },
+    "analyst": {
+     "raw_values_returned": 0,
+     "checked": 50
+    }
+   },
+   "international_customers.us_addr": {
+    "suggest": null,
+    "tag": "UNREVIEWED",
+    "support": {
+     "raw_values_returned": 0,
+     "checked": 50
+    },
+    "analyst": {
+     "raw_values_returned": 0,
+     "checked": 50
+    }
+   },
+   "kyc_records.pan_no": {
+    "suggest": null,
+    "tag": "UNREVIEWED",
+    "support": {
+     "raw_values_returned": 0,
+     "checked": 50
+    },
+    "analyst": {
+     "raw_values_returned": 0,
+     "checked": 50
+    }
+   },
+   "loan_applications.amt_requested_inr": {
+    "suggest": null,
+    "tag": "UNREVIEWED",
+    "support": {
+     "raw_values_returned": 0,
+     "checked": 50
+    },
+    "analyst": {
+     "raw_values_returned": 0,
+     "checked": 50
+    }
+   },
+   "loan_applications.col_7": {
+    "suggest": null,
+    "tag": "UNREVIEWED",
+    "support": {
+     "raw_values_returned": 0,
+     "checked": 50
+    },
+    "analyst": {
+     "raw_values_returned": 0,
+     "checked": 50
+    }
+   },
+   "loan_applications.credit_score": {
+    "suggest": null,
+    "tag": "UNREVIEWED",
+    "support": {
+     "raw_values_returned": 0,
+     "checked": 50
+    },
+    "analyst": {
+     "raw_values_returned": 0,
+     "checked": 50
+    }
+   },
+   "loan_applications.sanctioned_amt_inr": {
+    "suggest": null,
+    "tag": "UNREVIEWED",
+    "support": {
+     "raw_values_returned": 0,
+     "checked": 50
+    },
+    "analyst": {
+     "raw_values_returned": 0,
+     "checked": 50
+    }
+   },
+   "transactions.account_no": {
+    "suggest": "PUBLIC",
+    "tag": "PUBLIC",
+    "support": {
+     "raw_values_returned": 50,
+     "checked": 50
+    },
+    "analyst": {
+     "raw_values_returned": 50,
+     "checked": 50
+    }
+   },
+   "transactions.bal_after": {
+    "suggest": null,
+    "tag": "UNREVIEWED",
+    "support": {
+     "raw_values_returned": 0,
+     "checked": 50
+    },
+    "analyst": {
+     "raw_values_returned": 0,
+     "checked": 50
+    }
+   }
+  }
+ }
+}

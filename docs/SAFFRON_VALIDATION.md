@@ -70,9 +70,12 @@ As detection scores (sensitive columns against not-personal ones; the 14 judgeme
 
 The fixes were made after seeing this dataset, so the second row is not a blind score; the first row is.
 
-On first contact nothing was exposed by default: untagged columns are masked as `UNREVIEWED`. But two account-number
-columns were wrongly suggested as non-personal, and money columns were mislabelled as PIN codes. Every miss had a
-general cause:
+On first contact nothing was exposed by default: untagged columns are masked as `UNREVIEWED`. We checked this on the
+saved first-contact registry (`bench/saffron/first_contact_leaks.py`, `docs/eval/saffron_first_contact.json`): the 13
+missed columns, 50 values each, queried as `support_ravi` and `analyst_kavya`, returned **0 of 1,300** real values.
+The catch: two account-number columns were wrongly suggested as non-personal. A reviewer who accepted every suggestion
+without looking (`pii approve --suggested`) would have exposed both (200 of the 1,300 values). Money columns were
+also mislabelled as PIN codes. Every miss had a general cause:
 
 | Miss | Cause | Fix (general, not for this dataset) |
 |---|---|---|
@@ -148,6 +151,7 @@ mkdir run && cp $PACK/sql/sqlite/saffron_bank.db run/ && cd run
 maskguard connect sqlite:///$PWD/saffron_bank.db && maskguard pii list --json > pii.json
 python ../bench/saffron/score_scan.py pii.json ../bench/saffron
 python ../bench/saffron/eval_masking.py sqlite:///$PWD/saffron_bank.db work users.yaml passwords.yaml ../bench/saffron out.json
+python ../bench/saffron/first_contact_leaks.py data/saffron_bank/registry.yaml sqlite:///$PWD/saffron_bank.db fc users.yaml passwords.yaml fc.json   # run on the first-contact registry, before any approvals
 ```
 
 `users.yaml` lists the 9 users from `data/users.csv` in the format of `deploy/users.example.yaml` (role in lower case,
