@@ -17,6 +17,7 @@ KIND_TAG = {
     # financial
     "card": "FINANCIAL_CONFIDENTIAL", "iban": "FINANCIAL_CONFIDENTIAL", "bank_account": "FINANCIAL_CONFIDENTIAL",
     "amount": "FINANCIAL_CONFIDENTIAL", "balance": "FINANCIAL_CONFIDENTIAL", "gstin": "FINANCIAL_CONFIDENTIAL",
+    "credit_score": "FINANCIAL_CONFIDENTIAL",
     # quasi-identifiers
     "name": "PII_MEDIUM", "address": "PII_MEDIUM", "dob": "PII_MEDIUM", "pincode": "PII_MEDIUM",
     "vehicle_reg": "PII_MEDIUM", "ifsc": "PII_MEDIUM",
@@ -30,6 +31,7 @@ KIND_TAG = {
 HEADER_WORDS = {"email": "email", "mail": "email", "phone": "phone", "mobile": "phone", "msisdn": "phone",
                 "ssn": "ssn", "aadhaar": "aadhaar", "aadhar": "aadhaar", "pan": "pan", "card": "card", "cc": "card",
                 "iban": "iban", "balance": "balance", "name": "name", "address": "address", "dob": "dob", "birth": "dob",
+                "addr": "address", "account": "bank_account", "acct": "bank_account", "cibil": "credit_score",
                 "amount": "amount", "fee": "amount", "fees": "amount", "salary": "amount",
                 "premium": "amount", "wage": "amount", "refund": "amount",
                 "doctor": "name", "physician": "name", "nurse": "name", "surgeon": "name",
@@ -80,7 +82,8 @@ def value_kind(sample):
     vals = [str(v).strip() for v in sample[:200] if v is not None and str(v).strip()]
     if len(vals) < 3:
         return None, None
-    for kind, rx, what, need in (("health", ICD10, "ICD-10 diagnosis codes", 0.9),
+    for kind, rx, what, need in (("pan", PAN_SHAPE, "PAN numbers by shape (check digits not required)", 0.8),
+                                 ("health", ICD10, "ICD-10 diagnosis codes", 0.9),
                                  ("health", BLOOD_GROUP, "blood groups", 0.9),
                                  ("name", HONORIFIC_NAME, "names with a title (Dr., Mrs. …)", 0.8)):
         hits = [v for v in vals if rx.fullmatch(v if kind == "name" else v.upper())]
@@ -110,11 +113,50 @@ def sparse_identifiers(sample):
     return None, None
 
 
+# Banking schemas abbreviate: curr_bal, amt_requested_inr, od_limit_inr. On numeric values these name money tied to a
+# customer (rates such as int_rate_pct or roi_pct are not in the list).
+MONEY_TOKENS = {"bal", "balance", "amt", "amount", "limit", "income", "salary", "outstanding", "emi", "overdraft", "od",
+                "sanctioned", "premium", "fee", "fees", "wage", "refund", "deposit", "withdrawal", "payout", "networth",
+                "payment", "dues"}
+# What an identifier looks like when its check digit can't be relied on (test data, legacy systems, typos). Agreement
+# between the column name and this shape is enough to tag the column: a masking system fails closed.
+PAN_SHAPE = re.compile(r"[A-Z]{3}[ABCFGHJLPTK][A-Z]\d{4}[A-Z]")  # 4th letter: the PAN holder type
+HEADER_SHAPES = {"bank_account": re.compile(r"\d{9,18}"), "pan": PAN_SHAPE,
+                 "aadhaar": re.compile(r"\d{4}[\s-]?\d{4}[\s-]?\d{4}"), "ssn": re.compile(r"\d{3}[\s-]?\d{2}[\s-]?\d{4}"),
+                 "card": re.compile(r"(?:\d[\s-]?){13,19}"), "phone": re.compile(r"\+?[\d\s()-]{10,16}")}
+
+
+def _tokens(column):
+    return set(re.split(r"[^a-z0-9]+", re.sub(r"([a-z])([A-Z])", r"\1_\2", column or "").lower()))
+
+
+def structural_kind(column, sample):
+    """Evidence that needs no model: money or a credit score named by the column on numeric values, or a column name
+    that agrees with the shape of its values. Returns (kind, confidence, evidence) or None."""
+    vals = [v for v in sample if v is not None and str(v).strip()]
+    if len(vals) < 3:
+        return None
+    toks = _tokens(column)
+    if _numeric(vals):
+        if {"credit", "score"} <= toks or "cibil" in toks:
+            return "credit_score", "high", "credit score (column name, numeric values)"
+        hit = sorted(toks & MONEY_TOKENS)
+        if hit:
+            return "amount", "high", f"money values; column name ({hit[0]}) ties them to a customer"
+    hk = header_kind(column)
+    shape = HEADER_SHAPES.get(hk)
+    if shape:
+        share = sum(1 for v in vals if shape.fullmatch(str(v).strip().upper())) / len(vals)
+        if share >= 0.8:
+            return hk, "high", f"column name says {hk} and {share:.0%} of values have its shape (check digit not required)"
+    return None
+
+
 def suggest_public(column, sample):
     """For a column the scanner found nothing in: why it probably isn't personal data, or None. Only a suggestion:
     nothing is approved until a person runs `maskguard pii approve` (--suggested takes these)."""
     vals = [v for v in sample if v is not None]
-    if len(vals) < 5:
+    if len(vals) < 5 or header_kind(column) in KIND_TAG:  # account_no is whole numbers, but the name says account
         return None
     tokens = re.split(r"[^a-z0-9]+", re.sub(r"([a-z])([A-Z])", r"\1_\2", column).lower())
     if tokens[-1] in KEY_WORDS and all(isinstance(v, int) or re.fullmatch(r"\d+", str(v).strip()) for v in vals):
@@ -154,6 +196,9 @@ def classify_column_rules(column, values, hi=0.8, lo=0.3):
             best_kind, best_ratio = kind, ratio
     if best_kind and best_ratio >= hi:
         return _out(best_kind, "high", f"{best_ratio:.0%} pass {best_kind} validator; header={hk}", source="rules")
+    st = structural_kind(column, sample)
+    if st:
+        return _out(st[0], st[1], st[2], source="rules")
     if best_kind and best_ratio >= lo:
         return _out(best_kind, "review", f"only {best_ratio:.0%} pass {best_kind} validator; header={hk}", source="rules")
     vk, vev = value_kind(sample)
@@ -203,6 +248,9 @@ def classify_column(column, values):
     sample = [v for v in values if v is not None][:200]
     d = decide(column, sample)
     kind = d["kind"]
+    st = None if d["source"] == "checksum" else structural_kind(column, sample)
+    if st:  # e.g. od_limit_inr: the model reads 6-digit amounts as PIN codes; the column name and type say money
+        return _out(st[0], st[1], st[2], source="header+values", probs=d["probs"])
     if kind in KIND_TAG:
         return _out(kind, d["confidence"], d["evidence"], source=d["source"], probs=d["probs"])
     vk, vev = value_kind(sample)

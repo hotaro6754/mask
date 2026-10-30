@@ -64,3 +64,31 @@ def test_mostly_empty_column_is_sampled_past_the_nulls(env):
     entry = scan_table(b, "sparse_contacts")
     assert entry["alt_contact"]["kind"] == "email" and entry["alt_contact"]["tag"] == "PII_HIGH"
     b.admin_script("DROP TABLE sparse_contacts")
+
+
+# Patterns from the organisers' Saffron Bank pack (TalentAP 2026). The values below are made up in the same formats.
+@pytest.mark.parametrize("classify", [classify_column, classify_column_rules], ids=["hybrid", "rules"])
+def test_pan_shape_counts_even_when_the_check_digits_fail(classify):
+    pans = ["TZPPG0000O", "ZFSPV0000G", "OOHPJ0000H", "UXAPH0000R", "GYNPT0000T", "VRQPK0000Z"] * 4
+    assert classify("pan_no", pans)["kind"] == "pan"   # 0000 is never issued, so stdnum rejects them; shape + name agree
+    assert classify("col_7", pans)["kind"] == "pan"    # no name at all: the shape (with a valid holder letter) is enough
+
+
+@pytest.mark.parametrize("classify", [classify_column, classify_column_rules], ids=["hybrid", "rules"])
+def test_banking_abbreviations_name_money_and_accounts(classify):
+    money = [11132.85, 85000.0, 360567.13, 4200.5, 99000.0]
+    for col in ("curr_bal", "bal_after", "amt_requested_inr", "od_limit_inr", "CREDIT_LIMIT"):
+        r = classify(col, money)
+        assert r and r["kind"] == "amount" and r["tag"] == "FINANCIAL_CONFIDENTIAL", (col, r)
+    assert classify("credit_score", [712, 688, 801, 640, 755])["kind"] == "credit_score"
+    assert classify("int_rate_pct", [3.5, 6.75, 7.1, 4.0, 5.25]) is None  # a rate is not personal money
+    accts = ["51145972248884", "46775843622712", "56690643833469", "00381255117509", "73400918812345"]
+    for col in ("account_no", "LINKED_ACCT"):
+        assert classify(col, accts)["kind"] == "bank_account", col
+
+
+def test_a_column_named_like_personal_data_is_never_suggested_public():
+    from maskguard.scanner import suggest_public
+    accts = ["51145972248884", "46775843622712", "56690643833469", "00381255117509", "73400918812345"]
+    assert suggest_public("account_no", accts) is None   # whole numbers ending in _no, but the name says account
+    assert suggest_public("txn_id", accts) is not None   # an ordinary key is still suggested
