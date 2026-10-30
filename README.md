@@ -514,6 +514,10 @@ MaskGuard component.
 ## Submission material
 
 - `docs/MaskGuard_Round1_Submission.pptx`: the Round 1 deck.
+- `docs/MaskGuard_Final_Deck.pptx`: the finale deck (10 slides, speaker notes with timings), built on the Saffron Bank
+  results.
+- [`docs/HACKATHON_PREP.md`](docs/HACKATHON_PREP.md): finale preparation: judging parameters, the role-of-AI answer,
+  demo script, questions, overnight feedback loop, code-freeze packaging (`scripts/package_submission.sh`), Stage 3.
 - [`docs/demo_full.mp4`](docs/demo_full.mp4): the full walkthrough of 1.1.0 (12 minutes, captioned, no audio; every
   terminal and browser scene is a real recording of the 1.1.0 wheel). It covers:
   - the problem, and how MaskGuard sorts and hides;

@@ -6,3 +6,6 @@ data/
 .env
 deploy/production.env
 deploy/secrets/
+node_modules/
+dist/
+*.zip
