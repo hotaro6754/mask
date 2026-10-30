@@ -1,0 +1,68 @@
+{
+ "probability": "P(personal) = 1 - P(none) - P(free_text) - P(amount)",
+ "columns": 9780,
+ "ece": 0.0473,
+ "brier": 0.0459,
+ "reliability": [
+  {
+   "bin": "0.0-0.1",
+   "columns": 1140,
+   "mean_predicted": 0.0185,
+   "observed_personal": 0.1781
+  },
+  {
+   "bin": "0.1-0.2",
+   "columns": 244,
+   "mean_predicted": 0.1389,
+   "observed_personal": 0.5164
+  },
+  {
+   "bin": "0.2-0.3",
+   "columns": 115,
+   "mean_predicted": 0.2485,
+   "observed_personal": 0.713
+  },
+  {
+   "bin": "0.3-0.4",
+   "columns": 74,
+   "mean_predicted": 0.3453,
+   "observed_personal": 0.5541
+  },
+  {
+   "bin": "0.4-0.5",
+   "columns": 72,
+   "mean_predicted": 0.4537,
+   "observed_personal": 0.6806
+  },
+  {
+   "bin": "0.5-0.6",
+   "columns": 131,
+   "mean_predicted": 0.5606,
+   "observed_personal": 0.8626
+  },
+  {
+   "bin": "0.6-0.7",
+   "columns": 89,
+   "mean_predicted": 0.6389,
+   "observed_personal": 0.8989
+  },
+  {
+   "bin": "0.7-0.8",
+   "columns": 101,
+   "mean_predicted": 0.7546,
+   "observed_personal": 0.9109
+  },
+  {
+   "bin": "0.8-0.9",
+   "columns": 186,
+   "mean_predicted": 0.8537,
+   "observed_personal": 0.9624
+  },
+  {
+   "bin": "0.9-1.0",
+   "columns": 7628,
+   "mean_predicted": 0.9977,
+   "observed_personal": 0.9983
+  }
+ ]
+}

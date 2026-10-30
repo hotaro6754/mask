@@ -1,0 +1,45 @@
+{
+ "environment": {
+  "maskguard": "1.1.0",
+  "model": "2",
+  "python": "3.13.16",
+  "machine": "Linux x86_64, 4 CPUs",
+  "values_per_column": 20,
+  "test_sets": {
+   "gretelen": "1200 columns",
+   "urchade": "1200 columns",
+   "openpii": "600 columns",
+   "indiapii": "1800 columns",
+   "ylemis": "1560 columns",
+   "bharat_holdout": "3420 columns"
+  },
+  "seconds": 109.1
+ },
+ "detectors": {
+  "A_header_only": {
+   "p50_ms": 0.003,
+   "p95_ms": 0.004,
+   "mean_ms": 0.003
+  },
+  "B_rules_only": {
+   "p50_ms": 0.689,
+   "p95_ms": 1.236,
+   "mean_ms": 0.764
+  },
+  "C_lightgbm_only": {
+   "p50_ms": 1.577,
+   "p95_ms": 2.116,
+   "mean_ms": 1.624
+  },
+  "D_rules_lightgbm": {
+   "p50_ms": 2.298,
+   "p95_ms": 4.423,
+   "mean_ms": 2.584
+  },
+  "E_full_scanner": {
+   "p50_ms": 2.268,
+   "p95_ms": 3.263,
+   "mean_ms": 2.371
+  }
+ }
+}

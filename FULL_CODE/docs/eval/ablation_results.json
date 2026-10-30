@@ -1,0 +1,82 @@
+{
+ "training_columns": {
+  "synthetic": 6900,
+  "real_world": 1080,
+  "extra": 6300
+ },
+ "groups": {
+  "header": 22,
+  "regex_shape": 22,
+  "checksum": 6,
+  "value_statistics": 49
+ },
+ "variants": {
+  "all_features": {
+   "features": 99,
+   "best_iteration": 127,
+   "macro_f1": 0.878,
+   "accuracy": 0.897,
+   "protection_recall": 0.9214,
+   "false_positive_rate": 0.045,
+   "high_risk_recall": 0.9502
+  },
+  "without_header": {
+   "features": 77,
+   "best_iteration": 127,
+   "macro_f1": 0.8721,
+   "accuracy": 0.889,
+   "protection_recall": 0.9117,
+   "false_positive_rate": 0.0417,
+   "high_risk_recall": 0.9379
+  },
+  "without_regex_shape": {
+   "features": 77,
+   "best_iteration": 133,
+   "macro_f1": 0.8369,
+   "accuracy": 0.8637,
+   "protection_recall": 0.9082,
+   "false_positive_rate": 0.1283,
+   "high_risk_recall": 0.952
+  },
+  "without_checksum": {
+   "features": 93,
+   "best_iteration": 68,
+   "macro_f1": 0.9033,
+   "accuracy": 0.8808,
+   "protection_recall": 0.9134,
+   "false_positive_rate": 0.1925,
+   "high_risk_recall": 0.9319
+  },
+  "without_value_statistics": {
+   "features": 50,
+   "best_iteration": 87,
+   "macro_f1": 0.7838,
+   "accuracy": 0.7744,
+   "protection_recall": 0.8092,
+   "false_positive_rate": 0.1342,
+   "high_risk_recall": 0.9288
+  },
+  "without_regex_shape_and_checksum": {
+   "features": 71,
+   "best_iteration": 54,
+   "macro_f1": 0.855,
+   "accuracy": 0.8389,
+   "protection_recall": 0.8951,
+   "false_positive_rate": 0.2275,
+   "high_risk_recall": 0.922
+  },
+  "header_only": {
+   "features": 22,
+   "best_iteration": 157,
+   "macro_f1": 0.4677,
+   "accuracy": 0.3992,
+   "protection_recall": 0.3219,
+   "false_positive_rate": 0.0483,
+   "high_risk_recall": 0.3223
+  }
+ },
+ "reproduces_shipped_model": {
+  "max_probability_difference": 0.0,
+  "identical": true
+ }
+}

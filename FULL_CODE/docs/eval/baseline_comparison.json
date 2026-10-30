@@ -1,0 +1,478 @@
+{
+ "environment": {
+  "maskguard": "1.1.0",
+  "model": "2",
+  "python": "3.13.16",
+  "machine": "Linux x86_64, 4 CPUs",
+  "values_per_column": 20,
+  "test_sets": {
+   "gretelen": "1200 columns",
+   "urchade": "1200 columns",
+   "openpii": "600 columns",
+   "indiapii": "1800 columns",
+   "ylemis": "1560 columns",
+   "bharat_holdout": "3420 columns"
+  },
+  "seconds": 109.1
+ },
+ "gates": {
+  "E beats A_header_only on macro-F1": true,
+  "E beats B_rules_only on macro-F1": true,
+  "E beats C_lightgbm_only on macro-F1": true,
+  "E beats D_rules_lightgbm on macro-F1": true,
+  "high-risk recall >= 0.9": true,
+  "false-positive rate <= 0.2": true
+ },
+ "detectors": {
+  "A_header_only": {
+   "columns": 9780,
+   "accuracy": 0.3992,
+   "macro_precision": 0.9464,
+   "macro_recall": 0.3502,
+   "macro_f1": 0.4677,
+   "weighted_f1": 0.4588,
+   "protection_recall": 0.3219,
+   "false_negative_rate": 0.6781,
+   "false_positive_rate": 0.0483,
+   "high_risk_recall": 0.3223,
+   "macro_f1_95ci": [
+    0.4541,
+    0.4801
+   ],
+   "per_test_set": {
+    "bharat_holdout": {
+     "columns": 3420,
+     "accuracy": 0.4737,
+     "macro_precision": 0.9554,
+     "macro_recall": 0.375,
+     "macro_f1": 0.4965,
+     "weighted_f1": 0.4883,
+     "protection_recall": 0.3333,
+     "false_negative_rate": 0.6667,
+     "false_positive_rate": 0.0,
+     "high_risk_recall": 0.3333
+    },
+    "gretelen": {
+     "columns": 1200,
+     "accuracy": 0.35,
+     "macro_precision": 0.8848,
+     "macro_recall": 0.35,
+     "macro_f1": 0.4203,
+     "weighted_f1": 0.4203,
+     "protection_recall": 0.2917,
+     "false_negative_rate": 0.7083,
+     "false_positive_rate": 0.125,
+     "high_risk_recall": 0.28
+    },
+    "indiapii": {
+     "columns": 1800,
+     "accuracy": 0.3578,
+     "macro_precision": 0.9281,
+     "macro_recall": 0.3578,
+     "macro_f1": 0.4567,
+     "weighted_f1": 0.4567,
+     "protection_recall": 0.3167,
+     "false_negative_rate": 0.6833,
+     "false_positive_rate": 0.0667,
+     "high_risk_recall": 0.3194
+    },
+    "openpii": {
+     "columns": 600,
+     "accuracy": 0.3333,
+     "macro_precision": 1.0,
+     "macro_recall": 0.3333,
+     "macro_f1": 0.5,
+     "weighted_f1": 0.5,
+     "protection_recall": 0.3333,
+     "false_negative_rate": 0.6667,
+     "false_positive_rate": null,
+     "high_risk_recall": 0.3333
+    },
+    "urchade": {
+     "columns": 1200,
+     "accuracy": 0.3733,
+     "macro_precision": 0.8799,
+     "macro_recall": 0.3733,
+     "macro_f1": 0.4526,
+     "weighted_f1": 0.4526,
+     "protection_recall": 0.3213,
+     "false_negative_rate": 0.6787,
+     "false_positive_rate": 0.1583,
+     "high_risk_recall": 0.3153
+    },
+    "ylemis": {
+     "columns": 1560,
+     "accuracy": 0.3667,
+     "macro_precision": 0.9085,
+     "macro_recall": 0.3667,
+     "macro_f1": 0.4621,
+     "weighted_f1": 0.4621,
+     "protection_recall": 0.325,
+     "false_negative_rate": 0.675,
+     "false_positive_rate": 0.1333,
+     "high_risk_recall": 0.3333
+    }
+   }
+  },
+  "B_rules_only": {
+   "columns": 9780,
+   "accuracy": 0.5837,
+   "macro_precision": 0.6558,
+   "macro_recall": 0.5716,
+   "macro_f1": 0.5784,
+   "weighted_f1": 0.5565,
+   "protection_recall": 0.5677,
+   "false_negative_rate": 0.4323,
+   "false_positive_rate": 0.1,
+   "high_risk_recall": 0.6833,
+   "macro_f1_95ci": [
+    0.573,
+    0.5846
+   ],
+   "per_test_set": {
+    "bharat_holdout": {
+     "columns": 3420,
+     "accuracy": 0.7377,
+     "macro_precision": 0.6835,
+     "macro_recall": 0.7198,
+     "macro_f1": 0.6937,
+     "weighted_f1": 0.6745,
+     "protection_recall": 0.7122,
+     "false_negative_rate": 0.2878,
+     "false_positive_rate": 0.1667,
+     "high_risk_recall": 0.8537
+    },
+    "gretelen": {
+     "columns": 1200,
+     "accuracy": 0.34,
+     "macro_precision": 0.3132,
+     "macro_recall": 0.34,
+     "macro_f1": 0.2878,
+     "weighted_f1": 0.2878,
+     "protection_recall": 0.2694,
+     "false_negative_rate": 0.7306,
+     "false_positive_rate": 0.0,
+     "high_risk_recall": 0.485
+    },
+    "indiapii": {
+     "columns": 1800,
+     "accuracy": 0.6761,
+     "macro_precision": 0.6471,
+     "macro_recall": 0.6761,
+     "macro_f1": 0.6198,
+     "weighted_f1": 0.6198,
+     "protection_recall": 0.7244,
+     "false_negative_rate": 0.2756,
+     "false_positive_rate": 0.0,
+     "high_risk_recall": 0.7935
+    },
+    "openpii": {
+     "columns": 600,
+     "accuracy": 0.2,
+     "macro_precision": 0.2,
+     "macro_recall": 0.2,
+     "macro_f1": 0.2,
+     "weighted_f1": 0.2,
+     "protection_recall": 0.3983,
+     "false_negative_rate": 0.6017,
+     "false_positive_rate": null,
+     "high_risk_recall": 0.4979
+    },
+    "urchade": {
+     "columns": 1200,
+     "accuracy": 0.2008,
+     "macro_precision": 0.2111,
+     "macro_recall": 0.2008,
+     "macro_f1": 0.1217,
+     "weighted_f1": 0.1217,
+     "protection_recall": 0.112,
+     "false_negative_rate": 0.888,
+     "false_positive_rate": 0.0,
+     "high_risk_recall": 0.1681
+    },
+    "ylemis": {
+     "columns": 1560,
+     "accuracy": 0.7692,
+     "macro_precision": 0.7115,
+     "macro_recall": 0.7692,
+     "macro_f1": 0.7231,
+     "weighted_f1": 0.7231,
+     "protection_recall": 0.75,
+     "false_negative_rate": 0.25,
+     "false_positive_rate": 0.0,
+     "high_risk_recall": 0.875
+    }
+   }
+  },
+  "C_lightgbm_only": {
+   "columns": 9780,
+   "accuracy": 0.897,
+   "macro_precision": 0.893,
+   "macro_recall": 0.8741,
+   "macro_f1": 0.878,
+   "weighted_f1": 0.8949,
+   "protection_recall": 0.9214,
+   "false_negative_rate": 0.0786,
+   "false_positive_rate": 0.045,
+   "high_risk_recall": 0.9502,
+   "macro_f1_95ci": [
+    0.8741,
+    0.8819
+   ],
+   "per_test_set": {
+    "bharat_holdout": {
+     "columns": 3420,
+     "accuracy": 0.9971,
+     "macro_precision": 0.9967,
+     "macro_recall": 0.9991,
+     "macro_f1": 0.9979,
+     "weighted_f1": 0.9971,
+     "protection_recall": 1.0,
+     "false_negative_rate": 0.0,
+     "false_positive_rate": 0.0139,
+     "high_risk_recall": 1.0
+    },
+    "gretelen": {
+     "columns": 1200,
+     "accuracy": 0.7967,
+     "macro_precision": 0.7324,
+     "macro_recall": 0.7967,
+     "macro_f1": 0.7497,
+     "weighted_f1": 0.7497,
+     "protection_recall": 0.7972,
+     "false_negative_rate": 0.2028,
+     "false_positive_rate": 0.025,
+     "high_risk_recall": 0.8183
+    },
+    "indiapii": {
+     "columns": 1800,
+     "accuracy": 0.82,
+     "macro_precision": 0.7895,
+     "macro_recall": 0.82,
+     "macro_f1": 0.7791,
+     "weighted_f1": 0.7791,
+     "protection_recall": 0.881,
+     "false_negative_rate": 0.119,
+     "false_positive_rate": 0.0333,
+     "high_risk_recall": 0.9259
+    },
+    "openpii": {
+     "columns": 600,
+     "accuracy": 0.82,
+     "macro_precision": 1.0,
+     "macro_recall": 0.82,
+     "macro_f1": 0.8814,
+     "weighted_f1": 0.8814,
+     "protection_recall": 0.83,
+     "false_negative_rate": 0.17,
+     "false_positive_rate": null,
+     "high_risk_recall": 0.9375
+    },
+    "urchade": {
+     "columns": 1200,
+     "accuracy": 0.7583,
+     "macro_precision": 0.753,
+     "macro_recall": 0.7583,
+     "macro_f1": 0.7248,
+     "weighted_f1": 0.7248,
+     "protection_recall": 0.8583,
+     "false_negative_rate": 0.1417,
+     "false_positive_rate": 0.05,
+     "high_risk_recall": 0.9264
+    },
+    "ylemis": {
+     "columns": 1560,
+     "accuracy": 0.9801,
+     "macro_precision": 0.9842,
+     "macro_recall": 0.9801,
+     "macro_f1": 0.9798,
+     "weighted_f1": 0.9798,
+     "protection_recall": 1.0,
+     "false_negative_rate": 0.0,
+     "false_positive_rate": 0.2583,
+     "high_risk_recall": 1.0
+    }
+   }
+  },
+  "D_rules_lightgbm": {
+   "columns": 9780,
+   "accuracy": 0.9058,
+   "macro_precision": 0.8909,
+   "macro_recall": 0.8812,
+   "macro_f1": 0.8816,
+   "weighted_f1": 0.9022,
+   "protection_recall": 0.9383,
+   "false_negative_rate": 0.0617,
+   "false_positive_rate": 0.0467,
+   "high_risk_recall": 0.9744,
+   "macro_f1_95ci": [
+    0.8775,
+    0.8853
+   ],
+   "per_test_set": {
+    "bharat_holdout": {
+     "columns": 3420,
+     "accuracy": 0.9971,
+     "macro_precision": 0.9967,
+     "macro_recall": 0.9991,
+     "macro_f1": 0.9979,
+     "weighted_f1": 0.9971,
+     "protection_recall": 1.0,
+     "false_negative_rate": 0.0,
+     "false_positive_rate": 0.0139,
+     "high_risk_recall": 1.0
+    },
+    "gretelen": {
+     "columns": 1200,
+     "accuracy": 0.7967,
+     "macro_precision": 0.7359,
+     "macro_recall": 0.7967,
+     "macro_f1": 0.7534,
+     "weighted_f1": 0.7534,
+     "protection_recall": 0.8259,
+     "false_negative_rate": 0.1741,
+     "false_positive_rate": 0.025,
+     "high_risk_recall": 0.85
+    },
+    "indiapii": {
+     "columns": 1800,
+     "accuracy": 0.8506,
+     "macro_precision": 0.7941,
+     "macro_recall": 0.8506,
+     "macro_f1": 0.8097,
+     "weighted_f1": 0.8097,
+     "protection_recall": 0.9143,
+     "false_negative_rate": 0.0857,
+     "false_positive_rate": 0.0417,
+     "high_risk_recall": 0.9778
+    },
+    "openpii": {
+     "columns": 600,
+     "accuracy": 0.8517,
+     "macro_precision": 1.0,
+     "macro_recall": 0.8517,
+     "macro_f1": 0.8996,
+     "weighted_f1": 0.8996,
+     "protection_recall": 0.8667,
+     "false_negative_rate": 0.1333,
+     "false_positive_rate": null,
+     "high_risk_recall": 0.9833
+    },
+    "urchade": {
+     "columns": 1200,
+     "accuracy": 0.7692,
+     "macro_precision": 0.7511,
+     "macro_recall": 0.7692,
+     "macro_f1": 0.7327,
+     "weighted_f1": 0.7327,
+     "protection_recall": 0.8917,
+     "false_negative_rate": 0.1083,
+     "false_positive_rate": 0.05,
+     "high_risk_recall": 0.975
+    },
+    "ylemis": {
+     "columns": 1560,
+     "accuracy": 0.9795,
+     "macro_precision": 0.9838,
+     "macro_recall": 0.9795,
+     "macro_f1": 0.9791,
+     "weighted_f1": 0.9791,
+     "protection_recall": 1.0,
+     "false_negative_rate": 0.0,
+     "false_positive_rate": 0.2667,
+     "high_risk_recall": 1.0
+    }
+   }
+  },
+  "E_full_scanner": {
+   "columns": 9780,
+   "accuracy": 0.9153,
+   "macro_precision": 0.8912,
+   "macro_recall": 0.8911,
+   "macro_f1": 0.888,
+   "weighted_f1": 0.9113,
+   "protection_recall": 0.9538,
+   "false_negative_rate": 0.0462,
+   "false_positive_rate": 0.0783,
+   "high_risk_recall": 0.9806,
+   "macro_f1_95ci": [
+    0.8841,
+    0.8923
+   ],
+   "per_test_set": {
+    "bharat_holdout": {
+     "columns": 3420,
+     "accuracy": 0.9971,
+     "macro_precision": 0.9967,
+     "macro_recall": 0.9991,
+     "macro_f1": 0.9979,
+     "weighted_f1": 0.9971,
+     "protection_recall": 1.0,
+     "false_negative_rate": 0.0,
+     "false_positive_rate": 0.0139,
+     "high_risk_recall": 1.0
+    },
+    "gretelen": {
+     "columns": 1200,
+     "accuracy": 0.8142,
+     "macro_precision": 0.9322,
+     "macro_recall": 0.8142,
+     "macro_f1": 0.7934,
+     "weighted_f1": 0.7934,
+     "protection_recall": 0.8528,
+     "false_negative_rate": 0.1472,
+     "false_positive_rate": 0.0917,
+     "high_risk_recall": 0.8617
+    },
+    "indiapii": {
+     "columns": 1800,
+     "accuracy": 0.8667,
+     "macro_precision": 0.843,
+     "macro_recall": 0.8667,
+     "macro_f1": 0.838,
+     "weighted_f1": 0.838,
+     "protection_recall": 0.9476,
+     "false_negative_rate": 0.0524,
+     "false_positive_rate": 0.2667,
+     "high_risk_recall": 1.0
+    },
+    "openpii": {
+     "columns": 600,
+     "accuracy": 0.8817,
+     "macro_precision": 1.0,
+     "macro_recall": 0.8817,
+     "macro_f1": 0.9251,
+     "weighted_f1": 0.9251,
+     "protection_recall": 0.89,
+     "false_negative_rate": 0.11,
+     "false_positive_rate": null,
+     "high_risk_recall": 0.9833
+    },
+    "urchade": {
+     "columns": 1200,
+     "accuracy": 0.7925,
+     "macro_precision": 0.7617,
+     "macro_recall": 0.7925,
+     "macro_f1": 0.7578,
+     "weighted_f1": 0.7578,
+     "protection_recall": 0.9231,
+     "false_negative_rate": 0.0769,
+     "false_positive_rate": 0.05,
+     "high_risk_recall": 0.9792
+    },
+    "ylemis": {
+     "columns": 1560,
+     "accuracy": 0.9776,
+     "macro_precision": 0.9826,
+     "macro_recall": 0.9776,
+     "macro_f1": 0.9771,
+     "weighted_f1": 0.9771,
+     "protection_recall": 1.0,
+     "false_negative_rate": 0.0,
+     "false_positive_rate": 0.2917,
+     "high_risk_recall": 1.0
+    }
+   }
+  }
+ }
+}

@@ -1,0 +1,421 @@
+{
+ "datasets": [
+  {
+   "name": "maskguard synthetic generator",
+   "source": "src/maskguard/ml/synth.py",
+   "licence": "this project",
+   "synthetic": true,
+   "role": "train (seed 7) and early stopping (seed 1007)"
+  },
+  {
+   "name": "nemotron",
+   "source": "https://huggingface.co/datasets/nvidia/Nemotron-PII",
+   "licence": "CC-BY-4.0",
+   "synthetic": true,
+   "role": {
+    "train": "train",
+    "dev": "dev"
+   },
+   "label_map": {
+    "first_name": "name",
+    "last_name": "name",
+    "email": "email",
+    "phone_number": "phone",
+    "fax_number": "phone",
+    "street_address": "address",
+    "date_of_birth": "dob",
+    "credit_debit_card": "card",
+    "ssn": "ssn",
+    "account_number": "bank_account",
+    "license_plate": "vehicle_reg",
+    "company_name": "none",
+    "url": "none"
+   },
+   "transformation": "annotated spans pooled per label, drawn into columns of 20-60 values (training/hf/convert.py, seed 23); headers truthful, generic or misleading"
+  },
+  {
+   "name": "gretelfin",
+   "source": "https://huggingface.co/datasets/gretelai/synthetic_pii_finance_multilingual",
+   "licence": "Apache-2.0",
+   "synthetic": true,
+   "role": {
+    "train": "train"
+   },
+   "label_map": {
+    "name": "name",
+    "first_name": "name",
+    "last_name": "name",
+    "email": "email",
+    "phone_number": "phone",
+    "street_address": "address",
+    "date_of_birth": "dob",
+    "credit_card_number": "card",
+    "ssn": "ssn",
+    "iban": "iban",
+    "bban": "bank_account",
+    "passport_number": "passport",
+    "company": "none"
+   },
+   "transformation": "annotated spans pooled per label, drawn into columns of 20-60 values (training/hf/convert.py, seed 23); headers truthful, generic or misleading"
+  },
+  {
+   "name": "gretelen",
+   "source": "https://huggingface.co/datasets/gretelai/gretel-pii-masking-en-v1",
+   "licence": "Apache-2.0",
+   "synthetic": true,
+   "role": {
+    "test": "test"
+   },
+   "label_map": {
+    "first_name": "name",
+    "last_name": "name",
+    "name": "name",
+    "email": "email",
+    "phone_number": "phone",
+    "street_address": "address",
+    "address": "address",
+    "date_of_birth": "dob",
+    "credit_card_number": "card",
+    "ssn": "ssn",
+    "account_number": "bank_account",
+    "license_plate": "vehicle_reg",
+    "company_name": "none",
+    "url": "none"
+   },
+   "transformation": "annotated spans pooled per label, drawn into columns of 20-60 values (training/hf/convert.py, seed 23); headers truthful, generic or misleading"
+  },
+  {
+   "name": "urchade",
+   "source": "https://huggingface.co/datasets/urchade/synthetic-pii-ner-mistral-v1",
+   "licence": "Apache-2.0",
+   "synthetic": true,
+   "role": {
+    "test": "test"
+   },
+   "label_map": {
+    "person": "name",
+    "name": "name",
+    "email": "email",
+    "email address": "email",
+    "phone number": "phone",
+    "mobile phone number": "phone",
+    "mobile number": "phone",
+    "cell phone number": "phone",
+    "address": "address",
+    "birth date": "dob",
+    "date of birth": "dob",
+    "birthdate": "dob",
+    "date_of_birth": "dob",
+    "credit card number": "card",
+    "IBAN": "iban",
+    "bank account number": "bank_account",
+    "passport number": "passport",
+    "organization": "none"
+   },
+   "transformation": "annotated spans pooled per label, drawn into columns of 20-60 values (training/hf/convert.py, seed 23); headers truthful, generic or misleading"
+  },
+  {
+   "name": "indiapii",
+   "source": "https://huggingface.co/datasets/maskflow-ai/indiapii-bench",
+   "licence": "CC-BY-4.0",
+   "synthetic": true,
+   "role": {
+    "test": "test"
+   },
+   "label_map": {
+    "PERSON_NAME": "name",
+    "INDIAN_MOBILE": "phone",
+    "INDIAN_ADDRESS": "address",
+    "BANK_ACCOUNT_IN": "bank_account",
+    "IFSC": "ifsc",
+    "PAN": "pan",
+    "AADHAAR": "aadhaar",
+    "AADHAAR_MASKED": "aadhaar",
+    "PIN_CODE": "pincode",
+    "UPI_VPA": "upi",
+    "VEHICLE_REG": "vehicle_reg",
+    "VOTER_ID": "voter_id",
+    "GSTIN": "gstin",
+    "INDIAN_PASSPORT": "passport",
+    "VPA_SHAPED_EMAIL": "email",
+    "ORDER_ID_SHAPED": "none",
+    "TIMESTAMP_SHAPED": "none",
+    "PAN_SHAPED_INVOICE_NO": "none"
+   },
+   "transformation": "annotated spans pooled per label, drawn into columns of 20-60 values (training/hf/convert.py, seed 23); headers truthful, generic or misleading"
+  },
+  {
+   "name": "ylemis",
+   "source": "https://huggingface.co/datasets/Pranshurs/ylemis-india-pii-benchmark",
+   "licence": "CC0-1.0",
+   "synthetic": true,
+   "role": {
+    "test": "test"
+   },
+   "label_map": {
+    "person": "name",
+    "indian_phone": "phone",
+    "address": "address",
+    "pan": "pan",
+    "aadhaar": "aadhaar",
+    "upi_id": "upi",
+    "email": "email",
+    "ifsc": "ifsc",
+    "voter_id": "voter_id",
+    "vehicle_registration": "vehicle_reg",
+    "gstin": "gstin",
+    "indian_passport": "passport",
+    "organization": "none"
+   },
+   "transformation": "annotated spans pooled per label, drawn into columns of 20-60 values (training/hf/convert.py, seed 23); headers truthful, generic or misleading"
+  },
+  {
+   "name": "openpii",
+   "source": "https://huggingface.co/datasets/ai4privacy/pii-masking-openpii-1.5m",
+   "licence": "ai4privacy licence (non-commercial): test only, never trained on",
+   "synthetic": true,
+   "role": {
+    "test": "test"
+   },
+   "label_map": {
+    "GIVENNAME": "name",
+    "SURNAME": "name",
+    "EMAIL": "email",
+    "TELEPHONENUM": "phone",
+    "CREDITCARDNUMBER": "card",
+    "PASSPORTNUM": "passport"
+   },
+   "transformation": "annotated spans pooled per label, drawn into columns of 20-60 values (training/hf/convert.py, seed 23); headers truthful, generic or misleading"
+  },
+  {
+   "name": "datasets/airport-codes",
+   "source": "https://github.com/datasets/airport-codes/blob/main/data/airport-codes.csv",
+   "licence": "ODC-PDDL-1.0",
+   "synthetic": false,
+   "role": "train",
+   "columns": {
+    "ident": "none",
+    "type": "none",
+    "elevation_ft": "none",
+    "continent": "none",
+    "iso_country": "none",
+    "iso_region": "none",
+    "gps_code": "none",
+    "local_code": "none",
+    "coordinates": "none"
+   }
+  },
+  {
+   "name": "datasets/s-and-p-500-companies",
+   "source": "https://github.com/datasets/s-and-p-500-companies/blob/main/data/constituents.csv",
+   "licence": "ODC-PDDL-1.0",
+   "synthetic": false,
+   "role": "train",
+   "columns": {
+    "Symbol": "none",
+    "Security": "none",
+    "GICS Sector": "none",
+    "GICS Sub-Industry": "none",
+    "CIK": "none",
+    "Founded": "none"
+   }
+  },
+  {
+   "name": "datasets/nasdaq-listings",
+   "source": "https://github.com/datasets/nasdaq-listings/blob/main/data/nasdaq-listed.csv",
+   "licence": "ODC-PDDL-1.0",
+   "synthetic": false,
+   "role": "train",
+   "columns": {
+    "Symbol": "none",
+    "Security Name": "none"
+   }
+  },
+  {
+   "name": "datasets/nyse-other-listings",
+   "source": "https://github.com/datasets/nyse-other-listings/blob/main/data/other-listed.csv",
+   "licence": "ODC-PDDL-1.0",
+   "synthetic": false,
+   "role": "train",
+   "columns": {
+    "ACT Symbol": "none",
+    "Company Name": "none",
+    "Exchange": "none",
+    "Round Lot Size": "none"
+   }
+  },
+  {
+   "name": "datasets/world-cities",
+   "source": "https://github.com/datasets/world-cities/blob/main/data/world-cities.csv",
+   "licence": "CC-BY-4.0",
+   "synthetic": false,
+   "role": "train",
+   "columns": {
+    "geonameid": "none"
+   }
+  },
+  {
+   "name": "datasets/language-codes",
+   "source": "https://github.com/datasets/language-codes/blob/main/data/language-codes-full.csv",
+   "licence": "ODC-PDDL-1.0 AND Unicode-3.0",
+   "synthetic": false,
+   "role": "train",
+   "columns": {
+    "alpha3-b": "none"
+   }
+  },
+  {
+   "name": "datasets/gdp",
+   "source": "https://github.com/datasets/gdp/blob/main/data/gdp.csv",
+   "licence": "CC-BY-4.0",
+   "synthetic": false,
+   "role": "train",
+   "columns": {
+    "Country Code": "none",
+    "Year": "none",
+    "Value": "amount"
+   }
+  },
+  {
+   "name": "datasets/exchange-rates",
+   "source": "https://github.com/datasets/exchange-rates/blob/main/data/daily.csv",
+   "licence": "ODC-PDDL-1.0",
+   "synthetic": false,
+   "role": "train",
+   "columns": {
+    "Exchange rate": "none"
+   }
+  },
+  {
+   "name": "datasets/un-locode",
+   "source": "https://github.com/datasets/un-locode/blob/main/data/code-list.csv",
+   "licence": "ODC-PDDL-1.0",
+   "synthetic": false,
+   "role": "test",
+   "columns": {
+    "Country": "none",
+    "Location": "none",
+    "Name": "none",
+    "NameWoDiacritics": "none",
+    "Status": "none",
+    "Function": "none",
+    "Coordinates": "none"
+   }
+  },
+  {
+   "name": "datasets/currency-codes",
+   "source": "https://github.com/datasets/currency-codes/blob/main/data/codes-all.csv",
+   "licence": "ODC-PDDL-1.0",
+   "synthetic": false,
+   "role": "test",
+   "columns": {
+    "Entity": "none",
+    "Currency": "none",
+    "AlphabeticCode": "none",
+    "NumericCode": "none",
+    "MinorUnit": "none"
+   }
+  },
+  {
+   "name": "datasets/house-prices-us",
+   "source": "https://github.com/datasets/house-prices-us/blob/main/data/cities-month-NSA.csv",
+   "licence": "ODC-PDDL-1.0",
+   "synthetic": false,
+   "role": "test",
+   "columns": {
+    "CA-Los Angeles": "none",
+    "NY-New York": "none",
+    "National-US": "none"
+   }
+  },
+  {
+   "name": "datasets/population",
+   "source": "https://github.com/datasets/population/blob/main/data/population.csv",
+   "licence": "ODC-PDDL-1.0",
+   "synthetic": false,
+   "role": "test",
+   "columns": {
+    "Country Name": "none",
+    "Country Code": "none",
+    "Year": "none",
+    "Value": "none"
+   }
+  },
+  {
+   "name": "datasets/co2-ppm",
+   "source": "https://github.com/datasets/co2-ppm/blob/main/data/co2-mm-mlo.csv",
+   "licence": "ODC-PDDL-1.0",
+   "synthetic": false,
+   "role": "test",
+   "columns": {
+    "Decimal Date": "none",
+    "Average": "none",
+    "Interpolated": "none"
+   }
+  },
+  {
+   "name": "datasets/gold-prices",
+   "source": "https://github.com/datasets/gold-prices/blob/main/data/monthly.csv",
+   "licence": "ODC-PDDL-1.0",
+   "synthetic": false,
+   "role": "test",
+   "columns": {
+    "Price": "amount"
+   }
+  },
+  {
+   "name": "datasets/top-level-domain-names",
+   "source": "https://github.com/datasets/top-level-domain-names/blob/main/data/top-level-domain-names.csv",
+   "licence": "ODC-PDDL-1.0",
+   "synthetic": false,
+   "role": "test",
+   "columns": {
+    "Domain": "none",
+    "Type": "none",
+    "Sponsoring Organization": "none"
+   }
+  },
+  {
+   "name": "datasets/media-types",
+   "source": "https://github.com/datasets/media-types/blob/main/data/media-types.csv",
+   "licence": "ODC-PDDL-1.0",
+   "synthetic": false,
+   "role": "test",
+   "columns": {
+    "Media Type": "none",
+    "Subtype": "none",
+    "Template": "none"
+   }
+  },
+  {
+   "name": "datasets/covid-19",
+   "source": "https://github.com/datasets/covid-19/blob/main/data/reference.csv",
+   "licence": "ODC-PDDL-1.0",
+   "synthetic": false,
+   "role": "test",
+   "columns": {
+    "UID": "none",
+    "iso2": "none",
+    "iso3": "none",
+    "Country_Region": "none",
+    "Combined_Key": "none",
+    "Lat": "none",
+    "Long_": "none",
+    "Population": "none"
+   }
+  },
+  {
+   "name": "bharat-pii-bench T2",
+   "source": "https://github.com/dnanatihor/bharat-pii-bench",
+   "licence": "Apache-2.0",
+   "synthetic": true,
+   "role": "model selection (seeds 1-60, 101-160); test (seeds 301-360, hard negatives 777)"
+  },
+  {
+   "name": "Saffron Bank (organisers' pack)",
+   "licence": "CC BY 4.0",
+   "synthetic": true,
+   "role": "validation after fixes: not blind, never committed (kept in FULL_CODE/data/)"
+  }
+ ]
+}

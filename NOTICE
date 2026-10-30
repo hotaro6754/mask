@@ -1,7 +1,0 @@
-MaskGuard
-Copyright 2026 G. Harshith, G. Praneeth, D. Mandeep and K. Surya Srinivas
-
-This product is licensed under the Apache License, Version 2.0 (see LICENSE).
-
-MaskGuard's code, synthetic training data generator and trained models are original work. The external benchmark
-used for evaluation (bharat-pii-bench) is run separately and is not included in this repository.

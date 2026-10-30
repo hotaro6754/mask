@@ -7,6 +7,11 @@ on:
     tags: ["v*"]
   workflow_dispatch:          # manual run: builds and smoke-tests, publishes only for a tag
 
+# All code lives in FULL_CODE/ (TalentAP coding guidelines, rule 2), so every step runs there.
+defaults:
+  run:
+    working-directory: FULL_CODE
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -31,7 +36,7 @@ jobs:
             MASKGUARD_DB=postgresql://x@127.0.0.1:1/x /tmp/smoke/bin/maskguard status
           test $? -eq 4
       - uses: actions/upload-artifact@v4
-        with: {name: dist, path: dist/}
+        with: {name: dist, path: FULL_CODE/dist/}
 
   publish:
     needs: build

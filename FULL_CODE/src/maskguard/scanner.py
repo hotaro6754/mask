@@ -1,0 +1,621 @@
+"""PII discovery: hybrid LightGBM column classifier + checksum rules (see maskguard.ml.model.decide).
+
+classify_column() is the scanner used everywhere. classify_column_rules() is the v1 rules-only scanner, kept as a
+fallback when LightGBM is unavailable and as a baseline for bench/eval_scanner.py.
+"""
+
+import logging
+import re
+import threading
+import time
+
+import yaml
+from stdnum import iban as _iban
+from stdnum import luhn as _luhn
+from stdnum.in_ import aadhaar as _aadhaar
+from stdnum.in_ import pan as _pan
+
+from .ml.features import passes
+
+log = logging.getLogger("maskguard.scanner")
+
+KIND_TAG = {
+    # direct identifiers
+    "aadhaar": "PII_HIGH",
+    "pan": "PII_HIGH",
+    "passport": "PII_HIGH",
+    "voter_id": "PII_HIGH",
+    "ssn": "PII_HIGH",
+    "phone": "PII_HIGH",
+    "email": "PII_HIGH",
+    "upi": "PII_HIGH",
+    # financial
+    "card": "FINANCIAL_CONFIDENTIAL",
+    "iban": "FINANCIAL_CONFIDENTIAL",
+    "bank_account": "FINANCIAL_CONFIDENTIAL",
+    "amount": "FINANCIAL_CONFIDENTIAL",
+    "balance": "FINANCIAL_CONFIDENTIAL",
+    "gstin": "FINANCIAL_CONFIDENTIAL",
+    "credit_score": "FINANCIAL_CONFIDENTIAL",
+    # quasi-identifiers
+    "name": "PII_MEDIUM",
+    "address": "PII_MEDIUM",
+    "dob": "PII_MEDIUM",
+    "pincode": "PII_MEDIUM",
+    "vehicle_reg": "PII_MEDIUM",
+    "ifsc": "PII_MEDIUM",
+    # identifiers embedded in free text (notes, comments)
+    "free_text_pii": "PII_IN_TEXT",
+    # health data: a special category (GDPR art. 9, DPDP), sensitive even without a name next to it
+    "health": "HEALTH",
+    # personal attributes that look harmless as values (M/F, a short list): masked from the header alone
+    "demographic": "PII_MEDIUM",
+}
+HEADER_WORDS = {
+    "email": "email",
+    "mail": "email",
+    "phone": "phone",
+    "mobile": "phone",
+    "msisdn": "phone",
+    "ssn": "ssn",
+    "aadhaar": "aadhaar",
+    "aadhar": "aadhaar",
+    "pan": "pan",
+    "card": "card",
+    "cc": "card",
+    "iban": "iban",
+    "balance": "balance",
+    "name": "name",
+    "address": "address",
+    "dob": "dob",
+    "birth": "dob",
+    "addr": "address",
+    "account": "bank_account",
+    "acct": "bank_account",
+    "cibil": "credit_score",
+    "amount": "amount",
+    "fee": "amount",
+    "fees": "amount",
+    "salary": "amount",
+    "premium": "amount",
+    "wage": "amount",
+    "refund": "amount",
+    "doctor": "name",
+    "physician": "name",
+    "nurse": "name",
+    "surgeon": "name",
+    "diagnosis": "health",
+    "icd": "health",
+    "blood": "health",
+    "allergy": "health",
+    "allergies": "health",
+    "medication": "health",
+    "medicine": "health",
+    "prescription": "health",
+    "disease": "health",
+    "symptom": "health",
+    "symptoms": "health",
+    "treatment": "health",
+    "therapy": "health",
+    "illness": "health",
+    "disability": "health",
+    "medical": "health",
+    "clinical": "health",
+    "gender": "demographic",
+    "sex": "demographic",
+    "religion": "demographic",
+    "caste": "demographic",
+    "ethnicity": "demographic",
+    "marital": "demographic",
+    "nationality": "demographic",
+}
+# Kinds whose header alone is enough to mask a non-numeric column, even when the values look harmless
+STRONG_HEADER_KINDS = {"health", "demographic"}
+TEXT_ONLY_HEADER_KINDS = {
+    "name",
+    "health",
+    "demographic",
+}  # a header like these on whole numbers is a key, not the data
+KEY_WORDS = {"id", "no", "num", "number", "key", "ref", "seq"}
+
+ICD10 = re.compile(r"[A-TV-Z][0-9][0-9A-Z](?:\.[0-9A-Z]{1,4})?")
+BLOOD_GROUP = re.compile(r"(?:A|B|AB|O)\s?(?:\+|-|POS(?:ITIVE)?|NEG(?:ATIVE)?)")
+HONORIFIC_NAME = re.compile(r"(?:Dr|Mr|Mrs|Ms|Miss|Prof|Shri|Smt|Sri|Kumari)\.?\s+[A-Z][\w'.-]+(?:\s+[A-Z][\w'.-]+)*")
+
+
+def _digits(v):
+    return re.sub(r"[\s-]", "", str(v))
+
+
+def _is_card(v):
+    d = _digits(v)
+    return d.isdigit() and 13 <= len(d) <= 19 and _luhn.is_valid(d)
+
+
+VALIDATORS = {
+    "card": _is_card,
+    "aadhaar": lambda v: _aadhaar.is_valid(_digits(v)),
+    "pan": lambda v: _pan.is_valid(str(v).strip().upper()),
+    "iban": lambda v: _iban.is_valid(str(v).replace(" ", "")),
+    "email": lambda v: re.fullmatch(r"[^@\s]+@[^@\s]+\.[^@\s]+", str(v)) is not None,
+    "phone": lambda v: re.fullmatch(r"(?:\+?91)?[6-9]\d{9}", _digits(v)) is not None,
+    "ssn": lambda v: re.fullmatch(r"\d{3}-?\d{2}-?\d{4}", str(v)) is not None,
+}
+
+
+def _numeric(sample):
+    return bool(sample) and all(
+        isinstance(v, (int, float)) or re.fullmatch(r"-?\d+(?:\.\d+)?", str(v).strip()) for v in sample[:50]
+    )
+
+
+def value_kind(sample):
+    """Kinds recognised from the values alone that the classifier wasn't trained on: diagnosis codes (ICD-10), blood
+    groups, and names with a title (Dr., Mrs., Shri …). Returns (kind, evidence) or (None, None)."""
+    vals = [str(v).strip() for v in sample[:200] if v is not None and str(v).strip()]
+    if len(vals) < 3:
+        return None, None
+    for kind, rx, what, need in (
+        ("pan", PAN_SHAPE, "PAN numbers by shape (check digits not required)", 0.8),
+        ("health", ICD10, "ICD-10 diagnosis codes", 0.9),
+        ("health", BLOOD_GROUP, "blood groups", 0.9),
+        ("name", HONORIFIC_NAME, "names with a title (Dr., Mrs. …)", 0.8),
+    ):
+        hits = [v for v in vals if rx.fullmatch(v if kind == "name" else v.upper())]
+        if len(hits) / len(vals) >= need and len(set(hits)) >= 2:
+            return kind, f"{len(hits) / len(vals):.0%} of values look like {what}"
+    return None, None
+
+
+# Identifiers that are rare by accident in a column of other things: an order-id or reference column almost never
+# holds an email address, a PAN or a valid IBAN. (Aadhaar, cards and phone numbers are left out: about one random 12-
+# or 16-digit number in ten passes their checksum, and any 10-digit number can look like a phone.) The hits must stand
+# out: in a column where most values already have the identifier's shape (PAN-shaped product codes), some pass the
+# check by chance, so the checksum rules and the model decide those columns instead.
+SPARSE_SHAPES = {
+    "email": re.compile(r"\S+@\S+"),
+    "pan": re.compile(r"[A-Za-z]{5}\d{4}[A-Za-z]"),
+    "iban": re.compile(r"[A-Za-z]{2}\d{2}[A-Za-z0-9 ]{10,40}"),
+}
+
+
+def sparse_identifiers(sample):
+    """A few strong-format identifiers in an otherwise ordinary column (a reference field someone typed an email
+    into). Returns (kind, evidence) or (None, None); the caller tags the column for review, so it stays masked."""
+    vals = [str(v).strip() for v in sample if v is not None and str(v).strip()]
+    for kind, shape in SPARSE_SHAPES.items():
+        hits = {v for v in vals if passes(VALIDATORS[kind], v)}
+        if hits and sum(1 for v in vals if shape.fullmatch(v)) <= len(vals) / 2:
+            return kind, (
+                f"{len(hits)} distinct value(s) of {len(vals)} sampled look like {kind}: "
+                "a sparse identifier, needs review"
+            )
+    return None, None
+
+
+# Banking schemas abbreviate: curr_bal, amt_requested_inr, od_limit_inr. On numeric values these name money tied to a
+# customer (rates such as int_rate_pct or roi_pct are not in the list).
+MONEY_TOKENS = {
+    "bal",
+    "balance",
+    "amt",
+    "amount",
+    "limit",
+    "income",
+    "salary",
+    "outstanding",
+    "emi",
+    "overdraft",
+    "od",
+    "sanctioned",
+    "premium",
+    "fee",
+    "fees",
+    "wage",
+    "refund",
+    "deposit",
+    "withdrawal",
+    "payout",
+    "networth",
+    "payment",
+    "dues",
+}
+# What an identifier looks like when its check digit can't be relied on (test data, legacy systems, typos). Agreement
+# between the column name and this shape is enough to tag the column: a masking system fails closed.
+PAN_SHAPE = re.compile(r"[A-Z]{3}[ABCFGHJLPTK][A-Z]\d{4}[A-Z]")  # 4th letter: the PAN holder type
+HEADER_SHAPES = {
+    "bank_account": re.compile(r"\d{9,18}"),
+    "pan": PAN_SHAPE,
+    "aadhaar": re.compile(r"\d{4}[\s-]?\d{4}[\s-]?\d{4}"),
+    "ssn": re.compile(r"\d{3}[\s-]?\d{2}[\s-]?\d{4}"),
+    "card": re.compile(r"(?:\d[\s-]?){13,19}"),
+    "phone": re.compile(r"\+?[\d\s()-]{10,16}"),
+}
+
+
+def _tokens(column):
+    return set(re.split(r"[^a-z0-9]+", re.sub(r"([a-z])([A-Z])", r"\1_\2", column or "").lower()))
+
+
+def structural_kind(column, sample):
+    """Evidence that needs no model: money or a credit score named by the column on numeric values, or a column name
+    that agrees with the shape of its values. Returns (kind, confidence, evidence) or None."""
+    vals = [v for v in sample if v is not None and str(v).strip()]
+    if len(vals) < 3:
+        return None
+    toks = _tokens(column)
+    if _numeric(vals):
+        if {"credit", "score"} <= toks or "cibil" in toks:
+            return "credit_score", "high", "credit score (column name, numeric values)"
+        hit = sorted(toks & MONEY_TOKENS)
+        if hit:
+            return "amount", "high", f"money values; column name ({hit[0]}) ties them to a customer"
+    hk = header_kind(column)
+    shape = HEADER_SHAPES.get(hk)
+    if shape:
+        share = sum(1 for v in vals if shape.fullmatch(str(v).strip().upper())) / len(vals)
+        if share >= 0.8:
+            return (
+                hk,
+                "high",
+                f"column name says {hk} and {share:.0%} of values have its shape (check digit not required)",
+            )
+    return None
+
+
+def suggest_public(column, sample):
+    """For a column the scanner found nothing in: why it probably isn't personal data, or None. Only a suggestion:
+    nothing is approved until a person runs `maskguard pii approve` (--suggested takes these)."""
+    vals = [v for v in sample if v is not None]
+    if len(vals) < 5 or header_kind(column) in KIND_TAG:  # account_no is whole numbers, but the name says account
+        return None
+    tokens = re.split(r"[^a-z0-9]+", re.sub(r"([a-z])([A-Z])", r"\1_\2", column).lower())
+    if tokens[-1] in KEY_WORDS and all(isinstance(v, int) or re.fullmatch(r"\d+", str(v).strip()) for v in vals):
+        return "looks like an id or key (whole numbers)"
+    distinct = {str(v).strip().lower() for v in vals}
+    if len(vals) >= 20 and len(distinct) <= 12 and all(len(d) <= 20 for d in distinct) and not _numeric(vals):
+        return f"short list of values ({len(distinct)} distinct), like a status or type"
+    return None
+
+
+def header_kind(column):
+    tokens = re.split(r"[^a-z0-9]+", re.sub(r"([a-z])([A-Z])", r"\1_\2", column).lower())
+    return next((HEADER_WORDS[t] for t in tokens if t in HEADER_WORDS), None)
+
+
+def _out(kind, conf, evidence, **extra):
+    return {"kind": kind, "tag": KIND_TAG[kind], "confidence": conf, "evidence": evidence, **extra}
+
+
+# Text that stands for a missing value (CSV imports often store it as text) and values a legacy system already
+# masked carry no evidence about the column: the scanner reads the rest. Matched in lower case, after stripping.
+PLACEHOLDERS = {"", "null", "none", "nan", "n/a", "na", "nil", "-", "--", "#n/a", "undefined", "?"}
+_QUOTED = re.compile(r"""^(["'`])(.*)\1$""", re.DOTALL)
+_SPACED_ID = re.compile(r"[1-9]\d{2}[ -]\d{3}|[A-Z]\d{2} \d{5}")  # PIN 530 017, passport J12 34567
+_LONG_NUMBER = re.compile(r"\d{5,}")
+_LEGACY_MASKED = re.compile(r"^[Xx*#\u2022]{2,}[0-9A-Za-z]{0,6}$")  # XXXXXX1234, ****5678 (separators removed)
+
+
+# A header that names a person (customer_name, nominee_name, surname): with values that read as names, the column is
+# masked even when the model reads it as a category, as it does when a few names repeat (a branch manager's name).
+PERSON_WORDS = {
+    "full",
+    "first",
+    "last",
+    "middle",
+    "given",
+    "customer",
+    "cust",
+    "client",
+    "holder",
+    "nominee",
+    "applicant",
+    "employee",
+    "emp",
+    "beneficiary",
+    "payee",
+    "payer",
+    "guardian",
+    "father",
+    "mother",
+    "spouse",
+    "patient",
+    "member",
+    "person",
+    "borrower",
+    "insured",
+    "owner",
+    "manager",
+    "agent",
+}
+PERSON_HEADERS = {"surname", "firstname", "lastname", "fullname", "forename", "givenname"}
+
+
+def _person_header(column):
+    toks = _tokens(column)
+    return bool(toks & PERSON_HEADERS) or ("name" in toks and bool(toks & PERSON_WORDS))
+
+
+def _name_like(sample):
+    vals = [v for v in sample[:200] if isinstance(v, str)]
+    ok = sum(
+        1
+        for v in vals
+        if 2 <= len(v) <= 60
+        and len(v.split()) <= 5
+        and not any(c.isdigit() or c in "@/:" for c in v)
+        and any(c.isalpha() for c in v)
+    )
+    return len(vals) >= 3 and ok >= 0.8 * len(sample)
+
+
+# A header made only of identifier words (ssn, pan_no, vehicle_no, account_number, mobile): the column is masked even
+# when the values have a format the model has not seen (ACCT-4929099273, K46-3006-203-20), unless they are a small set
+# of categories (Visa / Mastercard, Savings / Current). Not _id, _key, _type or _verified: account_id is usually an
+# internal key, and masking it would break joins. Uses the model's header vocabulary (maskguard.ml.features).
+ID_HEADER_KINDS = {
+    "bank_account",
+    "vehicle_reg",
+    "passport",
+    "voter_id",
+    "pan",
+    "aadhaar",
+    "card",
+    "iban",
+    "ssn",
+    "phone",
+    "gstin",
+    "upi",
+    "ifsc",
+}
+NUMBER_WORDS = {"no", "num", "number", "nbr"}
+# Count only next to a number word (uid_no, registration_no): alone, uid is often a row id, contact a person.
+AMBIGUOUS_ID_WORDS = {"uid", "contact", "cell", "cc", "pin", "registration"}
+
+
+def identifier_header(column, sample):
+    """The identifier kind a header names outright, or None."""
+    from .ml.features import HEADER_WORDS as ML_HEADER_WORDS
+
+    toks = _tokens(column) - {""}
+    kinds = {ML_HEADER_WORDS.get(t) for t in toks - NUMBER_WORDS}
+    if len(kinds) != 1 or not kinds <= ID_HEADER_KINDS or toks <= AMBIGUOUS_ID_WORDS:
+        return None
+    vals = [str(v) for v in sample[:200]]
+    return kinds.pop() if len(vals) < 3 or len(set(vals)) >= 0.5 * len(vals) else None
+
+
+def detection_sample(values, n=200):
+    """Up to n values as a person reads them: spaces and wrapping quotes stripped, placeholders for missing data
+    dropped. Values already masked are dropped too while at least 3 (and a tenth) real ones remain; a column that is
+    all masked is read as it is (masked Aadhaar is still Aadhaar). Only detection reads this: masking applies to the
+    stored values unchanged. Non-text values (numbers, dates) pass through as they are."""
+    out = []
+    for v in values:
+        if v is None:
+            continue
+        if isinstance(v, str):
+            v = v.replace("\u00a0", " ").strip()
+            m = _QUOTED.match(v)
+            if m:
+                v = m.group(2).strip()
+            if v.lower() in PLACEHOLDERS:
+                continue
+            if _SPACED_ID.fullmatch(v):  # how PIN codes and passport numbers are often written
+                v = v[:3] + v[4:]
+        out.append(v)
+        if len(out) >= n:
+            break
+    nonzero = [v for v in out if str(v).strip() != "0"]
+    if len(out) > len(nonzero) >= 3 and all(_LONG_NUMBER.fullmatch(str(v).strip()) for v in nonzero[:50]):
+        out = nonzero  # 0 as the default of a numeric identifier column (pincode INT DEFAULT 0) means missing
+    real = [v for v in out if not (isinstance(v, str) and _LEGACY_MASKED.match(re.sub(r"[\s\-./]", "", v)))]
+    if len(out) > len(real) >= max(3, len(out) // 10):
+        return real
+    return out
+
+
+def classify_column_rules(column, values, hi=0.8, lo=0.3):
+    """v1 scanner: validators + header keywords."""
+    sample = detection_sample(values)
+    hk = header_kind(column)
+    best_kind, best_ratio = None, 0.0
+    for kind, fn in VALIDATORS.items():
+        if not sample:
+            break
+        ratio = sum(1 for v in sample if passes(fn, v)) / len(sample)
+        if ratio > best_ratio:
+            best_kind, best_ratio = kind, ratio
+    if best_kind and best_ratio >= hi:
+        return _out(best_kind, "high", f"{best_ratio:.0%} pass {best_kind} validator; header={hk}", source="rules")
+    st = structural_kind(column, sample)
+    if st:
+        return _out(st[0], st[1], st[2], source="rules")
+    if best_kind and best_ratio >= lo:
+        return _out(
+            best_kind, "review", f"only {best_ratio:.0%} pass {best_kind} validator; header={hk}", source="rules"
+        )
+    vk, vev = value_kind(sample)
+    if vk:
+        return _out(vk, "high", vev, source="patterns")
+    if _texty(sample):  # identifiers inside free text, as the ML path does
+        from .textpii import scan_values
+
+        has, ev = scan_values(sample)
+        if has:
+            return _out("free_text_pii", "high", f"free text; {ev}", source="rules+patterns")
+    sk, sev = sparse_identifiers(sample)
+    if sk:
+        return _out(sk, "review", sev, source="sparse")
+    if hk and not (hk in TEXT_ONLY_HEADER_KINDS and _numeric(sample)):  # header-only evidence: tag anyway (fail closed)
+        return _out(hk, "medium", f"header token matched {hk}; no validator match", source="rules")
+    return None
+
+
+_ML = {"ok": None, "error": None}
+# LightGBM needs the OpenMP runtime, which minimal systems (slim Docker images, fresh macOS) don't ship
+ML_HINT = (
+    "install the OpenMP runtime for the ML scanner: libgomp1 (Debian/Ubuntu), libgomp (Fedora), libomp (macOS: brew)"
+)
+
+
+def ml_available():
+    if _ML["ok"] is None:
+        try:
+            from .ml.model import Classifier
+
+            Classifier.get()
+            _ML["ok"] = True
+        except Exception as e:  # noqa: BLE001 (missing lightgbm, its OpenMP runtime, or the model file -> rules only)
+            log.warning("ML scanner unavailable (%s); using rules only; %s", e, ML_HINT)
+            _ML["ok"], _ML["error"] = False, f"{type(e).__name__}: {str(e)[:120]}"
+    return _ML["ok"]
+
+
+def _texty(sample):
+    """Mostly multi-word values: worth checking for identifiers inside the text."""
+    vals = [str(v) for v in sample[:50] if v is not None]
+    return bool(vals) and sum(len(v.split()) >= 4 for v in vals) / len(vals) >= 0.5
+
+
+def classify_column(column, values):
+    """Hybrid scanner. Returns {kind, tag, confidence, evidence, source, probs} or None for non-PII columns."""
+    if not ml_available():
+        return classify_column_rules(column, values)
+    from .ml.model import decide
+
+    sample = detection_sample(values)
+    d = decide(column, sample)
+    kind = d["kind"]
+    st = None if d["source"] == "checksum" else structural_kind(column, sample)
+    if st:  # e.g. od_limit_inr: the model reads 6-digit amounts as PIN codes; the column name and type say money
+        return _out(st[0], st[1], st[2], source="header+values", probs=d["probs"])
+    if kind in KIND_TAG:
+        return _out(kind, d["confidence"], d["evidence"], source=d["source"], probs=d["probs"])
+    vk, vev = value_kind(sample)
+    if vk:
+        return _out(vk, "high", vev, source="patterns", probs=d["probs"])
+    if kind == "free_text" or _texty(sample):
+        from .textpii import scan_values
+
+        has, ev = scan_values(sample)
+        if has:
+            return _out("free_text_pii", "high", f"free text; {ev}", source="ml+patterns", probs=d["probs"])
+        if kind == "free_text":
+            return None
+    sk, sev = sparse_identifiers(sample)
+    if sk:
+        return _out(sk, "review", sev, source="sparse", probs=d["probs"])
+    if _person_header(column) and _name_like(sample):
+        return _out(
+            "name",
+            "medium",
+            f"header names a person and the values read as names; {d['evidence']}",
+            source="header",
+            probs=d["probs"],
+        )
+    hk = header_kind(column)  # ML says not PII; a PII header with a non-confident model still masks (fail closed)
+    ik = identifier_header(column, sample)
+    if ik:
+        return _out(
+            ik,
+            "medium" if len(sample) >= 3 else "review",
+            f"header names a {ik} identifier; {d['evidence']}",
+            source="header",
+            probs=d["probs"],
+        )
+    if hk in TEXT_ONLY_HEADER_KINDS and _numeric(sample):  # doctor_id, blood_test_no: numbers, not names or health
+        return None
+    if hk in STRONG_HEADER_KINDS:
+        return _out(hk, "medium", f"header says {hk} data; {d['evidence']}", source="header", probs=d["probs"])
+    if hk and d["confidence"] != "high":
+        return _out(hk, "review", f"header says {hk}; {d['evidence']}", source="header", probs=d["probs"])
+    return None
+
+
+def scan_table(backend, table, sample_size=200):
+    from .backends import is_numeric
+
+    entry = {}
+    for name, sql_type in backend.columns(table):
+        vals = backend.sample(table, name, sample_size)
+        if len(vals) >= sample_size and len(detection_sample(vals)) < sample_size // 4:  # mostly "NULL", "N/A" text
+            vals = backend.sample(table, name, sample_size * 10)
+        found = classify_column(name, vals)
+        entry[name] = {"type": "num" if is_numeric(sql_type) else "text", "sql_type": sql_type, **(found or {})}
+        hint = None if found else suggest_public(name, vals)
+        if hint:
+            entry[name].update(suggest="PUBLIC", evidence=f"{hint}: suggested PUBLIC")
+    return entry
+
+
+def scan(backend, tables=None, overrides=None, sample_size=200):
+    """Scan every table (or the given ones) and return {table: {column: meta}}. Overrides win over the scanner."""
+    registry = {t: scan_table(backend, t, sample_size) for t in (tables or backend.tables())}
+    for table, cols in (overrides or {}).items():
+        for col, meta in (cols or {}).items():
+            if table in registry and col in registry[table]:
+                meta = dict(meta)
+                if meta.pop("if_untagged", False) and registry[table][col].get("tag"):
+                    continue  # a conditional approval never hides something the scanner found
+                registry[table][col].update({"confidence": "override", "evidence": "manual override", **meta})
+    return registry
+
+
+def save_registry(registry, path):
+    with open(path, "w") as f:
+        yaml.safe_dump(registry, f, sort_keys=True)
+
+
+def load_registry(path):
+    with open(path) as f:
+        return yaml.safe_load(f) or {}
+
+
+def summary(registry):
+    """Flat list of sensitive columns for display (not the approved-public or unreviewed ones)."""
+    return [
+        {
+            "table": t,
+            "column": c,
+            "tag": m.get("tag"),
+            "kind": m.get("kind"),
+            "source": m.get("source"),
+            "confidence": m.get("confidence"),
+            "evidence": m.get("evidence"),
+        }
+        for t, cols in registry.items()
+        for c, m in cols.items()
+        if m.get("tag") not in (None, "PUBLIC")
+    ]
+
+
+def unreviewed(registry):
+    """Columns the scanner found nothing in and no person has approved: masked for non-admin roles until reviewed."""
+    return [(t, c) for t, cols in registry.items() for c, m in cols.items() if not m.get("tag")]
+
+
+class ScanWorker(threading.Thread):
+    """Background worker: rescans on an interval and hands the new registry to on_update (e.g. the gateway).
+    New tables become queryable only after they've been scanned, so unscanned data stays rejected (fail closed)."""
+
+    def __init__(self, backend, on_update, interval=300, overrides=None):
+        super().__init__(daemon=True, name="maskguard-scanner")
+        self.backend, self.on_update, self.interval, self.overrides = backend, on_update, interval, overrides
+        self.stop_event = threading.Event()
+        self.last_run, self.last_error = None, None
+
+    def run_once(self):
+        try:
+            overrides = self.overrides() if callable(self.overrides) else self.overrides  # re-read: reviews apply
+            self.on_update(scan(self.backend, overrides=overrides))
+            self.last_run, self.last_error = time.time(), None
+        except Exception as e:  # noqa: BLE001 (keep the old registry; a failed scan must not unmask anything)
+            self.last_error = repr(e)
+
+    def run(self):
+        while not self.stop_event.wait(self.interval):  # the caller already ran the first scan
+            self.run_once()
+
+    def stop(self):
+        self.stop_event.set()

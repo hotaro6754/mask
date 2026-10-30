@@ -1,0 +1,33 @@
+{
+ "bharat_holdout": {
+  "test_values_seen_in_training": 0.012,
+  "columns_mostly_seen": 0,
+  "columns_identical_to_a_training_column": 0
+ },
+ "gretelen": {
+  "test_values_seen_in_training": 0.057,
+  "columns_mostly_seen": 9,
+  "columns_identical_to_a_training_column": 0
+ },
+ "indiapii": {
+  "test_values_seen_in_training": 0.002,
+  "columns_mostly_seen": 0,
+  "columns_identical_to_a_training_column": 0
+ },
+ "openpii": {
+  "test_values_seen_in_training": 0.0062,
+  "columns_mostly_seen": 0,
+  "columns_identical_to_a_training_column": 0
+ },
+ "urchade": {
+  "test_values_seen_in_training": 0.1137,
+  "columns_mostly_seen": 15,
+  "columns_identical_to_a_training_column": 0
+ },
+ "ylemis": {
+  "test_values_seen_in_training": 0.0012,
+  "columns_mostly_seen": 0,
+  "columns_identical_to_a_training_column": 0
+ },
+ "note": "Common values (first names, 'United States') legitimately recur across datasets; an identical column would indicate leakage. Training and test sets come from different sources."
+}

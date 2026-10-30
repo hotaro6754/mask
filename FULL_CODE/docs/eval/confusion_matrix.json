@@ -1,0 +1,384 @@
+{
+ "rows_truth_columns_predicted": {
+  "A_header_only": {
+   "aadhaar": {
+    "aadhaar": 140,
+    "none": 280
+   },
+   "address": {
+    "address": 220,
+    "none": 440
+   },
+   "bank_account": {
+    "bank_account": 138,
+    "none": 402
+   },
+   "card": {
+    "card": 120,
+    "none": 240
+   },
+   "dob": {
+    "dob": 140,
+    "none": 280
+   },
+   "email": {
+    "email": 260,
+    "none": 520
+   },
+   "gstin": {
+    "gstin": 140,
+    "none": 280
+   },
+   "iban": {
+    "iban": 40,
+    "none": 80
+   },
+   "ifsc": {
+    "ifsc": 140,
+    "none": 280
+   },
+   "name": {
+    "name": 260,
+    "none": 520
+   },
+   "none": {
+    "name": 58,
+    "none": 1142
+   },
+   "pan": {
+    "none": 280,
+    "pan": 140
+   },
+   "passport": {
+    "none": 440,
+    "passport": 220
+   },
+   "phone": {
+    "none": 520,
+    "phone": 260
+   },
+   "pincode": {
+    "none": 200,
+    "pincode": 100
+   },
+   "ssn": {
+    "none": 98,
+    "ssn": 22
+   },
+   "upi": {
+    "none": 280,
+    "upi": 140
+   },
+   "vehicle_reg": {
+    "none": 398,
+    "vehicle_reg": 142
+   },
+   "voter_id": {
+    "none": 280,
+    "voter_id": 140
+   }
+  },
+  "B_rules_only": {
+   "aadhaar": {
+    "aadhaar": 358,
+    "none": 62
+   },
+   "address": {
+    "none": 660
+   },
+   "bank_account": {
+    "bank_account": 301,
+    "none": 239
+   },
+   "card": {
+    "bank_account": 122,
+    "card": 90,
+    "none": 148
+   },
+   "dob": {
+    "none": 420
+   },
+   "email": {
+    "email": 660,
+    "upi": 120
+   },
+   "gstin": {
+    "gstin": 420
+   },
+   "iban": {
+    "none": 120
+   },
+   "ifsc": {
+    "ifsc": 420
+   },
+   "name": {
+    "none": 780
+   },
+   "none": {
+    "bank_account": 60,
+    "none": 1080,
+    "pincode": 60
+   },
+   "pan": {
+    "pan": 420
+   },
+   "passport": {
+    "none": 338,
+    "passport": 322
+   },
+   "phone": {
+    "none": 360,
+    "phone": 420
+   },
+   "pincode": {
+    "pincode": 300
+   },
+   "ssn": {
+    "none": 42,
+    "ssn": 78
+   },
+   "upi": {
+    "upi": 420
+   },
+   "vehicle_reg": {
+    "none": 120,
+    "vehicle_reg": 420
+   },
+   "voter_id": {
+    "none": 420
+   }
+  },
+  "C_lightgbm_only": {
+   "aadhaar": {
+    "aadhaar": 420
+   },
+   "address": {
+    "address": 629,
+    "none": 31
+   },
+   "bank_account": {
+    "bank_account": 418,
+    "none": 111,
+    "passport": 11
+   },
+   "card": {
+    "bank_account": 8,
+    "card": 343,
+    "none": 9
+   },
+   "dob": {
+    "dob": 356,
+    "none": 64
+   },
+   "email": {
+    "email": 660,
+    "upi": 120
+   },
+   "gstin": {
+    "gstin": 420
+   },
+   "iban": {
+    "address": 36,
+    "card": 68,
+    "none": 16
+   },
+   "ifsc": {
+    "ifsc": 420
+   },
+   "name": {
+    "name": 582,
+    "none": 198
+   },
+   "none": {
+    "bank_account": 3,
+    "card": 1,
+    "name": 40,
+    "none": 1146,
+    "pincode": 10
+   },
+   "pan": {
+    "pan": 420
+   },
+   "passport": {
+    "bank_account": 25,
+    "none": 136,
+    "passport": 499
+   },
+   "phone": {
+    "phone": 780
+   },
+   "pincode": {
+    "pincode": 300
+   },
+   "ssn": {
+    "ssn": 120
+   },
+   "upi": {
+    "upi": 420
+   },
+   "vehicle_reg": {
+    "none": 109,
+    "passport": 11,
+    "vehicle_reg": 420
+   },
+   "voter_id": {
+    "voter_id": 420
+   }
+  },
+  "D_rules_lightgbm": {
+   "aadhaar": {
+    "aadhaar": 420
+   },
+   "address": {
+    "address": 630,
+    "none": 30
+   },
+   "bank_account": {
+    "bank_account": 419,
+    "none": 91,
+    "passport": 30
+   },
+   "card": {
+    "bank_account": 11,
+    "card": 345,
+    "none": 4
+   },
+   "dob": {
+    "dob": 356,
+    "none": 64
+   },
+   "email": {
+    "email": 660,
+    "upi": 120
+   },
+   "gstin": {
+    "gstin": 420
+   },
+   "iban": {
+    "address": 37,
+    "card": 83
+   },
+   "ifsc": {
+    "ifsc": 420
+   },
+   "name": {
+    "name": 582,
+    "none": 198
+   },
+   "none": {
+    "bank_account": 4,
+    "card": 1,
+    "name": 41,
+    "none": 1144,
+    "pincode": 10
+   },
+   "pan": {
+    "pan": 420
+   },
+   "passport": {
+    "bank_account": 32,
+    "none": 45,
+    "passport": 583
+   },
+   "phone": {
+    "phone": 780
+   },
+   "pincode": {
+    "pincode": 300
+   },
+   "ssn": {
+    "ssn": 120
+   },
+   "upi": {
+    "upi": 420
+   },
+   "vehicle_reg": {
+    "none": 97,
+    "passport": 23,
+    "vehicle_reg": 420
+   },
+   "voter_id": {
+    "voter_id": 420
+   }
+  },
+  "E_full_scanner": {
+   "aadhaar": {
+    "aadhaar": 420
+   },
+   "address": {
+    "address": 636,
+    "none": 19,
+    "other_pii": 5
+   },
+   "bank_account": {
+    "bank_account": 426,
+    "none": 84,
+    "passport": 30
+   },
+   "card": {
+    "bank_account": 6,
+    "card": 350,
+    "none": 2,
+    "other_pii": 2
+   },
+   "dob": {
+    "dob": 375,
+    "none": 45
+   },
+   "email": {
+    "email": 660,
+    "upi": 120
+   },
+   "gstin": {
+    "gstin": 420
+   },
+   "iban": {
+    "address": 37,
+    "card": 83
+   },
+   "ifsc": {
+    "ifsc": 420
+   },
+   "name": {
+    "name": 629,
+    "none": 151
+   },
+   "none": {
+    "bank_account": 4,
+    "card": 1,
+    "name": 59,
+    "none": 1106,
+    "pan": 20,
+    "pincode": 10
+   },
+   "pan": {
+    "pan": 420
+   },
+   "passport": {
+    "bank_account": 32,
+    "none": 20,
+    "passport": 608
+   },
+   "phone": {
+    "phone": 780
+   },
+   "pincode": {
+    "pincode": 300
+   },
+   "ssn": {
+    "ssn": 120
+   },
+   "upi": {
+    "upi": 420
+   },
+   "vehicle_reg": {
+    "none": 75,
+    "passport": 23,
+    "vehicle_reg": 442
+   },
+   "voter_id": {
+    "voter_id": 420
+   }
+  }
+ }
+}

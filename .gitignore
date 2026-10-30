@@ -1,13 +1,28 @@
+# Environments, caches and build output
 .venv/
+venv/
 __pycache__/
 *.pyc
 .pytest_cache/
-data/
-.env
-deploy/production.env
-deploy/secrets/
+.ruff_cache/
+.ipynb_checkpoints/
 node_modules/
 dist/
+build/
 *.zip
-training/realworld/cache/
-training/hf/cache/
+.DS_Store
+
+# Secrets: never committed (FULL_CODE/.env.example holds dummy values)
+.env
+FULL_CODE/deploy/production.env
+FULL_CODE/deploy/secrets/
+
+# Data and models from outside: kept on your machine, never committed.
+# The organisers' pack goes in FULL_CODE/data/ (see README, "Where the data goes").
+data/
+models/
+*.db
+*.sqlite
+*.sqlite3
+FULL_CODE/training/realworld/cache/
+FULL_CODE/training/hf/cache/

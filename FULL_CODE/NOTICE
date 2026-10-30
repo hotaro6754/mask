@@ -1,0 +1,20 @@
+MaskGuard
+Copyright 2026 G. Harshith, G. Praneeth, D. Mandeep and K. Surya Srinivas
+
+This product is licensed under the Apache License, Version 2.0 (see LICENSE).
+
+MaskGuard's code and synthetic training data generator are original work, written for the TalentAP Mega Hackathon
+2026 with Claude Code (Anthropic) as the coding assistant (see README, "AI usage"). No dataset is included in this
+repository; the scripts in training/ download them.
+
+The column classifier (src/maskguard/ml/pii_lgbm.txt.gz, version 2) was trained on MaskGuard's synthetic generator and
+on columns derived from these datasets, which require attribution:
+  - Nemotron-PII, NVIDIA (CC BY 4.0), https://huggingface.co/datasets/nvidia/Nemotron-PII
+  - Synthetic PII Finance Multilingual, Gretel (Apache-2.0),
+    https://huggingface.co/datasets/gretelai/synthetic_pii_finance_multilingual
+  - World Cities, GeoNames via github.com/datasets/world-cities (CC BY 4.0)
+  - GDP, World Bank via github.com/datasets/gdp (CC BY 4.0)
+  - other github.com/datasets packages under ODC-PDDL-1.0 (public domain), listed in training/realworld/sources.yaml
+
+The web dashboard bundles IBM Plex Sans and Plex Mono (SIL Open Font License 1.1, src/maskguard/web/fonts/OFL.txt).
+The external benchmark used for evaluation (bharat-pii-bench, Apache-2.0) is run separately and is not included.

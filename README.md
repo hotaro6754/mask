@@ -8,23 +8,42 @@ MaskGuard sits in front of the database, finds sensitive columns with a LightGBM
 every query so each role sees only what its policy allows. Stored data never changes.
 
 [![CI](https://github.com/hotaro6754/mask/actions/workflows/ci.yml/badge.svg?branch=claude/zealous-bell-me62fn)](https://github.com/hotaro6754/mask/actions/workflows/ci.yml?query=branch%3Aclaude%2Fzealous-bell-me62fn)
-![Python](https://img.shields.io/badge/python-3.10%2B-3776AB)
+![Python](https://img.shields.io/badge/python-3.11%2B-3776AB)
 ![Databases](https://img.shields.io/badge/databases-SQLite%20%C2%B7%20PostgreSQL%20%C2%B7%20MySQL-4c8)
-![Tests](https://img.shields.io/badge/tests-1235%20passed-brightgreen)
+![Tests](https://img.shields.io/badge/tests-1328-brightgreen)
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue)](LICENSE)
 [![PyPI](https://img.shields.io/pypi/v/maskguard)](https://pypi.org/project/maskguard/)
 
-[Demo video](docs/demo_full.mp4) · [Beginner's guide](docs/GUIDE.md) · [The problem](#the-problem-we-solve) · [Quick start](#quick-start) · [How it works](#how-it-works) ·
+[Demo video](FULL_CODE/docs/demo_full.mp4) · [Beginner's guide](FULL_CODE/docs/GUIDE.md) · [The problem](#the-problem-we-solve) · [Quick start](#quick-start) · [How it works](#how-it-works) ·
 [Results](#results) · [Production](#production-profile) · [Privacy review](#noisy-aggregates-and-the-privacy-review) ·
-[Deployment guide](docs/DEPLOYMENT.md) · [FAQ](#faq)
+[Deployment guide](FULL_CODE/docs/DEPLOYMENT.md) · [FAQ](#faq)
 
 <a href="https://github.com/hotaro6754/mask/blob/claude/zealous-bell-me62fn/docs/demo_full.mp4">
-  <img src="docs/img/demo-video.png" alt="Watch the full MaskGuard walkthrough (12 minutes)" width="820">
+  <img src="FULL_CODE/docs/img/demo-video.png" alt="Watch the full MaskGuard walkthrough (12 minutes)" width="820">
 </a>
 
 </div>
 
+**TalentAP Mega Hackathon 2026 · BFSI · Problem B1: Smart Data Masking for PII.** All code is in [`FULL_CODE/`](FULL_CODE);
+run every command below from there (`cd FULL_CODE`).
+
 ---
+
+## For reviewers: where the evidence is
+
+| Question | Evidence |
+|---|---|
+| What is the system and how do the parts connect? | [Architecture](FULL_CODE/docs/ARCHITECTURE.md), [How it works](#how-it-works) |
+| Which ML task is solved, against which baselines, how well? | [AI evaluation](FULL_CODE/docs/AI_EVALUATION.md): five detectors on the same 9,780 held-out columns |
+| What is the model trained on, under which licences? | [Model card](FULL_CODE/docs/MODEL_CARD.md), [`docs/eval/dataset_manifest.json`](FULL_CODE/docs/eval/dataset_manifest.json) |
+| Does each part of the model help? | Ablation in [AI evaluation](FULL_CODE/docs/AI_EVALUATION.md#ablation) |
+| Is the test data separate from the training data? | [`docs/eval/leakage_check.json`](FULL_CODE/docs/eval/leakage_check.json): no test column equals a training column |
+| How is privacy enforced, and which test proves each property? | [Security analysis](FULL_CODE/docs/SECURITY_ANALYSIS.md) |
+| What does it do on the organisers' data? | [Saffron Bank validation](FULL_CODE/docs/SAFFRON_VALIDATION.md) (first contact and after fixes, kept apart) |
+| How fast is it? | [Evaluation §6](FULL_CODE/docs/EVALUATION.md), [`docs/eval/latency_metrics.json`](FULL_CODE/docs/eval/latency_metrics.json) |
+| What does not work yet? | [Known limits](#known-limits), [Engineering audit](FULL_CODE/docs/ENGINEERING_AUDIT.md) |
+| Does it follow the coding guidelines? | [Submission compliance](FULL_CODE/docs/SUBMISSION_COMPLIANCE.md) |
+| How do I reproduce the numbers? | `uv run python bench/evaluate.py --ablation` (exit code 1 if a quality gate fails) |
 
 ## The problem we solve
 
@@ -80,7 +99,7 @@ outside service.
 | "Did the gateway change data?" | Can't prove it didn't | Integrity proof: table hashes match before and after |
 | Same rules on three databases | Three setups that drift apart | One policy file |
 
-New to all this? **[docs/GUIDE.md](docs/GUIDE.md)** explains every term from scratch, with diagrams and
+New to all this? **[docs/GUIDE.md](FULL_CODE/docs/GUIDE.md)** explains every term from scratch, with diagrams and
 step-by-step workflows. Common questions are answered in the [FAQ](#faq) at the end.
 
 ## One query, four roles
@@ -92,11 +111,11 @@ step-by-step workflows. Common questions are answered in the [FAQ](#faq) at the 
 | **Analyst** | `REDACTED` or keyed HMAC tokens (joinable, not reversible); no individual balances |
 | **Auditor** | `REDACTED` for every personal-data column; reads policies, scanner evidence, the audit log and integrity proofs |
 
-![The Control Room playground: one query run as Admin, Support, Analyst and Auditor, with per-field explanations and an integrity check](docs/img/control-room-playground.png)
+![The Control Room playground: one query run as Admin, Support, Analyst and Auditor, with per-field explanations and an integrity check](FULL_CODE/docs/img/control-room-playground.png)
 
 The same query from the CLI, one real authenticated request per role:
 
-![maskguard compare: the same SELECT as four roles](docs/img/cli-roles.png)
+![maskguard compare: the same SELECT as four roles](FULL_CODE/docs/img/cli-roles.png)
 
 ## How it works
 
@@ -134,7 +153,7 @@ Dashboards / CLI ────────────────┘            
    Postman collection, a CLI and two dashboards.
 
 Security boundary, role and capability model, policy semantics and integrity method:
-[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+[docs/ARCHITECTURE.md](FULL_CODE/docs/ARCHITECTURE.md).
 
 ## See it work
 
@@ -145,7 +164,7 @@ Security boundary, role and capability model, policy semantics and integrity met
 **Attack suite.** 21 bypass and inference attacks, run against naive output masking and against MaskGuard.
 Naive masking leaks 14 of 17 here (SQLite); MaskGuard leaks none, and all 4 unsafe statements are rejected.
 
-![Attack suite: naive masking vs MaskGuard](docs/img/cli-attack-suite.png)
+![Attack suite: naive masking vs MaskGuard](FULL_CODE/docs/img/cli-attack-suite.png)
 
 </td>
 <td width="50%" valign="top">
@@ -153,7 +172,7 @@ Naive masking leaks 14 of 17 here (SQLite); MaskGuard leaks none, and all 4 unsa
 **Insider threat.** An enumeration attack is scored query by query: it alerts at query 8 and is blocked at
 query 22, with the reasons spelled out.
 
-![Simulated enumeration attack scored and blocked by the threat engine](docs/img/cli-threat.png)
+![Simulated enumeration attack scored and blocked by the threat engine](FULL_CODE/docs/img/cli-threat.png)
 
 </td>
 </tr>
@@ -163,7 +182,7 @@ query 22, with the reasons spelled out.
 **PII discovery.** Every column with its classification, confidence, source (checksum or ML) and evidence.
 Values are never displayed.
 
-![Control Room: PII discovery](docs/img/control-room-discovery.png)
+![Control Room: PII discovery](FULL_CODE/docs/img/control-room-discovery.png)
 
 </td>
 <td valign="top">
@@ -171,7 +190,7 @@ Values are never displayed.
 **Audit explorer.** Hash-chained, append-only, filterable. SQL is stored as a fingerprint with literals replaced
 by `?`.
 
-![Control Room: audit explorer, refusals expanded](docs/img/control-room-audit.png)
+![Control Room: audit explorer, refusals expanded](FULL_CODE/docs/img/control-room-audit.png)
 
 </td>
 </tr>
@@ -180,11 +199,11 @@ by `?`.
 **Security regression in one command:** the attack suite as every role, the audit chain, and an integrity proof that
 the source data did not change.
 
-![maskguard test: every check passes](docs/img/cli-security-test.png)
+![maskguard test: every check passes](FULL_CODE/docs/img/cli-security-test.png)
 
 ## Results
 
-Details, method and reproduction: [docs/EVALUATION.md](docs/EVALUATION.md). Every number comes from a script in the
+Details, method and reproduction: [docs/EVALUATION.md](FULL_CODE/docs/EVALUATION.md). Every number comes from a script in the
 repository and a JSON file in `docs/eval/`.
 
 | | MaskGuard | Baseline |
@@ -193,9 +212,9 @@ repository and a JSON file in `docs/eval/`.
 | Same, 20 sample values per column | **0.999** | 0.844 |
 | Same, 200 sample values per column (what the scanner reads by default; 0% false alarms) | **1.000** | 0.844 (22.2% false alarms) |
 | False alarms on look-alike data (order numbers, SKUs, OTPs…), 5 / 20 values | **6.3% / 1.5%** | 22.2% |
-| PII columns protected on **5 public Hugging Face datasets never trained on** (5,880 PII columns, real-world formats; [model card](docs/MODEL_CARD.md)) | **93.9%** | 84.0% (our model version 1) |
+| PII columns protected on **5 public Hugging Face datasets never trained on** (5,880 PII columns, real-world formats; [model card](FULL_CODE/docs/MODEL_CARD.md)) | **93.9%** | 84.0% (our model version 1) |
 | Same columns **damaged 11 ways real exports are** ("NULL" text, quoted CSV values, half-masked, regrouped digits…) | **90.9%** | 77.2% (version 1) |
-| **Organisers' Saffron Bank pack** (9 tables, 120 columns, 129,260 rows): sensitive columns found | **35 / 35** (22 on first contact; [what we fixed](docs/SAFFRON_VALIDATION.md)) | — |
+| **Organisers' Saffron Bank pack** (9 tables, 120 columns, 129,260 rows): sensitive columns found | **35 / 35** (22 on first contact; [what we fixed](FULL_CODE/docs/SAFFRON_VALIDATION.md)) | — |
 | Same, raw values returned to Support or Analyst, 13,700 masked cells, as the organisers' users | **0** on SQLite, PostgreSQL and MySQL | — |
 | PII leaks across 17 bypass and inference attacks | **0 / 17** | 15 / 17 on PostgreSQL, 14 / 17 on SQLite and MySQL (naive masking) |
 | Simulated insider attacks detected (normal users blocked) | **95–100% (0%)** | — |
@@ -213,9 +232,9 @@ development, off in production, not claimed.
 
 | Capability | Status | Evidence |
 |---|---|---|
-| Column discovery from names and sample values (identifiers, Indian formats, misleading names) | Measured | bharat-pii-bench holdout at 5 to 200 values, per-label precision/recall: [EVALUATION §1](docs/EVALUATION.md#1-pii-discovery-ml-scanner--external-benchmark), `docs/eval/scanner_*.json` |
+| Column discovery from names and sample values (identifiers, Indian formats, misleading names) | Measured | bharat-pii-bench holdout at 5 to 200 values, per-label precision/recall: [EVALUATION §1](FULL_CODE/docs/EVALUATION.md#1-pii-discovery-ml-scanner--external-benchmark), `docs/eval/scanner_*.json` |
 | Health data, staff names, personal attributes, money | Tested | Clinic database in `scripts/e2e/` and `tests/test_onboarding.py`; no public benchmark |
-| Discovery and masking on the organisers' Saffron Bank pack, three databases | Measured | [docs/SAFFRON_VALIDATION.md](docs/SAFFRON_VALIDATION.md), `bench/saffron/`, `docs/eval/saffron_masking.json` |
+| Discovery and masking on the organisers' Saffron Bank pack, three databases | Measured | [docs/SAFFRON_VALIDATION.md](FULL_CODE/docs/SAFFRON_VALIDATION.md), `bench/saffron/`, `docs/eval/saffron_masking.json` |
 | Mostly-empty, mixed and sparse columns | Tested | `tests/test_sampling.py` (null-heavy case on all three databases) |
 | Unreviewed columns hidden until a person approves them | Tested | `tests/test_hardening.py`, e2e checks |
 | Masking inside the SQL, by role, on SQLite / PostgreSQL / MySQL | Tested | `tests/test_attacks.py`, `tests/test_attack_matrix.py` (672 cases, 0 leaks) |
@@ -226,10 +245,10 @@ development, off in production, not claimed.
 | Analyst tokens: 128-bit, optional per-column scope, same on every database | Tested | `tests/test_tokens.py` |
 | Policy edits validated, versioned, audited; weakening needs a reason | Tested | `tests/test_policy_integrity.py`, `tests/test_api_v1.py` |
 | Hash-chained audit without values, owner-only, anchorable head | Tested | `tests/test_policy_integrity.py`, `tests/test_attacks.py` |
-| Latency overhead by table size and query shape | Measured | `bench/scale.py` → `docs/eval/perf_*.json` ([EVALUATION §6](docs/EVALUATION.md#6-performance)) |
+| Latency overhead by table size and query shape | Measured | `bench/scale.py` → `docs/eval/perf_*.json` ([EVALUATION §6](FULL_CODE/docs/EVALUATION.md#6-performance)) |
 | Insider-threat detection | Measured on simulations | `bench/eval_threat.py` → `docs/eval/threat_sim.json` |
 | Identifiers inside free text | Measured | bharat-pii-bench T3 (13 types 100%; names and addresses 0%) |
-| Noisy aggregates for analysts | **Experimental** | Off in production; not a differential-privacy guarantee ([design review](docs/design/PRIVACY_ACCOUNTING.md)) |
+| Noisy aggregates for analysts | **Experimental** | Off in production; not a differential-privacy guarantee ([design review](FULL_CODE/docs/design/PRIVACY_ACCOUNTING.md)) |
 | PostgreSQL wire proxy | Tested, open review items | `tests/test_proxy.py`; `Describe` path and row filters under unusual shapes are open |
 
 Benchmarks here use synthetic data. They show behaviour on those formats and sizes, not on every production schema.
@@ -241,8 +260,8 @@ Pick one way to install:
 | Way | Command | Status |
 |---|---|---|
 | **pip, from PyPI** (recommended) | `pip install maskguard` | Works: [pypi.org/project/maskguard](https://pypi.org/project/maskguard/) |
-| **pip, latest from GitHub** | `pip install "git+https://github.com/hotaro6754/mask@claude/zealous-bell-me62fn"` | Works; includes changes made after the last release |
-| **From source** (to develop or run the tests) | `git clone https://github.com/hotaro6754/mask && cd mask && uv sync` | Works now; prefix commands with `uv run` |
+| **pip, latest from GitHub** | `pip install "git+https://github.com/hotaro6754/mask@claude/zealous-bell-me62fn#subdirectory=FULL_CODE"` | Works; includes changes made after the last release |
+| **From source** (to develop or run the tests) | `git clone https://github.com/hotaro6754/mask && cd mask/FULL_CODE && uv sync` | Works now; prefix commands with `uv run` |
 | **Docker** (demo stack with PostgreSQL) | `docker compose up --build` in the cloned repository | Works now |
 
 Then start it:
@@ -260,7 +279,7 @@ Nothing else to set up for a trial. On first run MaskGuard generates its secret 
 | **Demo data** | A synthetic bank database is created in `./data/` with four demo logins, so you can see each role at once |
 | **My own database** | You give a `postgresql://`, `mysql://` or `sqlite:///` URL. MaskGuard scans it, hides what it finds, and adds nothing to it. See [Use your own database](#use-your-own-database) |
 
-![First run: every check passes, the key is generated for this machine](docs/img/first-run-status.png)
+![First run: every check passes, the key is generated for this machine](FULL_CODE/docs/img/first-run-status.png)
 
 A pip install keeps its demo database, audit log and scanner registry in `./data/` of the folder you run it from.
 
@@ -268,7 +287,7 @@ Or `docker compose up --build`. That starts PostgreSQL 16, the API and Control R
 dashboard on :8501, and the PostgreSQL wire proxy on :6543. That Compose file is a **demo profile** for synthetic
 data only. For real data, see [Production profile](#production-profile).
 
-[docs/DEMO_RUNBOOK.md](docs/DEMO_RUNBOOK.md) walks through the whole demo with exact commands and expected output.
+[docs/DEMO_RUNBOOK.md](FULL_CODE/docs/DEMO_RUNBOOK.md) walks through the whole demo with exact commands and expected output.
 
 Demo identities (`policies/users.demo.yaml`, synthetic):
 - `admin.ann`, `support.sam`, `analyst.ali` and `auditor.aud`, with passwords `<role>123`;
@@ -293,7 +312,7 @@ maskguard pii tag customers.city --tag PII_MEDIUM                 # decide the r
 maskguard compare "SELECT * FROM customers LIMIT 3"               # the same query as each role
 ```
 
-![Connecting a clinic database it has never seen](docs/img/connect-own-database.png)
+![Connecting a clinic database it has never seen](FULL_CODE/docs/img/connect-own-database.png)
 
 What happens:
 
@@ -366,18 +385,18 @@ PowerShell, `set` in cmd); it always wins over the generated one.
 
 ## Production profile
 
-`MASKGUARD_ENV=production` turns MaskGuard into a fail-closed service. Full guide: **[docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)**.
+`MASKGUARD_ENV=production` turns MaskGuard into a fail-closed service. Full guide: **[docs/DEPLOYMENT.md](FULL_CODE/docs/DEPLOYMENT.md)**.
 The reference stack is `docker-compose.prod.yml`: the database on an internal network with a read-only gateway
 account, an HTTPS API, required secrets, no demo identities and no seeding.
 
 **It refuses to start on anything unsafe, and lists every problem at once:**
 
-![Production refuses to start: every problem listed, exit code 4](docs/img/prod-refuses-unsafe.png)
+![Production refuses to start: every problem listed, exit code 4](FULL_CODE/docs/img/prod-refuses-unsafe.png)
 
 **With a real configuration**, every startup check passes: PostgreSQL through a read-only account, demo identities
 off, noisy aggregates disabled.
 
-![maskguard status in production](docs/img/prod-status.png)
+![maskguard status in production](FULL_CODE/docs/img/prod-status.png)
 
 | Production refuses | Why |
 |---|---|
@@ -387,13 +406,13 @@ off, noisy aggregates disabled.
 | **Noisy aggregates** (decision D11) | Their privacy accounting is under review; [see below](#noisy-aggregates-and-the-privacy-review) |
 | **Self-tests**: the attack suite, simulated attack and benchmark | They send SQL straight to the database, bypassing the gateway |
 
-![Noisy aggregates refused in production (D11)](docs/img/prod-d11.png)
-![Self-tests refused for every role over the CLI](docs/img/prod-selftest-refused.png)
-![GET /attacks returns 403 with a generic message](docs/img/prod-api-403.png)
+![Noisy aggregates refused in production (D11)](FULL_CODE/docs/img/prod-d11.png)
+![Self-tests refused for every role over the CLI](FULL_CODE/docs/img/prod-selftest-refused.png)
+![GET /attacks returns 403 with a generic message](FULL_CODE/docs/img/prod-api-403.png)
 
 Each refusal is audited (who, which channel, why), never with SQL or results:
 
-![Audit records of the refusals](docs/img/prod-audit.png)
+![Audit records of the refusals](FULL_CODE/docs/img/prod-audit.png)
 
 The self-test refusal was verified live on PostgreSQL: the protected tables' scan counters did not move during six
 refused requests, while an ordinary masked query moved them.
@@ -409,18 +428,18 @@ differential-privacy guarantee.** An audit of the mechanism found ten gaps. For 
 So the feature is refused in production (decision D11), and four of the gaps are pinned as strict expected-failure
 tests that will fail the build once fixed:
 
-![The DP findings as strict xfail tests](docs/img/review-dp-findings.png)
+![The DP findings as strict xfail tests](FULL_CODE/docs/img/review-dp-findings.png)
 
 A full privacy-accounting design proposes a shared lifetime budget per dataset, crash-safe charging, an independent
 evidence store and recovery fencing. It is **frozen at commit `a6891fd`** for independent review:
 
-![The frozen protocol: hash computed from Git, no diff since](docs/img/review-frozen.png)
+![The frozen protocol: hash computed from Git, no diff since](FULL_CODE/docs/img/review-frozen.png)
 
 | Document | What it is |
 |---|---|
-| [docs/design/PRIVACY_ACCOUNTING.md](docs/design/PRIVACY_ACCOUNTING.md) | The design under review (frozen at `a6891fd`) |
-| [docs/design/PRIVACY_ACCOUNTING_REVIEW_BRIEF.md](docs/design/PRIVACY_ACCOUNTING_REVIEW_BRIEF.md) | What the reviewer checks, their authority, and findings by status: historical, remediated, unresolved |
-| [docs/design/PRIVACY_ACCOUNTING_REVIEW_EVIDENCE.md](docs/design/PRIVACY_ACCOUNTING_REVIEW_EVIDENCE.md) | Versions, exact commands, recorded results, CI history and the live production procedure |
+| [docs/design/PRIVACY_ACCOUNTING.md](FULL_CODE/docs/design/PRIVACY_ACCOUNTING.md) | The design under review (frozen at `a6891fd`) |
+| [docs/design/PRIVACY_ACCOUNTING_REVIEW_BRIEF.md](FULL_CODE/docs/design/PRIVACY_ACCOUNTING_REVIEW_BRIEF.md) | What the reviewer checks, their authority, and findings by status: historical, remediated, unresolved |
+| [docs/design/PRIVACY_ACCOUNTING_REVIEW_EVIDENCE.md](FULL_CODE/docs/design/PRIVACY_ACCOUNTING_REVIEW_EVIDENCE.md) | Versions, exact commands, recorded results, CI history and the live production procedure |
 
 Passing tests, or a model check that finds no counterexample, are evidence, not proof. Noisy aggregates return to
 production only after the decisions, an implementation, recovery tests and independent approvals.
@@ -444,7 +463,10 @@ saves `MASKGUARD_*` settings for one folder in `maskguard.yaml`; environment var
 
 ## Tests and CI
 
+From `FULL_CODE/`:
+
 ```bash
+uv run ruff check && uv run ruff format --check                # linter and formatter: clean
 make test                                                      # SQLite
 MASKGUARD_TEST_PG=postgresql://… MASKGUARD_TEST_MYSQL=mysql://… uv run pytest -q    # all three databases
 uv run maskguard test                                          # security regression: attacks per role + integrity proof
@@ -470,6 +492,51 @@ The suite also includes:
 - a Playwright walkthrough of the dashboard: every page, no JavaScript errors, no horizontal scroll at phone width;
 - CLI tests for exit codes and JSON output;
 - the production-profile checks, including a full production build on PostgreSQL and HTTPS end to end.
+
+## Where the data goes
+
+The organisers' Saffron Bank pack is never committed. Put it in `FULL_CODE/data/` (ignored by git) and connect to its
+SQLite file, or load its SQL into PostgreSQL or MySQL first:
+
+```bash
+cd FULL_CODE
+mkdir -p data && cp /path/to/B1_Smart_Data_Masking_PII/sql/sqlite/saffron_bank.db data/
+uv run maskguard connect sqlite:///$PWD/data/saffron_bank.db
+```
+
+Settings come from environment variables; `FULL_CODE/.env.example` lists each one with a dummy value. Public datasets
+used for training and evaluation are downloaded by `training/hf/convert.py --download` and `training/realworld/build.py`
+into ignored cache folders.
+
+## AI usage
+
+**Inside MaskGuard** (all offline, on a normal CPU; no LLM, no call to any external AI service):
+- a **LightGBM** classifier we trained (`src/maskguard/ml/`) suggests which columns hold personal data, from their
+  values and name ([model card](FULL_CODE/docs/MODEL_CARD.md), [evaluation](FULL_CODE/docs/AI_EVALUATION.md));
+- a scikit-learn **IsolationForest** scores unusual query sessions; it can alert, never block on its own.
+
+The model only suggests. Who sees what is a fixed, versioned policy; a column the model is unsure about stays masked
+until a person approves it.
+
+**To build MaskGuard** we used AI coding assistants:
+- **Claude Code** (Anthropic) wrote most of the code and documents under the team's direction and review; commits
+  made through it carry the author "Claude" in the git history (90 of the first 91 commits);
+- **ChatGPT** (OpenAI) for strategy notes, which we checked against sources before acting on them
+  ([industry landscape and audit of that advice](FULL_CODE/docs/research/INDUSTRY_LANDSCAPE.md)).
+
+## Pre-built and third-party code
+
+- **Written for this hackathon.** The repository starts on 12 October 2026; all application code was written for
+  TalentAP 2026 in this repository. No code comes from earlier projects or other hackathons, and no starter kit or
+  template was used.
+- **Open-source libraries**, installed from the lockfile (`FULL_CODE/uv.lock`), not copied: FastAPI (MIT), Uvicorn
+  (BSD-3), sqlglot (MIT), LightGBM (MIT), scikit-learn (BSD-3), NumPy (BSD-3), pandas (BSD-3), Typer (MIT),
+  Rich (MIT), Streamlit (Apache-2.0), psycopg (LGPL-3.0), PyMySQL (MIT), python-stdnum (LGPL-2.1+, the Aadhaar,
+  PAN, GSTIN, EPIC, Luhn and IBAN check digits), Faker (MIT), PyJWT (MIT), PyYAML (MIT).
+- **Bundled assets:** IBM Plex Sans and Mono fonts (SIL Open Font License 1.1) in the web dashboard.
+- **Data:** the training and test datasets and their licences are listed in
+  [`docs/eval/dataset_manifest.json`](FULL_CODE/docs/eval/dataset_manifest.json); attributions are in
+  [`FULL_CODE/NOTICE`](FULL_CODE/NOTICE). None is included in the repository.
 
 ## Known limits
 
@@ -501,7 +568,7 @@ The suite also includes:
 
 ## Research context
 
-[docs/REFERENCE_RESEARCH.md](docs/REFERENCE_RESEARCH.md) reviews 14 related open-source projects at source level.
+[docs/REFERENCE_RESEARCH.md](FULL_CODE/docs/REFERENCE_RESEARCH.md) reviews 14 related open-source projects at source level.
 For each, it records:
 - what the project verifiably does;
 - which of its ideas MaskGuard adopted: strictness-ordered actions, policy versions in audit entries, explain
@@ -510,7 +577,7 @@ For each, it records:
 
 Prabowo et al., *Privacy-Preserving Tools and Technologies: Government Adoption and Challenges*, IEEE Access 13
 (2025), lists data masking's weakness as "limited protection against sophisticated attacks". It also names automated
-PIA and better privacy–utility balance as open problems. [docs/ROADMAP.md](docs/ROADMAP.md) maps each gap to a
+PIA and better privacy–utility balance as open problems. [docs/ROADMAP.md](FULL_CODE/docs/ROADMAP.md) maps each gap to a
 MaskGuard component.
 
 ## Submission material
@@ -518,13 +585,13 @@ MaskGuard component.
 - `docs/MaskGuard_Round1_Submission.pptx`: the Round 1 deck.
 - `docs/MaskGuard_Final_Deck.pptx`: the finale deck (12 slides, speaker notes with timings), built on the Saffron Bank
   results.
-- [`docs/RUN_GUIDE.md`](docs/RUN_GUIDE.md): run it on your own database (SQLite, PostgreSQL, MySQL) with real
+- [`docs/RUN_GUIDE.md`](FULL_CODE/docs/RUN_GUIDE.md): run it on your own database (SQLite, PostgreSQL, MySQL) with real
   logins, from the command line, the Control Room and the Streamlit dashboard, step by step.
-- [`docs/MODEL_CARD.md`](docs/MODEL_CARD.md): the PII classifier: what it is, what it was trained on (synthetic
+- [`docs/MODEL_CARD.md`](FULL_CODE/docs/MODEL_CARD.md): the PII classifier: what it is, what it was trained on (synthetic
   data only), how it was tested, and its limits.
-- [`docs/HACKATHON_PREP.md`](docs/HACKATHON_PREP.md): finale preparation: judging parameters, the role-of-AI answer,
-  demo script, questions, overnight feedback loop, code-freeze packaging (`scripts/package_submission.sh`), Stage 3.
-- [`docs/demo_full.mp4`](docs/demo_full.mp4): the full walkthrough of 1.1.0 (12 minutes, captioned, no audio; every
+- [`docs/HACKATHON_PREP.md`](FULL_CODE/docs/HACKATHON_PREP.md): finale preparation: judging parameters, the role-of-AI answer,
+  demo script, questions, overnight feedback loop, code-freeze packaging (`FULL_CODE/scripts/package_submission.sh`), Stage 3.
+- [`docs/demo_full.mp4`](FULL_CODE/docs/demo_full.mp4): the full walkthrough of 1.1.0 (12 minutes, captioned, no audio; every
   terminal and browser scene is a real recording of the 1.1.0 wheel). It covers:
   - the problem, and how MaskGuard sorts and hides;
   - **your own database**: first run, connecting a clinic database it has never seen, automatic discovery (health
@@ -543,7 +610,7 @@ MaskGuard component.
 ## License
 
 [Apache License 2.0](LICENSE). Copyright 2026 G. Harshith, G. Praneeth, D. Mandeep and K. Surya Srinivas; see
-[NOTICE](NOTICE).
+[NOTICE](FULL_CODE/NOTICE).
 
 ## FAQ
 
@@ -572,7 +639,7 @@ Built-in masking (SQL Server, Oracle, Snowflake, PostgreSQL Anonymizer) is confi
 and assumes you already know which columns are sensitive. Several products mask only the displayed result, so
 `WHERE`, `ORDER BY` and aliases still run on real values; Microsoft's own documentation warns not to rely on its
 dynamic masking against ad-hoc queries. We compared MaskGuard with PostgreSQL Anonymizer at source level and found
-bypasses there ([docs/research/SECURITY_COMPARISON.md](docs/research/SECURITY_COMPARISON.md)). MaskGuard discovers
+bypasses there ([docs/research/SECURITY_COMPARISON.md](FULL_CODE/docs/research/SECURITY_COMPARISON.md)). MaskGuard discovers
 the columns itself, masks inside the query, and applies one policy across databases.
 </details>
 
@@ -617,7 +684,7 @@ notices, retention, breach reporting and more.
 <details>
 <summary><b>How do I install it? Is there a pip package, an npm command or an .exe?</b></summary>
 
-You need Python 3.10 or newer:
+You need Python 3.11 or newer:
 
 ```bash
 pip install maskguard
@@ -630,10 +697,10 @@ fresh Mac). Without it, `maskguard status` shows `PII SCANNER WARN … rules onl
 scanner; columns it misses stay masked as `UNREVIEWED`. Install it with `apt-get install libgomp1` (Debian/Ubuntu)
 or `brew install libomp` (macOS).
 
-To develop or run the tests, clone the repository and use `uv sync`. For the demo stack with PostgreSQL, run
+To develop or run the tests, clone the repository, `cd FULL_CODE` and use `uv sync`. For the demo stack with PostgreSQL, run
 `docker compose up --build`. There is no npm package or `.exe`: MaskGuard is a Python server that runs next to a
 database. It is developed and tested on Linux. Windows and
-macOS should work with Python 3.10+, but CI doesn't cover them. Step by step: [GUIDE §18](docs/GUIDE.md#18-installing-maskguard-on-your-computer).
+macOS should work with Python 3.11+, but CI doesn't cover them. Step by step: [GUIDE §18](FULL_CODE/docs/GUIDE.md#18-installing-maskguard-on-your-computer).
 </details>
 
 <details>
@@ -663,7 +730,7 @@ Columns it finds nothing in are `UNREVIEWED`: masked for everyone but admin unti
 `maskguard pii approve`. Review the tags and those columns with `maskguard pii list`, adjust the policy, create users, then point people and tools at
 MaskGuard. **Try it on a staging copy first.** For production, install the functions once with the owner account
 (`maskguard db-install`) and run the gateway through a read-only account. Full walkthrough:
-[GUIDE §19](docs/GUIDE.md#19-connecting-your-existing-database), production: [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md).
+[GUIDE §19](FULL_CODE/docs/GUIDE.md#19-connecting-your-existing-database), production: [docs/DEPLOYMENT.md](FULL_CODE/docs/DEPLOYMENT.md).
 </details>
 
 <details>
@@ -732,7 +799,7 @@ for every role except admin until you approve it as `PUBLIC` there (`maskguard p
 
 About 4–8 ms added per query (median) on SQLite and PostgreSQL and 6–22 ms on MySQL, with every feature on, measured
 at 300, 10,000 and 100,000 rows per table. The added time does not grow with the table for queries that return a
-bounded number of rows ([EVALUATION §6](docs/EVALUATION.md#6-performance)). Each query has a 5-second timeout on
+bounded number of rows ([EVALUATION §6](FULL_CODE/docs/EVALUATION.md#6-performance)). Each query has a 5-second timeout on
 PostgreSQL and MySQL.
 </details>
 
@@ -764,7 +831,7 @@ production until the privacy-accounting design passes independent review
 <summary><b>Is it free? What's the licence?</b></summary>
 
 Yes. MaskGuard is licensed under the [Apache License 2.0](LICENSE): anyone may use, modify and distribute it,
-including commercially, as long as they keep the licence and copyright notices ([NOTICE](NOTICE)). Apache-2.0 also
+including commercially, as long as they keep the licence and copyright notices ([NOTICE](FULL_CODE/NOTICE)). Apache-2.0 also
 grants a patent licence from contributors, which legal teams at banks typically look for. It comes without
 warranty.
 </details>

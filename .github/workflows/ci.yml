@@ -3,6 +3,11 @@ on:
   push:
   pull_request:
 
+# All code lives in FULL_CODE/ (TalentAP coding guidelines, rule 2), so every step runs there.
+defaults:
+  run:
+    working-directory: FULL_CODE
+
 jobs:
   test:
     runs-on: ubuntu-latest
