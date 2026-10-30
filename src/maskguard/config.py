@@ -189,6 +189,21 @@ def _cfg(name, default):
 
 # The bundled demo schema's non-personal columns (ids, status, city, ...), reviewed and approved as PUBLIC.
 DEMO_PUBLIC_FILE = "policies/public.demo.yaml"
+# The demo bank's row filters (support never sees frozen accounts): demo data only.
+DEMO_ROW_FILTERS_FILE = "policies/row_filters.demo.yaml"
+
+
+def load_policy(settings):
+    """The policy file, plus the demo bank's row filters when running on the demo data. A filter written for the demo
+    schema would refuse every query on another database's table of the same name (its column isn't there)."""
+    policy = _load_yaml(settings.policy)
+    if demo_enabled() and settings.seed_if_empty:
+        for role, tables in (_load_yaml(_cfg("", DEMO_ROW_FILTERS_FILE)) or {}).items():
+            rf = policy.setdefault("row_filters", {}) or {}
+            policy["row_filters"] = rf
+            for table, cond in (tables or {}).items():
+                rf.setdefault(role, {}).setdefault(table, cond)
+    return policy
 
 
 def load_overrides(settings):
@@ -293,7 +308,7 @@ def build(settings=None, start_worker=False):
             raise UnsafeConfiguration(problems)
     if s.seed_if_empty and not backend.tables():
         make_db(backend)
-    policy, overrides = _load_yaml(s.policy), load_overrides(s)
+    policy, overrides = load_policy(s), load_overrides(s)
     store = PolicyStore(policy, s.state("policy_history.jsonl"))  # validates; refuses an unsafe policy
     auth = Authenticator.from_file(s.users)
     check_production_identity(auth)

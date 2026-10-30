@@ -179,3 +179,21 @@ def test_audit_file_is_owner_only_and_the_head_anchors_the_chain(tmp_path):
     os.chmod(path, 0o644)
     AuditLog(path)  # reopening tightens a too-open file
     assert stat.S_IMODE(os.stat(path).st_mode) == 0o600
+
+
+def test_the_demo_row_filter_never_applies_to_your_own_database(tmp_path):
+    """The demo bank's filter names `accounts.status`. A customer database with an `accounts` table but no such
+    column (Saffron Bank: acct_status) used to refuse every support query on it."""
+    import sqlite3
+    from maskguard import config
+    db = tmp_path / "own.db"
+    c = sqlite3.connect(db)
+    c.executescript("CREATE TABLE accounts (account_no TEXT, acct_status TEXT, curr_bal NUMERIC);"
+                    "INSERT INTO accounts VALUES ('51145972248884', 'ACTIVE', 1200.5), ('46775843622712', 'FROZEN', 90);")
+    c.commit(); c.close()
+    app = config.build(config.Settings(db=f"sqlite:///{db}", audit=str(tmp_path / "a.jsonl"),
+                                       registry_out=str(tmp_path / "r.yaml"), seed_if_empty=False))
+    assert not (app.gateway.policy.get("row_filters") or {}).get("support")
+    s = app.auth.login(*config.DEMO_ACCOUNTS["support"])
+    rows = app.gateway.execute(s, "SELECT account_no, acct_status FROM accounts")[1]
+    assert len(rows) == 2 and all(r[0] != "51145972248884" for r in rows)  # not refused, and still masked

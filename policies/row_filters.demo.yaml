@@ -1,0 +1,4 @@
+# Row filters for the bundled demo bank only. Merged into the policy when MaskGuard runs on its own demo data (demo
+# mode and a database it may seed), like public.demo.yaml; never for your own database or in production.
+support:
+  accounts: "status <> 'frozen'"     # frozen accounts are handled by the fraud desk, not first-line support

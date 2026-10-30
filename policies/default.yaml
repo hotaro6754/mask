@@ -28,10 +28,14 @@ role_info:
     label: Auditor
     description: Reviews controls. Reads policies, scanner evidence, the audit log and integrity proofs; no raw PII.
     capabilities: [query, policy.read, registry.read, audit.read, integrity.verify, pia.read]
-# Row-level security: rows outside a role's scope never enter its masked view. Column-vs-literal predicates only.
-row_filters:
-  support:
-    accounts: "status <> 'frozen'"     # frozen accounts are handled by the fraud desk, not first-line support
+# Row-level security: rows outside a role's scope never enter its masked view. Column-vs-literal predicates only, and a
+# filter naming a column the table doesn't have refuses the query (fail closed). Example for your own schema:
+#   row_filters:
+#     support:
+#       accounts: "acct_status <> 'FROZEN'"
+# The demo bank's filter (support never sees frozen accounts) is in policies/row_filters.demo.yaml and applies only to
+# the demo data, so it never refuses queries on a database of yours that happens to have an `accounts` table.
+row_filters: {}
 max_rows: {admin: 10000, support: 100, analyst: 1000, auditor: 100}
 min_group_size: {support: 5, analyst: 5, auditor: 5}   # aggregates over fewer rows are suppressed
 partial:                        # characters kept at each end; separators are preserved
