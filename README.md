@@ -10,7 +10,7 @@ every query so each role sees only what its policy allows. Stored data never cha
 [![CI](https://github.com/hotaro6754/mask/actions/workflows/ci.yml/badge.svg?branch=claude/zealous-bell-me62fn)](https://github.com/hotaro6754/mask/actions/workflows/ci.yml?query=branch%3Aclaude%2Fzealous-bell-me62fn)
 ![Python](https://img.shields.io/badge/python-3.10%2B-3776AB)
 ![Databases](https://img.shields.io/badge/databases-SQLite%20%C2%B7%20PostgreSQL%20%C2%B7%20MySQL-4c8)
-![Tests](https://img.shields.io/badge/tests-1227%20passed-brightgreen)
+![Tests](https://img.shields.io/badge/tests-1235%20passed-brightgreen)
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue)](LICENSE)
 [![PyPI](https://img.shields.io/pypi/v/maskguard)](https://pypi.org/project/maskguard/)
 
@@ -193,10 +193,12 @@ repository and a JSON file in `docs/eval/`.
 | Same, 20 sample values per column | **0.999** | 0.844 |
 | Same, 200 sample values per column (what the scanner reads by default; 0% false alarms) | **1.000** | 0.844 (22.2% false alarms) |
 | False alarms on look-alike data (order numbers, SKUs, OTPs…), 5 / 20 values | **6.3% / 1.5%** | 22.2% |
+| **Organisers' Saffron Bank pack** (9 tables, 120 columns, 129,260 rows): sensitive columns found | **35 / 35** (22 on first contact; [what we fixed](docs/SAFFRON_VALIDATION.md)) | — |
+| Same, raw values returned to Support or Analyst, 13,700 masked cells, as the organisers' users | **0** on SQLite, PostgreSQL and MySQL | — |
 | PII leaks across 17 bypass and inference attacks | **0 / 17** | 15 / 17 on PostgreSQL, 14 / 17 on SQLite and MySQL (naive masking) |
 | Simulated insider attacks detected (normal users blocked) | **95–100% (0%)** | — |
 | Added latency per query, p50, all features on, 300 to 100,000 rows | 4–8 ms (SQLite, PostgreSQL), 6–22 ms (MySQL) | — |
-| Tests | **1,227 passed** on SQLite, PostgreSQL 16 and MySQL 8.4 (incl. 672 attack-matrix cases, 0 leaks), plus 121 Postman assertions | — |
+| Tests | **1,235 passed** on SQLite, PostgreSQL 16 and MySQL 8.4 (incl. 672 attack-matrix cases, 0 leaks), plus 121 Postman assertions | — |
 
 The attack suite is evidence for those 17 attack shapes, not a proof against every possible query. The threat
 engine was evaluated on simulated sessions.
@@ -211,6 +213,7 @@ development, off in production, not claimed.
 |---|---|---|
 | Column discovery from names and sample values (identifiers, Indian formats, misleading names) | Measured | bharat-pii-bench holdout at 5 to 200 values, per-label precision/recall: [EVALUATION §1](docs/EVALUATION.md#1-pii-discovery-ml-scanner--external-benchmark), `docs/eval/scanner_*.json` |
 | Health data, staff names, personal attributes, money | Tested | Clinic database in `scripts/e2e/` and `tests/test_onboarding.py`; no public benchmark |
+| Discovery and masking on the organisers' Saffron Bank pack, three databases | Measured | [docs/SAFFRON_VALIDATION.md](docs/SAFFRON_VALIDATION.md), `bench/saffron/`, `docs/eval/saffron_masking.json` |
 | Mostly-empty, mixed and sparse columns | Tested | `tests/test_sampling.py` (null-heavy case on all three databases) |
 | Unreviewed columns hidden until a person approves them | Tested | `tests/test_hardening.py`, e2e checks |
 | Masking inside the SQL, by role, on SQLite / PostgreSQL / MySQL | Tested | `tests/test_attacks.py`, `tests/test_attack_matrix.py` (672 cases, 0 leaks) |
@@ -569,7 +572,7 @@ the columns itself, masks inside the query, and applies one policy across databa
 They can get masking code quickly; MaskGuard itself was built with AI assistance. Getting code is the easy part.
 Knowing it can't be bypassed is the hard part:
 - the obvious version masks the output, which leaks 14–15 of our 17 attacks;
-- MaskGuard is checked on every push by an attack suite, 1,227 tests on three databases (including a 672-case attack matrix) and 121 API assertions;
+- MaskGuard is checked on every push by an attack suite, 1,235 tests on three databases (including a 672-case attack matrix) and 121 API assertions;
 - a security bug doesn't crash, it silently leaks, so untested security code is a liability.
 
 The value is the tested, verified behaviour, not the lines of code.

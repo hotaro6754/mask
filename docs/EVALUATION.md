@@ -261,7 +261,7 @@ mix and are superseded.
 
 ## 7. Tests
 
-**25 Oct 2026, version 1.1.0: 1,227 passed, 1 skipped, 6 expected failures** (the documented noisy-aggregate gaps)
+**30 Oct 2026, version 1.1.0: 1,235 passed, 1 skipped, 6 expected failures** (the documented noisy-aggregate gaps)
 with `MASKGUARD_TEST_PG` and `MASKGUARD_TEST_MYSQL` set, on SQLite 3.45, PostgreSQL 16 and MySQL 8.4. Earlier figures
 (416 on 13 Oct, 513 for 1.0.3 on 18 Oct) are snapshots of smaller suites. The count grew mainly through the attack
 matrix (672 cases).

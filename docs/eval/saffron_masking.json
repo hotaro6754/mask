@@ -1,0 +1,116 @@
+{
+ "sqlite": {
+  "tables": 9,
+  "columns": 120,
+  "approved_suggested": 20,
+  "approved_by_reviewer": 51,
+  "guess": {
+   "admin": 1,
+   "support": 0,
+   "analyst": 0
+  },
+  "writes": {
+   "admin": [
+    true,
+    true,
+    true,
+    true
+   ],
+   "support": [
+    true,
+    true,
+    true,
+    true
+   ],
+   "analyst": [
+    true,
+    true,
+    true,
+    true
+   ]
+  },
+  "leak_sweep": {
+   "masked_cells_checked": 13700,
+   "raw_values_returned": {}
+  },
+  "integrity_unchanged": true,
+  "audit_chain": true,
+  "organiser_users_logged_in": 9
+ },
+ "postgres": {
+  "tables": 9,
+  "columns": 120,
+  "approved_suggested": 20,
+  "approved_by_reviewer": 51,
+  "guess": {
+   "admin": 1,
+   "support": 0,
+   "analyst": 0
+  },
+  "writes": {
+   "admin": [
+    true,
+    true,
+    true,
+    true
+   ],
+   "support": [
+    true,
+    true,
+    true,
+    true
+   ],
+   "analyst": [
+    true,
+    true,
+    true,
+    true
+   ]
+  },
+  "leak_sweep": {
+   "masked_cells_checked": 13700,
+   "raw_values_returned": {}
+  },
+  "integrity_unchanged": true,
+  "audit_chain": true,
+  "organiser_users_logged_in": 9
+ },
+ "mysql": {
+  "tables": 9,
+  "columns": 120,
+  "approved_suggested": 20,
+  "approved_by_reviewer": 51,
+  "guess": {
+   "admin": 1,
+   "support": 0,
+   "analyst": 0
+  },
+  "writes": {
+   "admin": [
+    true,
+    true,
+    true,
+    true
+   ],
+   "support": [
+    true,
+    true,
+    true,
+    true
+   ],
+   "analyst": [
+    true,
+    true,
+    true,
+    true
+   ]
+  },
+  "leak_sweep": {
+   "masked_cells_checked": 13700,
+   "raw_values_returned": {}
+  },
+  "integrity_unchanged": true,
+  "audit_chain": true,
+  "organiser_users_logged_in": 9
+ }
+}
