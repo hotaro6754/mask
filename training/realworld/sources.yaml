@@ -1,0 +1,118 @@
+# Real-world columns that are NOT personal data, used to teach and test the PII column classifier what ordinary
+# business data looks like: company, airport and city names, codes, coordinates, prices and statistics.
+#
+# Every source is a Frictionless Data package from github.com/datasets, fetched at a pinned branch (main) by
+# build.py and cached outside version control. Licences were read from each package's datapackage.json on
+# 2026-10-30: ODC-PDDL-1.0 is a public-domain dedication; CC-BY-4.0 requires attribution (given here and in
+# docs/MODEL_CARD.md). No personal data is involved: every column below is about places, companies, currencies,
+# languages or statistics.
+#
+# Labels use the classifier's own classes:
+#   none    not personal data
+#   amount  money values (prices, GDP). The scanner tags money only when the column name ties it to a person, so
+#           labelling prices "amount" keeps the class meaning "looks like money", not "is personal".
+# Date columns are left out on purpose: a date's personal meaning (date of birth or not) comes from context.
+#
+# split: train sources and test sources never share a source, so the test measures data the model has never seen
+# anything from (a source-separated split, not a random row split).
+
+sources:
+  # ------------------------------------------------------------------ train
+  - repo: airport-codes
+    file: data/airport-codes.csv
+    licence: ODC-PDDL-1.0
+    split: train
+    # Place names (airport name, municipality) are left out of training: see world-cities below.
+    columns: {ident: none, type: none, elevation_ft: none, continent: none, iso_country: none,
+              iso_region: none, gps_code: none, local_code: none, coordinates: none}
+  - repo: s-and-p-500-companies
+    file: data/constituents.csv
+    licence: ODC-PDDL-1.0
+    split: train
+    # "Headquarters Location" ("Saint Paul, Minnesota") is left out: it is half of a postal address, and teaching
+    # the model it is not personal cost postal-address recall 0.99 -> 0.45 on the benchmark's development set.
+    columns: {Symbol: none, Security: none, GICS Sector: none, GICS Sub-Industry: none, CIK: none, Founded: none}
+  - repo: nasdaq-listings
+    file: data/nasdaq-listed.csv
+    licence: ODC-PDDL-1.0
+    split: train
+    columns: {Symbol: none, Security Name: none}
+  - repo: nyse-other-listings
+    file: data/other-listed.csv
+    licence: ODC-PDDL-1.0
+    split: train
+    columns: {ACT Symbol: none, Company Name: none, Exchange: none, Round Lot Size: none}
+  - repo: world-cities
+    file: data/world-cities.csv
+    licence: CC-BY-4.0
+    attribution: "World Cities, GeoNames via datasets/world-cities (CC BY 4.0)"
+    split: train
+    # City, region and country names are left out of training: as "not personal" they cost postal-address recall
+    # (0.99 -> 0.04-0.49 on the benchmark's development sets), because the 99 features cannot tell a place name
+    # from a fragment of an address. Only the numeric id is used.
+    columns: {geonameid: none}
+  - repo: language-codes
+    file: data/language-codes-full.csv
+    licence: ODC-PDDL-1.0 AND Unicode-3.0
+    split: train
+    columns: {alpha3-b: none}
+  - repo: gdp
+    file: data/gdp.csv
+    licence: CC-BY-4.0
+    attribution: "GDP, World Bank via datasets/gdp (CC BY 4.0)"
+    split: train
+    columns: {Country Code: none, Year: none, Value: amount}
+  - repo: exchange-rates
+    file: data/daily.csv
+    licence: ODC-PDDL-1.0
+    split: train
+    columns: {Exchange rate: none}
+
+  # ------------------------------------------------------------------ test (sources never used for training)
+  - repo: un-locode
+    file: data/code-list.csv
+    licence: ODC-PDDL-1.0
+    split: test
+    columns: {Country: none, Location: none, Name: none, NameWoDiacritics: none, Status: none, Function: none,
+              Coordinates: none}
+  - repo: currency-codes
+    file: data/codes-all.csv
+    licence: ODC-PDDL-1.0
+    split: test
+    columns: {Entity: none, Currency: none, AlphabeticCode: none, NumericCode: none, MinorUnit: none}
+  - repo: house-prices-us
+    file: data/cities-month-NSA.csv
+    licence: ODC-PDDL-1.0
+    split: test
+    columns: {CA-Los Angeles: none, NY-New York: none, National-US: none}
+  - repo: population
+    file: data/population.csv
+    licence: ODC-PDDL-1.0
+    split: test
+    columns: {Country Name: none, Country Code: none, Year: none, Value: none}
+  - repo: co2-ppm
+    file: data/co2-mm-mlo.csv
+    licence: ODC-PDDL-1.0
+    split: test
+    columns: {Decimal Date: none, Average: none, Interpolated: none}
+  - repo: gold-prices
+    file: data/monthly.csv
+    licence: ODC-PDDL-1.0
+    split: test
+    columns: {Price: amount}
+  - repo: top-level-domain-names
+    file: data/top-level-domain-names.csv
+    licence: ODC-PDDL-1.0
+    split: test
+    columns: {Domain: none, Type: none, Sponsoring Organization: none}
+  - repo: media-types
+    file: data/media-types.csv
+    licence: ODC-PDDL-1.0
+    split: test
+    columns: {Media Type: none, Subtype: none, Template: none}
+  - repo: covid-19
+    file: data/reference.csv
+    licence: ODC-PDDL-1.0
+    split: test
+    columns: {UID: none, iso2: none, iso3: none, Country_Region: none, Combined_Key: none, Lat: none, Long_: none,
+              Population: none}

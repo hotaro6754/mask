@@ -9,3 +9,4 @@ deploy/secrets/
 node_modules/
 dist/
 *.zip
+training/realworld/cache/
