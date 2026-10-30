@@ -26,10 +26,11 @@ fi
 git archive --format=zip --prefix="${name}/" -o "${name}.zip" HEAD -- . "${exclude[@]}"
 
 echo "wrote ${name}.zip from $(git rev-parse --short HEAD) ($(du -h "${name}.zip" | cut -f1), $(unzip -Z1 "${name}.zip" | grep -vc '/$') files)"
-for p in node_modules .venv .env data/ deploy/secrets; do
-  if unzip -Z1 "${name}.zip" | grep -q "^${name}/${p}"; then
-    echo "ERROR: ${p} is inside the zip" >&2
-    exit 1
-  fi
-done
+bad=$(unzip -Z1 "${name}.zip" | sed "s|^${name}/||" |
+  grep -E '(^|/)(node_modules|\.venv|__pycache__)/|(^|/)\.env$|^data/|^deploy/secrets/|^deploy/production\.env$' || true)
+if [ -n "$bad" ]; then
+  echo "ERROR: ignored files inside the zip:" >&2
+  echo "$bad" >&2
+  exit 1
+fi
 echo "checked: no node_modules, .venv, .env, data/ or deploy/secrets inside"
