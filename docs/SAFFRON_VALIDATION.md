@@ -61,6 +61,15 @@ Each of the 120 columns is labelled:
 | Not tagged, left `UNREVIEWED`: masked for every role but admin, so not exposed | 11 | 0 |
 | Not tagged and **suggested PUBLIC** (exposed if a reviewer accepted the suggestion) | **2** (`account_no` ×2) | **0** |
 
+As detection scores (sensitive columns against not-personal ones; the 14 judgement-call columns left out):
+
+| | Precision | Recall | F1 |
+|---|---|---|---|
+| First contact (1.1.0) | 0.73 (22 of 30 tagged) | 0.63 (22 of 35) | 0.68 |
+| After the fixes below | 0.81 (35 of 43 tagged) | 1.00 (35 of 35) | 0.90 |
+
+The fixes were made after seeing this dataset, so the second row is not a blind score; the first row is.
+
 On first contact nothing was exposed by default: untagged columns are masked as `UNREVIEWED`. But two account-number
 columns were wrongly suggested as non-personal, and money columns were mislabelled as PIN codes. Every miss had a
 general cause:
