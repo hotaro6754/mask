@@ -1,0 +1,363 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>MaskGuard launch film</title>
+<style>
+  @font-face { font-family: Plex; src: url(plex-sans-400.woff2); font-weight: 400; }
+  @font-face { font-family: Plex; src: url(plex-sans-500.woff2); font-weight: 500; }
+  @font-face { font-family: Plex; src: url(plex-sans-600.woff2); font-weight: 600; }
+  @font-face { font-family: Plex; src: url(plex-sans-700.woff2); font-weight: 700; }
+  @font-face { font-family: PlexMono; src: url(plex-mono-400.woff2); font-weight: 400; }
+  @font-face { font-family: PlexMono; src: url(plex-mono-500.woff2); font-weight: 500; }
+  html, body { margin: 0; background: #0d0e10; }
+  canvas { display: block; }
+</style>
+</head>
+<body>
+<canvas id="c" width="1920" height="1080"></canvas>
+<script>
+// MaskGuard launch film. Every frame is a pure function of time: render(t) draws second t of the cut chosen in the
+// URL hash (#master = 90 s, #cut = 60 s). Rendered frame by frame by render.js; no screen recording, no stock footage.
+const W = 1920, H = 1080;
+const C = {
+  bg: "#0d0e10", bg2: "#15171a", line: "#24272c", ink: "#efe9df", dim: "#8b8f96", faint: "#4a4e55",
+  lime: "#c6f432", steel: "#7f9db8", warm: "#e2603a",
+};
+const ctx = document.getElementById("c").getContext("2d");
+
+// ------------------------------------------------------------------ timing helpers
+const clamp = (x, a = 0, b = 1) => Math.min(b, Math.max(a, x));
+const seg = (p, a, b) => clamp((p - a) / (b - a));
+const eOut = (x) => 1 - Math.pow(1 - x, 3);
+const eInOut = (x) => (x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2);
+const eExpo = (x) => (x === 1 ? 1 : 1 - Math.pow(2, -10 * x));
+const lerp = (a, b, x) => a + (b - a) * x;
+function rnd(i) { const s = Math.sin(i * 127.1 + 311.7) * 43758.5453; return s - Math.floor(s); }
+// a phrase that fades and rises in over [a, a+0.06] and out over [b-0.05, b] (progress units)
+function life(p, a, b) { return Math.min(eOut(seg(p, a, a + 0.06)), 1 - seg(p, b - 0.05, b)); }
+
+// ------------------------------------------------------------------ drawing helpers
+function font(size, weight = 600, mono = false) { ctx.font = `${weight} ${size}px ${mono ? "PlexMono" : "Plex"}`; }
+function text(s, x, y, { size = 48, weight = 600, mono = false, color = C.ink, alpha = 1, align = "left", track = 0 } = {}) {
+  if (alpha <= 0) return;
+  ctx.save(); ctx.globalAlpha = alpha; font(size, weight, mono); ctx.fillStyle = color; ctx.textBaseline = "alphabetic";
+  ctx.letterSpacing = `${track}px`; ctx.textAlign = align; ctx.fillText(s, x, y); ctx.restore();
+}
+// headline that rises line by line, each line masked from below
+function headline(lines, x, y, p, { size = 96, color = C.ink, align = "left", lead = 1.08, weight = 600 } = {}) {
+  lines.forEach((ln, i) => {
+    const k = eOut(clamp(p * 1.6 - i * 0.18));
+    if (k <= 0) return;
+    const yy = y + i * size * lead;
+    ctx.save(); ctx.beginPath(); ctx.rect(0, yy - size, W, size * 1.25); ctx.clip();
+    text(ln, x, yy + (1 - k) * size * 0.9, { size, weight, color, align, track: -size * 0.02, alpha: k });
+    ctx.restore();
+  });
+}
+function rect(x, y, w, h, color, alpha = 1) { if (alpha <= 0) return; ctx.save(); ctx.globalAlpha = alpha; ctx.fillStyle = color; ctx.fillRect(x, y, w, h); ctx.restore(); }
+function strokeRect(x, y, w, h, color, alpha = 1, lw = 1.5) { if (alpha <= 0) return; ctx.save(); ctx.globalAlpha = alpha; ctx.strokeStyle = color; ctx.lineWidth = lw; ctx.strokeRect(x, y, w, h); ctx.restore(); }
+function line(x1, y1, x2, y2, color, alpha = 1, lw = 1.5, dash = null) {
+  if (alpha <= 0) return; ctx.save(); ctx.globalAlpha = alpha; ctx.strokeStyle = color; ctx.lineWidth = lw;
+  if (dash) ctx.setLineDash(dash); ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke(); ctx.restore();
+}
+// partial path from (x1,y1) to (x2,y2) drawn up to k, with a bright head
+function trace(x1, y1, x2, y2, k, color, lw = 2) {
+  if (k <= 0) return; const x = lerp(x1, x2, k), y = lerp(y1, y2, k);
+  line(x1, y1, x, y, color, 0.85, lw); ctx.save(); ctx.fillStyle = color; ctx.beginPath(); ctx.arc(x, y, 4, 0, 7); ctx.fill(); ctx.restore();
+}
+// characters morph from one string to another, left to right, through glyph noise
+const GLYPHS = "ABCDEFGHJKLMNPQRSTUVWXYZ0123456789#%&*";
+function morph(from, to, k, seed) {
+  const n = Math.max(from.length, to.length); let out = "";
+  for (let i = 0; i < n; i++) {
+    const at = clamp(k * 1.4 - (i / n) * 0.4);
+    if (at >= 1) out += to[i] || ""; else if (at <= 0) out += from[i] || "";
+    else out += GLYPHS[Math.floor(rnd(seed + i * 7 + Math.floor(at * 9)) * GLYPHS.length)];
+  }
+  return out;
+}
+function label(s, x, y, color = C.dim, alpha = 1, size = 18) { text(s.toUpperCase(), x, y, { size, weight: 500, mono: true, color, alpha, track: 2 }); }
+
+// ------------------------------------------------------------------ the data field (procedural database architecture)
+const CELL = 46, GAP = 8;
+function dataField(t, { alpha = 1, lit = 0.06, zoom = 1, drift = 0, focus = null, litColor = C.lime } = {}) {
+  ctx.save(); ctx.globalAlpha = alpha;
+  const cols = 44, rows = 26, s = (CELL + GAP) * zoom;
+  const ox = W / 2 - (cols * s) / 2 - drift * 120, oy = H / 2 - (rows * s) / 2 + Math.sin(t * 0.2) * 10;
+  for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) {
+    const id = r * 97 + c * 13, x = ox + c * s, y = oy + r * s;
+    if (x < -s || x > W || y < -s || y > H) continue;
+    const d = Math.hypot(x + s / 2 - W / 2, y + s / 2 - H / 2) / 1100;
+    const isLit = rnd(id) < lit && Math.sin(t * 0.9 + rnd(id + 3) * 6.28) > -0.2;
+    ctx.globalAlpha = alpha * (1 - d * 0.75) * (isLit ? 0.9 : 0.55);
+    ctx.fillStyle = isLit ? litColor : C.bg2; ctx.fillRect(x, y, CELL * zoom, CELL * zoom);
+    if (!isLit) { ctx.strokeStyle = C.line; ctx.lineWidth = 1; ctx.strokeRect(x + 0.5, y + 0.5, CELL * zoom - 1, CELL * zoom - 1); }
+  }
+  ctx.restore();
+}
+// cell wipe transition: squares fill the frame along a diagonal, then clear (k: 0..1)
+function cellWipe(k, color = C.bg) {
+  if (k <= 0 || k >= 1) return; const s = 60;
+  for (let y = 0; y < H; y += s) for (let x = 0; x < W; x += s) {
+    const d = (x / W + y / H) / 2 * 0.6 + rnd(x * 3 + y) * 0.2;
+    const a = seg(k, d * 0.5, d * 0.5 + 0.3), b = seg(k, 0.5 + d * 0.5, 0.5 + d * 0.5 + 0.2);
+    const f = Math.min(a, 1 - b); if (f <= 0) continue;
+    rect(x + (s * (1 - f)) / 2, y + (s * (1 - f)) / 2, s * f, s * f, color, 1);
+  }
+}
+
+// ------------------------------------------------------------------ the brand mark: a cell with its mask bar
+function mark(x, y, s, k = 1, bar = 1) {
+  strokeRect(x, y, s, s, C.ink, k, Math.max(2, s / 18));
+  rect(x + s * 0.18, y + s * 0.42, s * 0.64 * eOut(bar), s * 0.16, C.lime, k);
+}
+
+// ------------------------------------------------------------------ scenes: draw(p) with p in 0..1 over the scene
+const ROW = [["NAME", "Ravi Kumar"], ["PAN", "ABCPK1234F"], ["PHONE", "98765 43210"], ["CARD", "4111 1111 1111 1111"], ["BALANCE", "₹2,40,000"]];
+
+const SCENES = {
+  hook(p, t) {
+    dataField(t, { alpha: eOut(seg(p, 0, 0.25)), lit: lerp(0.0, 0.07, seg(p, 0.1, 0.5)), zoom: lerp(1.25, 1, eInOut(p)), drift: p });
+    const g = ctx.createRadialGradient(W / 2, H / 2, 200, W / 2, H / 2, 1100); g.addColorStop(0, "rgba(13,14,16,0.2)"); g.addColorStop(1, "rgba(13,14,16,0.95)");
+    ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+    rect(0, H / 2 - 170, W, 340, C.bg, 0.72 * eOut(seg(p, 0.08, 0.2)));
+    headline(["EVERY DATABASE HOLDS VALUE."], W / 2, H / 2 + 30, seg(p, 0.1, 0.32) * life(p, 0.1, 0.52), { size: 92, align: "center" });
+    headline(["NOT EVERY QUERY", "SHOULD ACCESS IT."], W / 2, H / 2 - 20, seg(p, 0.55, 0.78) * life(p, 0.55, 1.02), { size: 92, align: "center", color: C.ink });
+    rect(W / 2 - 240, H / 2 + 100, 480 * eOut(seg(p, 0.7, 0.9)), 4, C.lime, life(p, 0.7, 1.02));
+  },
+
+  problem(p, t) {
+    // one record, three users of different trust, every one of them receives all of it
+    const rx = 1060, ry = 300, a = eOut(seg(p, 0, 0.1)) * (1 - eOut(seg(p, 0.66, 0.72)));
+    label("customers · row 4417", rx, ry - 30, C.dim, a);
+    ROW.forEach(([k, v], i) => {
+      const y = ry + i * 74; strokeRect(rx, y, 640, 60, C.line, a);
+      label(k, rx + 22, y + 38, C.faint, a, 16);
+      text(v, rx + 200, y + 40, { size: 28, weight: 500, mono: true, color: C.ink, alpha: a });
+    });
+    const users = [["SUPPORT", "needs the ticket"], ["ANALYST", "needs the trend"], ["CONTRACTOR", "needs the schema"]];
+    users.forEach(([u, need], i) => {
+      const y = 330 + i * 150, k = eOut(seg(p, 0.1 + i * 0.05, 0.2 + i * 0.05));
+      const ka = k * a;
+      strokeRect(200, y, 340, 96, C.steel, ka); label(u, 228, y + 42, C.steel, ka, 20); text(need, 228, y + 76, { size: 22, weight: 400, color: C.dim, alpha: ka });
+      const q = seg(p, 0.3 + i * 0.05, 0.45 + i * 0.05);
+      if (a > 0.01) for (let j = 0; j < 5; j++) trace(540, y + 48, rx, ry + 30 + j * 74, q, C.warm, 1.4);
+    });
+    const ph = [["ONE DATABASE.", 0.08, 0.3], ["MULTIPLE USERS.", 0.3, 0.5], ["VERY DIFFERENT LEVELS OF TRUST.", 0.5, 0.7]];
+    ph.forEach(([s, a0, b0]) => text(s, 200, 200, { size: 54, weight: 600, alpha: life(p, a0, b0), track: -1 }));
+    // the subtle failure: the screen is masked, the query is not
+    const f = life(p, 0.7, 1.02);
+    if (f > 0) {
+      text("MASKING THE SCREEN IS NOT ENOUGH.", 200, 250, { size: 62, weight: 600, alpha: f, track: -1 });
+      text("SELECT name FROM customers", 200, 420, { size: 34, mono: true, weight: 500, color: C.dim, alpha: f });
+      text("WHERE pan LIKE 'ABCPK%'", 200, 470, { size: 34, mono: true, weight: 500, color: C.ink, alpha: f });
+      label("what the screen shows", 1100, 380, C.faint, f);
+      text("PAN  XXXXX1234X", 1100, 430, { size: 34, mono: true, color: C.dim, alpha: f });
+      const hit = eOut(seg(p, 0.82, 0.9));
+      label("what the query learned", 1100, 520, C.warm, f * hit);
+      text("1 row → his PAN starts ABCPK", 1100, 570, { size: 34, mono: true, color: C.warm, alpha: f * hit });
+      text("Output-only masking leaked 14 of the 17 attacks in our test suite.", 200, 760, { size: 26, weight: 400, color: C.dim, alpha: f * hit });
+    }
+  },
+
+  discovery(p, t) {
+    const cols = [["col_7", ["ABCPK1234F", "BNZPM2501F", "CLMPS0921Q", "DXEPK7712R"], "PAN", "0.99"],
+                  ["ref", ["ravi.k@okaxis", "sita@ybl", "a.rao@paytm", "mk@oksbi"], "UPI ID", "0.97"],
+                  ["field_x", ["98765 43210", "91234 56780", "99887 76655", "90011 22334"], "PHONE", "1.00"],
+                  ["acct", ["50100234567812", "00231045678901", "91002003004005", "60012345678900"], "ACCOUNT", "0.93"],
+                  ["bal", ["2,40,000.00", "18,250.50", "7,02,113.00", "96,400.00"], "BALANCE", "0.88"]];
+    const x0 = 160, w = 300, gap = 22, a = eOut(seg(p, 0, 0.1));
+    text("DISCOVER WHAT YOUR SCHEMA HIDES.", x0, 170, { size: 60, weight: 600, alpha: life(p, 0.02, 0.62), track: -1 });
+    label("column names lie · values don't", x0, 220, C.dim, life(p, 0.06, 0.62));
+    const scan = seg(p, 0.15, 0.55);
+    cols.forEach(([h, vals, kind, conf], i) => {
+      const x = x0 + i * (w + gap), y = 290;
+      strokeRect(x, y, w, 360, C.line, a * life(p, 0, 0.66));
+      label(h, x + 20, y + 40, C.faint, a * life(p, 0, 0.66), 18);
+      vals.forEach((v, j) => text(v, x + 20, y + 100 + j * 52, { size: 24, weight: 400, mono: true, color: C.ink, alpha: 0.85 * a * life(p, 0, 0.66) }));
+      const hit = eOut(seg(scan, i * 0.17, i * 0.17 + 0.15));
+      if (hit > 0) {
+        rect(x, y + 300, w, 60, C.lime, hit * life(p, 0, 0.66));
+        text(kind, x + 20, y + 340, { size: 24, weight: 600, mono: true, color: C.bg, alpha: hit * life(p, 0, 0.66) });
+        text(conf, x + w - 20, y + 340, { size: 24, weight: 500, mono: true, color: C.bg, align: "right", alpha: hit * life(p, 0, 0.66) });
+      }
+    });
+    const sx = x0 + scan * (5 * (w + gap)); line(sx, 270, sx, 670, C.lime, scan > 0 && scan < 1 ? 0.9 : 0, 2);
+    // the hybrid, not an all-knowing brain
+    const h = life(p, 0.64, 1.02);
+    const parts = [["CHECK DIGITS", "Aadhaar · PAN · GSTIN · card · IBAN"], ["MACHINE LEARNING", "LightGBM · 99 value features"], ["HUMAN REVIEW", "unsure means masked until approved"]];
+    text("RULES + MACHINE LEARNING + HUMAN REVIEW", x0, 230 + 0, { size: 50, weight: 600, alpha: h, track: -1 });
+    parts.forEach(([a1, b1], i) => {
+      const k = eOut(seg(p, 0.68 + i * 0.05, 0.76 + i * 0.05)) * h, x = x0 + i * 540;
+      strokeRect(x, 330, 500, 200, i === 1 ? C.lime : C.steel, k, 2);
+      label(a1, x + 30, 390, i === 1 ? C.lime : C.steel, k, 22); text(b1, x + 30, 460, { size: 26, weight: 400, color: C.ink, alpha: k });
+      if (i < 2) line(x + 500, 430, x + 540, 430, C.faint, k);
+    });
+    const s = eOut(seg(p, 0.82, 0.9)) * h;
+    text("95.4%", x0, 700, { size: 96, weight: 600, color: C.lime, alpha: s, track: -2 });
+    text("of personal columns found in 9,780 columns it never trained on", x0 + 330, 660, { size: 28, weight: 400, alpha: s });
+    text("Regex + check digits alone: 57%.  Column names alone: 32%.", x0 + 330, 705, { size: 26, weight: 400, color: C.dim, alpha: s });
+  },
+
+  enforce(p, t) {
+    // the query enters, is parsed into a tree, meets the role's policy, and is rewritten before the database runs it
+    const q = "SELECT name, pan, phone FROM customers";
+    const intro = life(p, 0, 0.3);
+    text("NOT JUST WHAT YOU STORE.", W / 2, 200, { size: 64, align: "center", alpha: life(p, 0.0, 0.16), track: -1 });
+    text("WHAT EACH USER IS ALLOWED TO SEE.", W / 2, 200, { size: 64, align: "center", alpha: life(p, 0.16, 0.32), track: -1, color: C.ink });
+    const typed = q.slice(0, Math.floor(q.length * eOut(seg(p, 0.02, 0.12))));
+    text(typed, W / 2, 360, { size: 40, mono: true, weight: 500, align: "center", alpha: intro });
+    // parse into a tree
+    const tree = seg(p, 0.14, 0.3), ty = 470;
+    const nodes = [["SELECT", W / 2, ty], ["name", W / 2 - 360, ty + 140], ["pan", W / 2 - 120, ty + 140], ["phone", W / 2 + 120, ty + 140], ["customers", W / 2 + 360, ty + 140]];
+    nodes.forEach(([n, x, y], i) => {
+      const k = eOut(seg(tree, i * 0.12, i * 0.12 + 0.4)) * intro;
+      if (i > 0) line(W / 2, ty + 24, x, y - 34, C.faint, k);
+      strokeRect(x - 100, y - 34, 200, 56, i === 4 ? C.steel : C.line, k);
+      text(n, x, y + 4, { size: 26, mono: true, align: "center", alpha: k, color: i === 4 ? C.steel : C.ink });
+    });
+    // three lanes: the same stored value, three answers
+    const lanes = [["ADMIN", "ABCPK1234F", "authorised · raw value", C.ink], ["SUPPORT", "XXXXX1234X", "mg_partial(pan, 0, 4)", C.lime], ["ANALYST", "tok_7f3a9c21", "mg_token(pan) · HMAC", C.steel]];
+    const L = life(p, 0.3, 0.8);
+    if (L > 0) {
+      label("stored in the database · never changed", 160, 330, C.faint, L);
+      strokeRect(160, 350, 420, 70, C.line, L); text("pan = ABCPK1234F", 185, 396, { size: 30, mono: true, alpha: L });
+      lanes.forEach(([role, val, how, col], i) => {
+        const y = 520 + i * 150, k = eOut(seg(p, 0.33 + i * 0.05, 0.42 + i * 0.05)) * L;
+        trace(580, 385, 760, y + 36, seg(p, 0.33 + i * 0.05, 0.42 + i * 0.05), C.faint, 1.4);
+        strokeRect(760, y, 300, 72, C.steel, k); label(role, 790, y + 46, C.steel, k, 22);
+        line(1060, y + 36, 1140, y + 36, C.faint, k);
+        // the policy gate
+        rect(1140, y + 6, 14, 60, col === C.ink ? C.faint : C.lime, k);
+        const m = seg(p, 0.45 + i * 0.06, 0.6 + i * 0.06);
+        text(morph("ABCPK1234F", val, m, i * 31), 1200, y + 50, { size: 44, mono: true, weight: 500, color: m >= 1 ? col : C.ink, alpha: k });
+        text(how, 1560, y + 48, { size: 22, mono: true, color: C.dim, alpha: k * eOut(seg(m, 0.8, 1)) });
+      });
+    }
+    const z = life(p, 0.8, 1.02);
+    text("POLICY-DRIVEN.", 160, 420, { size: 92, weight: 600, alpha: z * eOut(seg(p, 0.8, 0.85)), track: -2 });
+    text("QUERY-TIME.", 160, 530, { size: 92, weight: 600, alpha: z * eOut(seg(p, 0.84, 0.89)), track: -2 });
+    text("INSIDE THE DATABASE.", 160, 640, { size: 92, weight: 600, color: C.lime, alpha: z * eOut(seg(p, 0.88, 0.93)), track: -2 });
+    text("The mask runs before WHERE, JOIN and ORDER BY can see the value, so a guess can't confirm it.", 160, 760, { size: 28, weight: 400, color: C.dim, alpha: z * eOut(seg(p, 0.9, 0.96)) });
+  },
+
+  engines(p, t) {
+    const dbs = ["SQLite", "PostgreSQL", "MySQL"], a = eOut(seg(p, 0, 0.15)), gx = 1000;
+    dbs.forEach((d, i) => {
+      const y = 280 + i * 210, k = eOut(seg(p, 0.05 + i * 0.06, 0.2 + i * 0.06));
+      for (let j = 0; j < 4; j++) strokeRect(1500, y + j * 14, 260, 110, C.steel, k * (1 - j * 0.2));
+      text(d, 1630, y + 140 + 30, { size: 30, weight: 500, align: "center", alpha: k, color: C.ink });
+      const flow = (t * 0.6 + i * 0.3) % 1;
+      line(gx + 40, H / 2, 1500, y + 55, C.faint, k, 1.5, [6, 8]);
+      ctx.save(); ctx.globalAlpha = k; ctx.fillStyle = C.lime; ctx.beginPath(); ctx.arc(lerp(gx + 40, 1500, flow), lerp(H / 2, y + 55, flow), 5, 0, 7); ctx.fill(); ctx.restore();
+    });
+    rect(gx, 230, 40, 620, C.lime, a); label("maskguard", gx - 6, 210, C.lime, a, 20);
+    ["REST API", "CLI", "Python SDK", "PostgreSQL wire proxy"].forEach((s, i) => {
+      const k = eOut(seg(p, 0.25 + i * 0.05, 0.35 + i * 0.05)); text(s, 860, 330 + i * 140, { size: 30, weight: 500, align: "right", alpha: k, color: C.dim });
+      line(870, 320 + i * 140, gx, H / 2, C.faint, k * 0.6);
+    });
+    text("ONE PRIVACY CONTROL PLANE.", 160, 160, { size: 60, weight: 600, alpha: life(p, 0.1, 1.02), track: -1 });
+    label("three engines · masks installed as database functions", 160, 205, C.dim, life(p, 0.15, 1.02));
+  },
+
+  threat(p, t) {
+    // a stream of queries: steady for most users, then an enumeration pattern the threat engine scores
+    const x0 = 160, x1 = 1760, base = 620, a = life(p, 0, 0.55);
+    text("DETECT UNUSUAL ACCESS.", x0, 170, { size: 60, weight: 600, alpha: a, track: -1 });
+    line(x0, base, x1, base, C.line, a);
+    const n = 64, shown = Math.floor(n * seg(p, 0.05, 0.45));
+    let alertAt = -1;
+    for (let i = 0; i < shown; i++) {
+      const burst = i > 40, h = burst ? 60 + (i - 40) * 9 : 40 + rnd(i) * 50;
+      if (burst && h > 200 && alertAt < 0) alertAt = i;
+      rect(x0 + i * 25, base - h, 12, h, burst && h > 200 ? C.warm : C.steel, a * 0.9);
+    }
+    line(x0, base - 200, x1, base - 200, C.warm, a * 0.7, 1.5, [10, 10]); label("alert threshold", x1 - 230, base - 212, C.warm, a);
+    if (alertAt > 0) {
+      const k = eOut(seg(p, 0.38, 0.45)) * a, bx = Math.min(x0 + alertAt * 25 - 10, x1 - 560);
+      strokeRect(bx, base - 470, 540, 120, C.warm, k, 2);
+      label("alert · enumeration", bx + 24, base - 425, C.warm, k, 22);
+      text("risk 87 · rules + IsolationForest", bx + 24, base - 380, { size: 24, mono: true, color: C.ink, alpha: k });
+    }
+    // the audit chain: each decision hashed onto the one before
+    const b = life(p, 0.55, 1.02);
+    text("TRACE EVERY DECISION.", x0, 170, { size: 60, weight: 600, alpha: b, track: -1 });
+    const hashes = ["9f3a…c21e", "51d0…7b42", "e8c4…09fa", "2b77…d613", "a0e9…4c58"];
+    const who = ["support · allow · 3 masked", "analyst · allow · tokens", "intruder · reject", "auditor · verify", "admin · allow"];
+    hashes.forEach((h, i) => {
+      const k = eOut(seg(p, 0.6 + i * 0.06, 0.68 + i * 0.06)) * b, x = x0 + i * 330, y = 420;
+      strokeRect(x, y, 280, 170, i === 2 ? C.warm : C.steel, k); label(`entry ${1204 + i}`, x + 22, y + 44, C.dim, k, 16);
+      text(who[i], x + 22, y + 90, { size: 20, weight: 400, alpha: k }); text(h, x + 22, y + 138, { size: 22, mono: true, color: C.lime, alpha: k });
+      if (i > 0) line(x - 50, y + 85, x, y + 85, C.lime, k, 2);
+    });
+    label("sha-256 hash chain · an edit, deletion or reorder breaks it", x0, 690, C.dim, b * eOut(seg(p, 0.9, 0.96)));
+  },
+
+  proof(p, t) {
+    const items = [["0 / 17", "bypass and inference attacks leaked, per role", "naive output masking: 14 of 17"],
+                   ["672", "attack-matrix cases across three databases", "0 leaks"],
+                   ["35 / 35", "sensitive columns found in the organisers' bank data", "after fixes · first contact 22 of 35, 0 values leaked"],
+                   ["1,320", "automated tests passed", "plus 45 end-to-end container checks"]];
+    const n = items.length;
+    items.forEach(([big, what, scope], i) => {
+      const a = life(p, i / n, (i + 1) / n + 0.02);
+      text(big, 160, 560, { size: 220, weight: 600, color: i === 0 ? C.lime : C.ink, alpha: a, track: -6 });
+      text(what, 170, 660, { size: 36, weight: 400, alpha: a });
+      label(scope, 170, 720, C.dim, a, 18);
+    });
+    label("measured on our test suites and public benchmarks · docs/AI_EVALUATION.md · docs/SECURITY_ANALYSIS.md", 160, 960, C.faint, eOut(seg(p, 0, 0.1)), 15);
+  },
+
+  brand(p, t) {
+    const k = eOut(seg(p, 0, 0.3));
+    dataField(t, { alpha: (1 - eOut(seg(p, 0, 0.35))) * 0.6, lit: 0.05, zoom: lerp(1, 0.4, eExpo(seg(p, 0, 0.4))) });
+    mark(W / 2 - 330, H / 2 - 110, 120, k, seg(p, 0.15, 0.4));
+    text("MASKGUARD", W / 2 - 180, H / 2 - 22, { size: 104, weight: 600, alpha: eOut(seg(p, 0.15, 0.4)), track: 4 });
+    text("DISCOVER. CONTROL. PROTECT.", W / 2 - 176, H / 2 + 40, { size: 30, weight: 500, mono: true, color: C.lime, alpha: eOut(seg(p, 0.35, 0.55)), track: 4 });
+    text("AI discovers. Policy authorizes. The database enforces.", W / 2, H / 2 + 200, { size: 32, weight: 400, align: "center", color: C.ink, alpha: eOut(seg(p, 0.55, 0.75)) });
+    label("talentap mega hackathon 2026 · bfsi b1 · team 0262 · pip install maskguard", W / 2 - 470, H - 90, C.dim, eOut(seg(p, 0.65, 0.85)), 18);
+  },
+};
+
+// ------------------------------------------------------------------ the two cuts
+const CUTS = {
+  master: [["hook", 8], ["problem", 12], ["discovery", 14], ["enforce", 18], ["engines", 6], ["threat", 12], ["proof", 12], ["brand", 8]],
+  cut: [["hook", 5], ["problem", 9], ["discovery", 11], ["enforce", 15], ["engines", 4], ["threat", 5], ["proof", 7], ["brand", 4]],
+};
+const CUT = CUTS[(location.hash || "#master").slice(1)];
+const DURATION = CUT.reduce((s, [, d]) => s + d, 0);
+
+// film grain: fixed noise tiles, chosen per frame, so a render is identical every time
+const GRAIN = [];
+for (let g = 0; g < 6; g++) {
+  const c = document.createElement("canvas"); c.width = 256; c.height = 256; const x = c.getContext("2d"), im = x.createImageData(256, 256);
+  for (let i = 0; i < im.data.length; i += 4) { const v = rnd(i + g * 9973) * 255; im.data[i] = im.data[i + 1] = im.data[i + 2] = v; im.data[i + 3] = 14; }
+  x.putImageData(im, 0, 0); GRAIN.push(c);
+}
+
+function render(t) {
+  ctx.fillStyle = C.bg; ctx.fillRect(0, 0, W, H);
+  let start = 0;
+  for (const [name, d] of CUT) {
+    if (t < start + d || name === CUT[CUT.length - 1][0]) { SCENES[name](clamp((t - start) / d), t); break; }
+    start += d;
+  }
+  // a cell wipe across each cut, centred on the boundary
+  let b = 0;
+  for (const [, d] of CUT.slice(0, -1)) { b += d; if (Math.abs(t - b) < 0.5) cellWipe((t - b + 0.5) / 1.0, C.bg2); }
+  // grain and vignette
+  ctx.save(); ctx.globalCompositeOperation = "overlay"; const tile = GRAIN[Math.floor(t * 24) % GRAIN.length];
+  for (let y = 0; y < H; y += 256) for (let x = 0; x < W; x += 256) ctx.drawImage(tile, x, y); ctx.restore();
+  const v = ctx.createRadialGradient(W / 2, H / 2, 500, W / 2, H / 2, 1250); v.addColorStop(0, "rgba(0,0,0,0)"); v.addColorStop(1, "rgba(0,0,0,0.55)");
+  ctx.fillStyle = v; ctx.fillRect(0, 0, W, H);
+  // fade from and to black
+  rect(0, 0, W, H, "#000", 1 - eOut(seg(t, 0, 0.8))); rect(0, 0, W, H, "#000", seg(t, DURATION - 1.2, DURATION));
+}
+window.DURATION = DURATION; window.render = render;
+window.ready = document.fonts.load("600 40px Plex").then(() => Promise.all(["400 10px Plex", "500 10px Plex", "400 10px PlexMono", "500 10px PlexMono"].map((f) => document.fonts.load(f))));
+// cue points for the sound design (scene starts), read by render.js
+let s0 = 0; window.CUES = CUT.map(([n, d]) => { const c = [n, s0, d]; s0 += d; return c; });
+</script>
+</body>
+</html>

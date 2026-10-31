@@ -26,3 +26,7 @@ models/
 *.sqlite3
 FULL_CODE/training/realworld/cache/
 FULL_CODE/training/hf/cache/
+
+# Launch film: renders and audio mixes are rebuilt from FULL_CODE/marketing/launch-film/src
+FULL_CODE/marketing/launch-film/renders/
+FULL_CODE/marketing/launch-film/audio/
