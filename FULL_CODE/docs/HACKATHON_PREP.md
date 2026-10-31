@@ -370,11 +370,13 @@ project (with its `.git`), and at the top only `README.md`, `.gitignore`, `LICEN
 ```bash
 git status                                          # must be clean; commit and push first
 FULL_CODE/scripts/package_submission.sh TEAMID PSID # → ../TEAMID_PSID.zip next to the repository folder
+FULL_CODE/scripts/package_submission.sh 0262 b1 --shallow  # → ../0262_b1.zip, only the latest commit (~27 MB)
 ```
 
 The script refuses to run with uncommitted changes, clones the repository fresh, checks the top-level layout, and
 refuses if a `.env`, `data/`, database file, virtual environment, `node_modules` or zip got in. The clone carries the
-git history (about 80 MB, mostly the demo videos' history), so expect a zip of that size.
+git history (about 80 MB, mostly the demo videos' history); `--shallow` keeps `.git` with only the latest commit.
+Do not use GitHub's "Download ZIP": it has no `.git` and names the folder after the branch, not `0262_b1`.
 
 ## 9. The AI evaluation of the code (30%)
 
