@@ -80,7 +80,7 @@ testpaths = ["tests"]
 [tool.ruff]
 line-length = 120
 target-version = "py311"
-extend-exclude = ["training/hf/cache", "training/realworld/cache"]
+extend-exclude = ["training/hf/cache", "training/realworld/cache", "*.md"]  # code in Markdown is documentation
 
 [tool.ruff.lint]
 # pycodestyle, pyflakes, import order, bugbear, pyupgrade, bandit (security), blind except, simplifications,
@@ -101,3 +101,7 @@ ignore = [
 "tests/**" = ["S101", "S105", "S106", "S104", "S110", "S112", "S311", "S603", "S607", "S608", "F811"]
 # benchmark and training scripts put the source folder on sys.path before importing, and build SQL from fixed text
 "{bench,training,scripts}/**" = ["E402", "S311", "S608", "S101"]
+# the Postman collection logs in with the documented demo accounts (development only; production refuses them)
+"postman/build_collection.py" = ["S105", "S106"]
+# the research harness replays attacks against a sandbox and records any failure as an outcome
+"docs/research/rea_experiment/harness/*.py" = ["BLE001", "S608", "S311"]
