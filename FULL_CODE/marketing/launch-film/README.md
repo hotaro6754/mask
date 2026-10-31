@@ -1,48 +1,69 @@
 # MaskGuard launch film
 
-A 90-second product film and a 60-second cutdown, made entirely in code: no screen recording, stock footage, samples
-or templates. Every frame is a pure function of time, so a render is identical every time.
+A 102-second product film and a 60-second cutdown. Editorial light direction: paper and ink, one ultramarine accent,
+signal orange only where data leaks, graded monochrome footage, designed MaskGuard interface cards animated with GSAP.
+No screen recording, no 3D, no watermarked assets.
+
+## Files
 
 | File | What it is |
 |---|---|
-| `src/film.html` | The film: eight scenes drawn on one canvas, with the timings of both cuts (`#master`, `#cut`) |
-| `src/render.js` | Renders frame by frame with headless Chromium (Playwright) and pipes the frames into ffmpeg |
-| `src/sound.py` | Sound design, synthesised with NumPy and timed to the film's cue points |
-| `src/plex-*.woff2` | IBM Plex Sans and Mono (SIL Open Font License 1.1, see `src/maskguard/web/fonts/OFL.txt`) |
+| `src/saas.html` | The film: shots, styles and one GSAP timeline per cut (`#master`, `#cut`); `render(t)` seeks it |
+| `src/render.js` | Renders any second of the film with headless Chromium (Playwright) and pipes frames into ffmpeg |
+| `src/mix.py` | Mixes the music and the sound effects at the cue times the film exports, then muxes the audio |
+| `src/film.html`, `src/film3d.html` | Earlier explorations (flat dark, 3D), kept for reference |
+| `src/plex-*.woff2` | IBM Plex Mono for code and captions |
+
+Footage frames (`renders/frames/`), audio files (`audio/`) and renders are rebuilt locally and not committed.
 
 ## Build
 
 ```bash
-cd FULL_CODE/marketing/launch-film/src
-node render.js master ../renders/video_master.mp4        # 2,700 frames
-node render.js cut ../renders/video_cut.mp4              # 1,800 frames
-cd .. && uv run --project .. python src/sound.py renders/video_master.cues.json audio/mix_master.wav
-ffmpeg -i renders/video_master.mp4 -i audio/mix_master.wav -c:v copy -af loudnorm=I=-16:TP=-1.5 -c:a aac -b:a 256k \
-  -shortest renders/MaskGuard_launch_90s.mp4                   # same for the cut
-node render.js master ../renders/still.mp4 --preview 42 80     # inspection stills at given seconds
+cd FULL_CODE/marketing/launch-film
+npm install                                           # gsap, Inter, Lucide (and three.js for film3d.html)
+# footage: download the five clips below into a folder, then for each id:
+#   ffmpeg -ss 1 -t 7 -i <id>.mp4 -vf "fps=30,scale=1920:1080:force_original_aspect_ratio=increase,crop=1920:1080,
+#     hue=s=0,eq=contrast=1.12:brightness=-0.02,colorbalance=rs=.06:gs=.02:bs=-.05:rh=.04:bh=-.03,noise=alls=6:allf=t"
+#     -q:v 3 renders/frames/<id>/%04d.jpg
+python3 -m http.server 8765 --bind 127.0.0.1 &
+cd src && FILM=saas.html node render.js master ../renders/saas_master.mp4 && FILM=saas.html node render.js cut ../renders/saas_cut.mp4
+cd .. && python3 src/mix.py renders/saas_master.mp4 renders/MaskGuard_launch_100s.mp4
+python3 src/mix.py renders/saas_cut.mp4 renders/MaskGuard_launch_60s.mp4
+FILM=saas.html node src/render.js master /tmp/still.mp4 --preview 12 60   # inspection stills
 ```
 
-Renders and audio files are not committed (`renders/`, `audio/` are ignored).
+## Assets and licences
+
+| Asset | Source | Licence | Attribution |
+|---|---|---|---|
+| Footage 35580 (silhouettes, glass corridor) | https://mixkit.co/free-stock-video/corporate/ | Mixkit Stock Video Free License (commercial use, no watermark) | Not required |
+| Footage 38481 (card and tablet) | https://mixkit.co/free-stock-video/bank/ | Mixkit Stock Video Free License | Not required |
+| Footage 24604 (safe-deposit box) | https://mixkit.co/free-stock-video/bank/ | Mixkit Stock Video Free License | Not required |
+| Footage 47792 (data reflected in glasses) | https://mixkit.co/free-stock-video/glass/ | Mixkit Stock Video Free License | Not required |
+| Footage 23282 (server corridor) | https://mixkit.co/free-stock-video/server/ | Mixkit Stock Video Free License | Not required |
+| Sound effects 1485, 1489, 1109, 1110, 2354, 2357 | https://mixkit.co/free-sound-effects/ | Mixkit Sound Effects Free License | Not required |
+| Music "Volatile Reaction", Kevin MacLeod | https://incompetech.com | CC BY 4.0 | **Required**: shown in the end card and here |
+| Inter (variable) | `@fontsource-variable/inter` | SIL Open Font License 1.1 | Not required |
+| IBM Plex Mono | `src/maskguard/web/fonts/` | SIL Open Font License 1.1 | Not required |
+| Lucide icons | `lucide-static` | ISC | Not required |
+| GSAP 3.12 | `gsap` | GreenSock Standard "no charge" license | Not required |
 
 ## Story
 
-| Scene | Master | Cut | Message |
-|---|---|---|---|
-| Hook | 0–8 s | 0–5 s | Every database holds value; not every query should access it |
-| Problem | 8–20 s | 5–14 s | One database, many users, different trust; masking the screen leaks through the query |
-| Discovery | 20–34 s | 14–25 s | Column names lie; check digits + LightGBM + human review; 95.4% found on 9,780 unseen columns |
-| Enforcement (hero) | 34–52 s | 25–40 s | One stored value, three answers by role; masked inside the database, before WHERE/JOIN/ORDER BY |
-| Engines | 52–58 s | 40–44 s | One control plane for SQLite, PostgreSQL, MySQL; REST, CLI, SDK, wire proxy |
-| Threat and audit | 58–70 s | 44–49 s | Enumeration alert (rules + IsolationForest); tamper-evident SHA-256 chain |
-| Proof | 70–82 s | 49–56 s | 0/17 attacks leaked, 672 matrix cases, 35/35 columns, 1,320 tests |
-| Brand | 82–90 s | 56–60 s | AI discovers. Policy authorizes. The database enforces. |
+| Shot | Master | Message |
+|---|---|---|
+| Footage ×3 | 0–13 s | Every bank runs on data; names, PANs, cards, balances; everyone gets the same key |
+| Table | 13–21 s | Every query sees everything: support, analyst and contractor all receive every column |
+| Leak | 21–29 s | Hiding it on screen isn't enough: `WHERE pan LIKE 'ABCPK%'` still learns the value |
+| Meet | 29–35 s | MaskGuard |
+| Discover | 35–47 s | A scan finds personal columns behind misleading names; 95.4% on 9,780 unseen columns |
+| Decide | 47–54 s | The real default policy: role × sensitivity → allow, partial, hmac, aggregate, redact |
+| Footage | 54–58.5 s | Masked inside the database |
+| Enforce (hero) | 58.5–72.5 s | One query, three answers: `ABCPK1234F`, `ABXXXXXXXF`, an HMAC token (the product's real masks) |
+| Drop in | 72.5–78.5 s | SQLite, PostgreSQL, MySQL; REST, CLI, SDK, wire proxy; offline on a CPU |
+| Prove | 78.5–86.5 s | Enumeration alert; SHA-256 audit chain |
+| Proof | 86.5–94.5 s | 0/17 leaks, 672 matrix cases, 35/35 columns, 1,320 tests |
+| End | 94.5–102.5 s | Find. Hide. Prove. `pip install maskguard` |
 
-Every figure comes from the repository's evidence: `docs/AI_EVALUATION.md`, `docs/SECURITY_ANALYSIS.md`,
-`docs/SAFFRON_VALIDATION.md`. The masked values shown are illustrative of the policy's actions (`mg_partial`,
-`mg_token`), not a recorded query.
-
-## Art direction
-
-Charcoal ground, warm off-white type, one acid-lime accent for "protected", steel blue for systems, a warm red only for
-leaks and alerts. IBM Plex Sans for headlines, Plex Mono for data. The motif is the product's own: a data cell and its
-mask bar, a value morphing glyph by glyph into its masked form. Film grain and a vignette are drawn per frame.
+Every figure and every masked value comes from the repository: `docs/AI_EVALUATION.md`, `docs/SECURITY_ANALYSIS.md`,
+`docs/SAFFRON_VALIDATION.md`, `policies/default.yaml`.

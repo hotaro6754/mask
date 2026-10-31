@@ -1,0 +1,356 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>MaskGuard launch film 3D</title>
+<style>
+  @font-face { font-family: Plex; src: url(plex-sans-400.woff2); font-weight: 400; }
+  @font-face { font-family: Plex; src: url(plex-sans-500.woff2); font-weight: 500; }
+  @font-face { font-family: Plex; src: url(plex-sans-600.woff2); font-weight: 600; }
+  @font-face { font-family: Plex; src: url(plex-sans-700.woff2); font-weight: 700; }
+  @font-face { font-family: PlexMono; src: url(plex-mono-400.woff2); font-weight: 400; }
+  @font-face { font-family: PlexMono; src: url(plex-mono-500.woff2); font-weight: 500; }
+  html, body { margin: 0; background: #000; overflow: hidden; }
+  #stage { position: relative; width: 1920px; height: 1080px; }
+  #gl, #ui { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; }
+</style>
+<script type="importmap">
+  { "imports": { "three": "../node_modules/three/build/three.module.js", "three/addons/": "../node_modules/three/examples/jsm/" } }
+</script>
+</head>
+<body>
+<div id="stage"><canvas id="gl"></canvas><canvas id="ui" width="1920" height="1080"></canvas></div>
+<script type="module">
+// MaskGuard launch film. One continuous 3D world (three.js, bloom, fog, a shader backdrop) under a typography layer.
+// render(t) draws second t of the cut in the URL hash (#master, #cut) and is a pure function of t.
+import * as THREE from "three";
+import { EffectComposer } from "three/addons/postprocessing/EffectComposer.js";
+import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
+import { UnrealBloomPass } from "three/addons/postprocessing/UnrealBloomPass.js";
+import { OutputPass } from "three/addons/postprocessing/OutputPass.js";
+
+const W = 1920, H = 1080, GW = 1600, GH = 900;
+// ------------------------------------------------------------------ helpers
+const clamp = (x, a = 0, b = 1) => Math.min(b, Math.max(a, x));
+const seg = (p, a, b) => clamp((p - a) / (b - a));
+const eOut = (x) => 1 - Math.pow(1 - x, 3);
+const eInOut = (x) => (x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2);
+const lerp = (a, b, x) => a + (b - a) * x;
+const life = (p, a, b) => Math.min(eOut(seg(p, a, a + 0.07)), 1 - seg(p, b - 0.06, b));
+function rnd(i) { const s = Math.sin(i * 127.1 + 311.7) * 43758.5453; return s - Math.floor(s); }
+const V = (x, y, z) => new THREE.Vector3(x, y, z);
+
+// ------------------------------------------------------------------ the two cuts and their palettes (mixed themes)
+const CUTS = {
+  master: [["hook", 9], ["problem", 11], ["discovery", 11], ["classify", 9], ["policy", 7], ["enforce", 17], ["engines", 7], ["threat", 9], ["proof", 10], ["brand", 9]],
+  cut: [["hook", 5], ["problem", 7], ["discovery", 7], ["classify", 5], ["policy", 4], ["enforce", 12], ["engines", 4], ["threat", 5], ["proof", 6], ["brand", 5]],
+};
+const CUT = CUTS[(location.hash || "#master").slice(1)];
+const DURATION = CUT.reduce((s, [, d]) => s + d, 0);
+const PAL = { // [deep, glow, accent]
+  hook: ["#07051a", "#4b2bd6", "#ff8a3d"], problem: ["#14040a", "#c2203a", "#ff6a3d"], discovery: ["#021624", "#00b8f0", "#7df9ff"],
+  classify: ["#02160f", "#14c98a", "#b6ff4d"], policy: ["#1a1003", "#e09a12", "#ffd36b"], enforce: ["#0e0322", "#c42cff", "#35d7ff"],
+  engines: ["#020b26", "#2f6bff", "#9ec2ff"], threat: ["#170303", "#ff3b2f", "#ffb36b"], proof: ["#0a0d14", "#7c8aa5", "#ffffff"],
+  brand: ["#030403", "#5f7d10", "#c6f432"],
+};
+const col = (h) => new THREE.Color(h);
+
+// ------------------------------------------------------------------ renderer, camera, post
+const renderer = new THREE.WebGLRenderer({ canvas: document.getElementById("gl"), antialias: true, preserveDrawingBuffer: true });
+renderer.setPixelRatio(1); renderer.setSize(GW, GH, false);
+renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.05;
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(40, GW / GH, 0.1, 400);
+const composer = new EffectComposer(renderer);
+composer.addPass(new RenderPass(scene, camera));
+const bloom = new UnrealBloomPass(new THREE.Vector2(GW, GH), 0.8, 0.5, 0.78);
+composer.addPass(bloom); composer.addPass(new OutputPass());
+scene.fog = new THREE.FogExp2(0x000000, 0.018);
+scene.add(new THREE.HemisphereLight(0xbfd4ff, 0x0b0a12, 0.9));
+const sun = new THREE.DirectionalLight(0xffffff, 1.4); sun.position.set(-8, 14, 10); scene.add(sun);
+
+// backdrop: an aurora on a huge inverted sphere, driven by the scene palette
+const sky = new THREE.Mesh(new THREE.SphereGeometry(300, 48, 24), new THREE.ShaderMaterial({
+  side: THREE.BackSide, depthWrite: false, fog: false,
+  uniforms: { uT: { value: 0 }, uA: { value: col("#000") }, uB: { value: col("#000") }, uC: { value: col("#000") } },
+  vertexShader: `varying vec3 vP; void main(){ vP = normalize(position); gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.); }`,
+  fragmentShader: `uniform float uT; uniform vec3 uA, uB, uC; varying vec3 vP;
+    float h(vec2 p){ return fract(sin(dot(p, vec2(127.1,311.7)))*43758.5453); }
+    float n(vec2 p){ vec2 i=floor(p), f=fract(p); f=f*f*(3.-2.*f);
+      return mix(mix(h(i),h(i+vec2(1,0)),f.x), mix(h(i+vec2(0,1)),h(i+vec2(1,1)),f.x), f.y); }
+    float fbm(vec2 p){ float s=0., a=.5; for(int i=0;i<5;i++){ s+=a*n(p); p*=2.03; a*=.5; } return s; }
+    void main(){ vec2 q = vec2(atan(vP.z, vP.x)*1.6, vP.y*3.);
+      float f = fbm(q + vec2(uT*.05, -uT*.03) + fbm(q*1.7 - uT*.04));
+      float band = smoothstep(.35, .85, f) * smoothstep(-.4, .5, vP.y);
+      vec3 c = mix(uA, uB, band); c = mix(c, uC, pow(smoothstep(.62, .95, f), 2.) * .55);
+      gl_FragColor = vec4(c, 1.); }`,
+}));
+scene.add(sky);
+
+// ------------------------------------------------------------------ the data field: instanced cells
+const N = 36, cells = new THREE.InstancedMesh(new THREE.BoxGeometry(0.82, 1, 0.82), new THREE.MeshStandardMaterial({ roughness: 0.35, metalness: 0.35 }), N * N);
+const dummy = new THREE.Object3D(), cellCol = new THREE.Color();
+cells.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(N * N * 3), 3);
+scene.add(cells);
+function layoutField(t, { amp = 0.3, sensitive = 0.0, glow = null, base = "#20232d", scanX = -99, kinds = null, rise = 1, collapse = 0, path = -1 } = {}) {
+  let i = 0;
+  for (let gx = 0; gx < N; gx++) for (let gz = 0; gz < N; gz++, i++) {
+    const x = gx - N / 2, z = gz - N / 2, id = gx * 131 + gz * 17;
+    let h = 0.2 + amp * (0.5 + 0.5 * Math.sin(t * 0.8 + gx * 0.35 + gz * 0.21)) + rnd(id) * 0.4;
+    const isS = rnd(id + 5) < sensitive;
+    let c = cellCol.set(base);
+    if (isS && glow) {
+      const exposed = path < 0 || (Math.abs(x) < 3.5 && z < path);
+      if (exposed) { c.set(glow).multiplyScalar(3.2); h += 0.8; }
+    }
+    if (kinds && x < scanX && rnd(id + 9) < 0.28) { c.set(kinds[Math.floor(rnd(id + 2) * kinds.length)]).multiplyScalar(2.6); h += 0.6; }
+    const k = collapse > 0 ? lerp(1, 0, collapse) : 1;
+    dummy.position.set(x * k, (h * rise) / 2, z * k); dummy.scale.set(1, Math.max(0.01, h * rise), 1); dummy.updateMatrix();
+    cells.setMatrixAt(i, dummy.matrix); cells.setColorAt(i, c);
+  }
+  cells.instanceMatrix.needsUpdate = true; cells.instanceColor.needsUpdate = true;
+}
+
+// ------------------------------------------------------------------ glowing primitives
+const glowMat = (c, k = 3) => new THREE.MeshBasicMaterial({ color: col(c).multiplyScalar(k), transparent: true });
+const beam = (c) => { const m = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.045, 1, 10), glowMat(c, 1.8)); scene.add(m); return m; };
+function setBeam(m, a, b, k = 1, op = 1) {
+  const end = a.clone().lerp(b, clamp(k)); const d = end.clone().sub(a); const L = d.length();
+  m.visible = L > 0.01 && op > 0.01; if (!m.visible) return;
+  m.position.copy(a).add(end).multiplyScalar(0.5); m.scale.set(1, L, 1);
+  m.quaternion.setFromUnitVectors(V(0, 1, 0), d.normalize()); m.material.opacity = op;
+}
+const box = (w, h, d, c, k = 1, std = false) => {
+  const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), std ? new THREE.MeshStandardMaterial({ color: col(c), roughness: 0.3, metalness: 0.5, transparent: true }) : glowMat(c, k));
+  scene.add(m); return m;
+};
+const edges = (geo, c, k = 2.5) => { const l = new THREE.LineSegments(new THREE.EdgesGeometry(geo), new THREE.LineBasicMaterial({ color: col(c).multiplyScalar(k), transparent: true })); scene.add(l); return l; };
+
+// problem: one record, three role pylons
+const record = box(2.2, 3.4, 0.4, "#2a2d38", 1, true); const recordEdge = edges(new THREE.BoxGeometry(2.2, 3.4, 0.4), "#ff6a3d");
+const pylons = [0, 1, 2].map(() => box(0.9, 0.9, 0.9, "#9ec2ff", 1.6));
+const roleBeams = [0, 1, 2].map(() => beam("#ff5a36"));
+// discovery: the scanning sheet
+const sheet = new THREE.Mesh(new THREE.PlaneGeometry(0.08, 14), glowMat("#7df9ff", 5)); scene.add(sheet);
+// classify: a 3D decision tree
+const treeNodes = [], treeEdges = [];
+const TREE = [[0, 4.2, 0], [-2.4, 2.4, 0], [2.4, 2.4, 0], [-3.6, 0.6, 0], [-1.2, 0.6, 0], [1.2, 0.6, 0], [3.6, 0.6, 0]];
+TREE.forEach(() => { const m = new THREE.Mesh(new THREE.SphereGeometry(0.26, 24, 16), glowMat("#14c98a", 2)); scene.add(m); treeNodes.push(m); });
+[[0, 1], [0, 2], [1, 3], [1, 4], [2, 5], [2, 6]].forEach(() => treeEdges.push(beam("#14c98a")));
+// policy: a 4 x 5 matrix of tiles
+const tiles = []; for (let r = 0; r < 4; r++) for (let c = 0; c < 5; c++) tiles.push(box(1.5, 0.9, 0.08, "#ffd36b", 1, true));
+// enforce: stored value, prism, three refracted beams and outputs
+const stored = box(1.2, 1.2, 1.2, "#efe9df", 1, true); const storedEdge = edges(new THREE.BoxGeometry(1.2, 1.2, 1.2), "#ffffff", 2);
+const prism = new THREE.Mesh(new THREE.OctahedronGeometry(1.5, 0), new THREE.MeshStandardMaterial({ color: col("#b48cff"), roughness: 0.05, metalness: 0.2, transparent: true, opacity: 0.5, emissive: col("#5a1fb0"), emissiveIntensity: 0.8 }));
+scene.add(prism); const prismEdge = edges(new THREE.OctahedronGeometry(1.5, 0), "#e7c8ff", 3);
+const inBeam = beam("#ffffff");
+const OUTC = ["#ffffff", "#c6f432", "#35d7ff"];
+const outBeams = OUTC.map((c) => beam(c)); const outSlabs = OUTC.map((c) => box(2.6, 0.7, 0.06, c, 1.3));
+// engines: three database towers and a gateway ring
+const towers = [0, 1, 2].map(() => { const g = new THREE.Group(); for (let k = 0; k < 4; k++) { const d = new THREE.Mesh(new THREE.CylinderGeometry(1, 1, 0.5, 48), new THREE.MeshStandardMaterial({ color: col("#2f6bff"), roughness: 0.3, metalness: 0.6, emissive: col("#0a2a8a"), emissiveIntensity: 0.6 })); d.position.y = k * 0.65; g.add(d); } scene.add(g); return g; });
+const ring = new THREE.Mesh(new THREE.TorusGeometry(1.8, 0.09, 16, 96), glowMat("#c6f432", 4)); scene.add(ring);
+const streams = [0, 1, 2].map(() => beam("#9ec2ff"));
+// threat: an event stream of bars
+const bars = []; for (let i = 0; i < 48; i++) bars.push(box(0.3, 1, 0.3, "#9ec2ff", 1.0));
+const chain = [0, 1, 2, 3, 4].map(() => box(1.4, 0.8, 0.2, "#ffb36b", 1.4)); const links = [0, 1, 2, 3].map(() => beam("#ffb36b"));
+// brand: the mark, a cell and its mask bar
+const markFrame = edges(new THREE.BoxGeometry(3, 3, 0.3), "#ffffff", 3); const markBar = box(1.9, 0.42, 0.32, "#c6f432", 4);
+
+const GROUPS = { problem: [record, recordEdge, ...pylons, ...roleBeams], discovery: [sheet], classify: [...treeNodes, ...treeEdges],
+  policy: tiles, enforce: [stored, storedEdge, prism, prismEdge, inBeam, ...outBeams, ...outSlabs], engines: [...towers, ring, ...streams],
+  threat: [...bars, ...chain, ...links], brand: [markFrame, markBar] };
+function show(name) { Object.entries(GROUPS).forEach(([g, objs]) => objs.forEach((o) => (o.visible = g === name))); }
+
+// ------------------------------------------------------------------ typography layer
+const ui = document.getElementById("ui").getContext("2d");
+const INK = "#f6f3ec", DIM = "rgba(246,243,236,0.62)";
+function text(s, x, y, { size = 48, weight = 600, mono = false, color = INK, alpha = 1, align = "left", track = 0, shadow = true } = {}) {
+  if (alpha <= 0.002) return;
+  ui.save(); ui.globalAlpha = alpha; ui.font = `${weight} ${size}px ${mono ? "PlexMono" : "Plex"}`; ui.fillStyle = color;
+  ui.textAlign = align; ui.letterSpacing = `${track}px`;
+  if (shadow) { ui.shadowColor = "rgba(0,0,0,0.55)"; ui.shadowBlur = 30; }
+  ui.fillText(s, x, y); ui.restore();
+}
+const label = (s, x, y, color = DIM, alpha = 1, size = 18, align = "left") => text(s.toUpperCase(), x, y, { size, weight: 500, mono: true, color, alpha, track: 3, align });
+function rise(s, x, y, p, opts = {}) { const k = eOut(p); text(s, x, y + (1 - k) * 40, { ...opts, alpha: k * (opts.alpha ?? 1) }); }
+const GLYPHS = "ABCDEFGHJKLMNPQRSTUVWXYZ0123456789#%&";
+function morph(from, to, k, seed) { let o = ""; const n = Math.max(from.length, to.length);
+  for (let i = 0; i < n; i++) { const a = clamp(k * 1.4 - (i / n) * 0.4); o += a >= 1 ? to[i] || "" : a <= 0 ? from[i] || "" : GLYPHS[Math.floor(rnd(seed + i * 7 + Math.floor(a * 9)) * GLYPHS.length)]; }
+  return o; }
+const toScreen = (v) => { const p = v.clone().project(camera); return [(p.x * 0.5 + 0.5) * W, (-p.y * 0.5 + 0.5) * H]; };
+function cam(pos, look, fov = 40) { camera.position.copy(pos); camera.lookAt(look); camera.fov = fov; camera.updateProjectionMatrix(); }
+
+// ------------------------------------------------------------------ scenes: 3D state + type, p in 0..1
+const S = {
+  hook(p, t) {
+    show("none"); const q = lerp(-18, 16, eInOut(seg(p, 0.1, 0.85)));
+    layoutField(t, { amp: 0.35, sensitive: 0.18, glow: "#ff8a3d", base: "#1c1f2e", path: q });
+    cam(V(lerp(-2, 1.5, p), lerp(2.6, 4.2, p), lerp(-20, -10, eInOut(p))), V(0.5, 0, lerp(0, 12, p)), 46);
+    rise("EVERY DATABASE HOLDS VALUE.", W / 2, 470, seg(p, 0.08, 0.2), { size: 96, align: "center", alpha: life(p, 0.08, 0.52), track: -2 });
+    rise("NOT EVERY QUERY SHOULD ACCESS IT.", W / 2, 470, seg(p, 0.55, 0.67), { size: 96, align: "center", alpha: life(p, 0.55, 1.02), track: -2 });
+    label("one support query · every sensitive cell it passes is exposed", W / 2, 540, DIM, life(p, 0.25, 0.95), 18, "center");
+  },
+  problem(p, t) {
+    show("problem"); layoutField(t, { amp: 0.15, base: "#1a0d12", rise: 0.4 });
+    record.position.set(4, 2.4, 0); recordEdge.position.copy(record.position); record.rotation.y = recordEdge.rotation.y = -0.3 + p * 0.3;
+    pylons.forEach((m, i) => { m.position.set(-5, 1 + i * 1.8, -1 + i); m.rotation.set(t * 0.4, t * 0.6 + i, 0);
+      setBeam(roleBeams[i], m.position, V(4, 1.4 + i * 1.0, 0), eOut(seg(p, 0.15 + i * 0.07, 0.35 + i * 0.07)), 0.95); });
+    cam(V(lerp(-1, 1, p), 3.2, 13), V(0, 2.4, 0), 42);
+    const names = ["SUPPORT · needs the ticket", "ANALYST · needs the trend", "CONTRACTOR · needs the schema"];
+    pylons.forEach((m, i) => { const [x, y] = toScreen(m.position); label(names[i], x - 40, y + 60, "#9ec2ff", life(p, 0.1 + i * 0.05, 0.62), 17); });
+    rise("ONE DATABASE. MANY USERS.", 140, 170, seg(p, 0.05, 0.15), { size: 64, alpha: life(p, 0.05, 0.62), track: -1 });
+    label("every one of them receives the whole record", 140, 220, DIM, life(p, 0.3, 0.62));
+    const f = life(p, 0.62, 1.02);
+    rise("MASKING THE SCREEN ISN'T ENOUGH.", 140, 170, seg(p, 0.62, 0.72), { size: 64, alpha: f, track: -1 });
+    text("WHERE pan LIKE 'ABCPK%'  →  1 row", 140, 260, { size: 38, mono: true, weight: 500, color: "#ff8a6a", alpha: f * eOut(seg(p, 0.7, 0.8)) });
+    label("the screen shows ABXXXXXXXF · the query still learned how his pan begins", 140, 310, DIM, f * eOut(seg(p, 0.75, 0.85)));
+    label("output-only masking leaked 14 of the 17 attacks in our test suite", 140, 980, DIM, f * eOut(seg(p, 0.8, 0.9)));
+  },
+  discovery(p, t) {
+    show("discovery"); const sx = lerp(-18, 18, eInOut(seg(p, 0.1, 0.8)));
+    layoutField(t, { amp: 0.5, base: "#0a1c28", scanX: sx, kinds: ["#7df9ff", "#ff4fd8", "#ffd36b", "#8cff6b", "#ff7a45"] });
+    sheet.position.set(sx, 3, 0); sheet.rotation.y = Math.PI / 2;
+    cam(V(lerp(10, 4, p), 9, 16), V(lerp(-2, 2, p), 0, 0), 44);
+    rise("DISCOVER WHAT YOUR SCHEMA HIDES.", 140, 170, seg(p, 0.03, 0.13), { size: 64, alpha: life(p, 0.03, 1.02), track: -1 });
+    label("column names lie · col_7 holds pan numbers · values don't lie", 140, 220, DIM, life(p, 0.08, 1.02));
+    const tags = [["PAN", "#7df9ff"], ["UPI ID", "#ff4fd8"], ["BALANCE", "#ffd36b"], ["PHONE", "#8cff6b"], ["ACCOUNT", "#ff7a45"]];
+    tags.forEach(([n, c], i) => { const k = eOut(seg(p, 0.25 + i * 0.1, 0.33 + i * 0.1)) * life(p, 0.2, 1.02);
+      text(n, 140 + i * 230, 960, { size: 30, weight: 600, mono: true, color: c, alpha: k }); });
+    const z = eOut(seg(p, 0.75, 0.85)) * life(p, 0.7, 1.02);
+    text("95.4%", 1780, 960, { size: 110, weight: 600, color: "#7df9ff", align: "right", alpha: z, track: -3 });
+    label("of personal columns found · 9,780 columns never trained on", 1780, 1010, DIM, z, 16, "right");
+  },
+  classify(p, t) {
+    show("classify"); layoutField(t, { amp: 0.1, base: "#06140f", rise: 0.3 });
+    const path = [0, 1, 4], go = seg(p, 0.25, 0.7);
+    TREE.forEach(([x, y, z], i) => { const n = treeNodes[i]; n.position.set(x, y + 1, z); const d = i === 0 ? 0 : i < 3 ? 1 : 2;
+      const lit = path.includes(i) && go > d * 0.33; n.material.color.set(lit ? "#b6ff4d" : "#14c98a").multiplyScalar(lit ? 4 : 1.2);
+      n.scale.setScalar(lit ? 1.35 : 1); });
+    [[0, 1], [0, 2], [1, 3], [1, 4], [2, 5], [2, 6]].forEach(([a, b], i) => { const on = path.includes(a) && path.includes(b);
+      setBeam(treeEdges[i], treeNodes[a].position, treeNodes[b].position, on ? eOut(seg(go, (path.indexOf(b) - 1) * 0.33, path.indexOf(b) * 0.33)) : eOut(seg(p, 0.05, 0.25)), on ? 1 : 0.35);
+      treeEdges[i].material.color.set(on ? "#b6ff4d" : "#14c98a").multiplyScalar(on ? 4 : 1.2); });
+    cam(V(Math.sin(p * 1.2 - 0.6) * 9, 4, Math.cos(p * 1.2 - 0.6) * 9), V(0, 3, 0), 42);
+    rise("EVIDENCE, NOT MAGIC.", 140, 170, seg(p, 0.03, 0.13), { size: 64, alpha: life(p, 0.03, 1.02), track: -1 });
+    label("lightgbm · 99 measured features · 127 boosting rounds · 2.3 ms per column on a cpu", 140, 220, DIM, life(p, 0.08, 1.02));
+    [["pat_pan_shape", "1.00"], ["val_pan  check digit", "0.96"], ["frac_all_upper", "0.90"], ["hdr_generic  col_7", "1.00"]].forEach(([n, v], i) =>
+      label(`${n}  ${v}`, 140, 420 + i * 46, "#b6ff4d", eOut(seg(p, 0.1 + i * 0.05, 0.2 + i * 0.05)) * life(p, 0.05, 1.02), 18));
+    const r = eOut(seg(p, 0.72, 0.82)) * life(p, 0.7, 1.02);
+    text("PAN · 0.990", 1780, 960, { size: 64, weight: 600, mono: true, color: "#b6ff4d", align: "right", alpha: r });
+    label("rules + machine learning + human review", 1780, 1010, DIM, r, 16, "right");
+  },
+  policy(p, t) {
+    show("policy"); layoutField(t, { amp: 0.1, base: "#1a1206", rise: 0.3 });
+    const acts = [["allow", "allow", "allow", "allow", "allow"], ["partial", "partial", "allow", "redact", "redact"], ["hmac", "aggregate", "redact", "hmac", "redact"], ["redact", "redact", "redact", "redact", "redact"]];
+    const tint = { allow: "#ffffff", partial: "#c6f432", hmac: "#35d7ff", aggregate: "#9ec2ff", redact: "#5a4a2a" };
+    tiles.forEach((m, i) => { const r = Math.floor(i / 5), c = i % 5, k = eOut(seg(p, 0.08 + (r * 5 + c) * 0.018, 0.25 + (r * 5 + c) * 0.018));
+      m.position.set(-3.6 + c * 1.8, 5.2 - r * 1.15, 0); m.rotation.x = (1 - k) * Math.PI;
+      m.material.color.set(tint[acts[r][c]]); m.material.emissive = col(tint[acts[r][c]]); m.material.emissiveIntensity = (c === 0 && p > 0.6 ? 0.9 : 0.15) * (acts[r][c] === "allow" ? 0.5 : 1); });
+    cam(V(lerp(-1.5, 1.5, p), 3.8, 12), V(0, 3.5, 0), 42);
+    rise("ACCESS IS A DECISION, WRITTEN DOWN.", 140, 170, seg(p, 0.03, 0.13), { size: 64, alpha: life(p, 0.03, 1.02), track: -1 });
+    label("role × sensitivity → action · policies/default.yaml · versioned · unknown means deny", 140, 220, DIM, life(p, 0.08, 1.02));
+    ["ADMIN", "SUPPORT", "ANALYST", "AUDITOR"].forEach((r, i) => { const [x, y] = toScreen(V(-4.7, 5.2 - i * 1.15, 0)); label(r, x - 10, y + 6, "#ffd36b", life(p, 0.1, 1.02), 18, "right"); });
+    ["PII_HIGH", "FINANCIAL", "PII_MEDIUM", "HEALTH", "UNREVIEWED"].forEach((g, i) => { const [x, y] = toScreen(V(-3.6 + i * 1.8, 6.1, 0)); label(g, x, y, i === 0 ? "#c6f432" : DIM, life(p, 0.1, 1.02), 15, "center"); });
+    acts.forEach((row, r) => row.forEach((a, c) => { const [x, y] = toScreen(V(-3.6 + c * 1.8, 5.2 - r * 1.15, 0.1));
+      label(a, x, y + 6, a === "redact" ? "rgba(255,240,210,0.7)" : "#111", eOut(seg(p, 0.2 + (r * 5 + c) * 0.018, 0.3 + (r * 5 + c) * 0.018)) * life(p, 0.1, 1.02), 16, "center"); }));
+  },
+  enforce(p, t) {
+    show("enforce"); layoutField(t, { amp: 0.15, base: "#120624", rise: 0.35 });
+    const S0 = V(-6, 2.4, 0), P0 = V(-0.5, 2.4, 0), outs = [V(3.6, 4.4, -0.5), V(3.9, 2.4, 0), V(3.6, 0.4, 0.5)];
+    stored.position.copy(S0); storedEdge.position.copy(S0); stored.rotation.set(t * 0.3, t * 0.4, 0); storedEdge.rotation.copy(stored.rotation);
+    prism.position.copy(P0); prismEdge.position.copy(P0); prism.rotation.set(0, t * 0.5, 0); prismEdge.rotation.copy(prism.rotation);
+    const pulse = 1 + 0.08 * Math.sin(t * 6) * seg(p, 0.3, 0.5); prism.scale.setScalar(pulse); prismEdge.scale.setScalar(pulse);
+    setBeam(inBeam, S0, P0, eOut(seg(p, 0.12, 0.3)), 1);
+    outBeams.forEach((b, i) => setBeam(b, P0, outs[i], eOut(seg(p, 0.32 + i * 0.05, 0.45 + i * 0.05)), 1));
+    outSlabs.forEach((s) => (s.visible = false));
+    cam(V(lerp(-3, 2, eInOut(p)), lerp(3.2, 2.8, p), lerp(15, 13.5, p)), V(0.5, 2.4, 0), 44);
+    rise("SAME DATA. EVERY USER SEES WHAT THEY'RE ALLOWED TO.", W / 2, 150, seg(p, 0.02, 0.12), { size: 54, align: "center", alpha: life(p, 0.02, 0.78), track: -1 });
+    const [sx, sy] = toScreen(S0); label("stored in the database · never changed", sx, sy - 90, DIM, life(p, 0.05, 0.78), 16, "center");
+    text("ABCPK1234F", sx, sy + 110, { size: 34, mono: true, weight: 500, alpha: life(p, 0.05, 0.78), align: "center" });
+    const [px, py] = toScreen(P0); label("policy · rewrite · inside the database", px, py + 150, "#e7c8ff", life(p, 0.25, 0.78), 16, "center");
+    const roles = [["ADMIN", "ABCPK1234F", "raw value"], ["SUPPORT", "ABXXXXXXXF", "mg_partial(pan, 2, 1)"], ["ANALYST", "ab20ed0c…87c44b", "mg_token(pan) · hmac-sha-256"]];
+    roles.forEach(([r, v, how], i) => { const [x, y] = toScreen(outs[i]); const m = seg(p, 0.45 + i * 0.05, 0.6 + i * 0.05), a = life(p, 0.4 + i * 0.05, 0.78);
+      label(r, x + 30, y - 34, OUTC[i] === "#ffffff" ? INK : OUTC[i], a, 18);
+      text(morph("ABCPK1234F", v, m, i * 31), x + 30, y + 14, { size: v.length > 12 ? 34 : 42, mono: true, weight: 500, color: m >= 1 ? OUTC[i] : INK, alpha: a });
+      label(how, x + 30, y + 50, DIM, a * eOut(seg(m, 0.8, 1)), 14); });
+    const z = life(p, 0.78, 1.02);
+    if (z > 0) { const g = ui.createLinearGradient(0, 0, W * 0.75, 0); g.addColorStop(0, "rgba(6,2,16,0.92)"); g.addColorStop(1, "rgba(6,2,16,0)");
+      ui.save(); ui.globalAlpha = z; ui.fillStyle = g; ui.fillRect(0, 0, W, H); ui.restore(); }
+    rise("POLICY-DRIVEN.", 140, 470, seg(p, 0.78, 0.84), { size: 110, alpha: z, track: -3 });
+    rise("QUERY-TIME.", 140, 600, seg(p, 0.82, 0.88), { size: 110, alpha: z, track: -3 });
+    rise("INSIDE THE DATABASE.", 140, 730, seg(p, 0.86, 0.92), { size: 110, alpha: z, track: -3, color: "#35d7ff" });
+    label("the mask runs before where, join and order by see the value · a guess can't confirm it", 140, 800, DIM, z * eOut(seg(p, 0.9, 0.95)));
+  },
+  engines(p, t) {
+    show("engines"); layoutField(t, { amp: 0.1, base: "#06102a", rise: 0.3 });
+    const pos = [V(-6, 0, -2), V(0, 0, -4), V(6, 0, -2)];
+    towers.forEach((g, i) => { g.position.copy(pos[i]); g.rotation.y = t * 0.3 + i; g.scale.setScalar(eOut(seg(p, 0.05 + i * 0.08, 0.3 + i * 0.08)) + 0.001); });
+    ring.position.set(0, 4.6, 3); ring.rotation.set(Math.PI / 2 + Math.sin(t) * 0.1, 0, t * 0.6);
+    streams.forEach((b, i) => setBeam(b, pos[i].clone().add(V(0, 2.2, 0)), ring.position, eOut(seg(p, 0.3 + i * 0.06, 0.55 + i * 0.06)), 0.9));
+    cam(V(Math.sin(p * 0.8 - 0.4) * 14, 7, Math.cos(p * 0.8 - 0.4) * 14), V(0, 2.5, 0), 42);
+    rise("ONE PRIVACY CONTROL PLANE.", 140, 170, seg(p, 0.03, 0.13), { size: 64, alpha: life(p, 0.03, 1.02), track: -1 });
+    label("rest api · cli · python sdk · postgresql wire proxy", 140, 220, DIM, life(p, 0.08, 1.02));
+    ["SQLite", "PostgreSQL", "MySQL"].forEach((n, i) => { const [x, y] = toScreen(pos[i].clone().add(V(0, -0.6, 0))); text(n, x, y + 30, { size: 30, weight: 600, align: "center", color: "#9ec2ff", alpha: life(p, 0.15 + i * 0.08, 1.02) }); });
+  },
+  threat(p, t) {
+    show("threat"); layoutField(t, { amp: 0.1, base: "#1a0606", rise: 0.3 });
+    const shown = Math.floor(48 * seg(p, 0.05, 0.5));
+    bars.forEach((b, i) => { const burst = i > 32, h = burst ? 0.8 + (i - 32) * 0.32 : 0.6 + rnd(i) * 0.9; const alert = burst && h > 3.4;
+      b.visible = i < shown; b.position.set(-9 + i * 0.38, h / 2, 0); b.scale.set(1, h, 1); b.material.color.set(alert ? "#ff3b2f" : "#5f86c4").multiplyScalar(alert ? 2.4 : 1.0); });
+    chain.forEach((c, i) => { const k = eOut(seg(p, 0.55 + i * 0.07, 0.65 + i * 0.07)); c.visible = k > 0.01; c.position.set(-7 + i * 3.5, 7.2, -1); c.scale.setScalar(k + 0.001); });
+    links.forEach((l, i) => setBeam(l, V(-6.3 + i * 3.5, 7.2, -1), V(-4.2 + i * 3.5, 7.2, -1), eOut(seg(p, 0.62 + i * 0.07, 0.7 + i * 0.07)), 1));
+    cam(V(lerp(-2, 2, p), lerp(3.5, 5.5, p), 16), V(0, lerp(2, 4.5, seg(p, 0.45, 0.7)), 0), 46);
+    rise("DETECT UNUSUAL ACCESS.", 140, 170, seg(p, 0.03, 0.13), { size: 64, alpha: life(p, 0.03, 0.52), track: -1 });
+    label("rules + isolationforest · an enumeration pattern raises an alert · normal users are never blocked", 140, 220, DIM, life(p, 0.08, 0.52));
+    text("ALERT · enumeration · risk 87", 1780, 900, { size: 34, mono: true, weight: 500, align: "right", color: "#ff6a5a", alpha: life(p, 0.38, 0.55) });
+    rise("TRACE EVERY DECISION.", 140, 170, seg(p, 0.52, 0.6), { size: 64, alpha: life(p, 0.52, 1.02), track: -1 });
+    label("sha-256 hash chain · an edit, deletion or reorder breaks it", 140, 220, DIM, life(p, 0.55, 1.02));
+    ["9f3a…c21e", "51d0…7b42", "e8c4…09fa", "2b77…d613", "a0e9…4c58"].forEach((h, i) => { const [x, y] = toScreen(V(-7 + i * 3.5, 6.2, -1)); label(h, x, y + 20, "#ffb36b", eOut(seg(p, 0.6 + i * 0.07, 0.7 + i * 0.07)), 16, "center"); });
+  },
+  proof(p, t) {
+    show("none"); layoutField(t, { amp: 0.6, base: "#141826", rise: 0.6 });
+    cam(V(Math.sin(t * 0.1) * 6, 14, 18), V(0, 0, 0), 40);
+    const items = [["0 / 17", "bypass and inference attacks leaked, per role", "output-only masking: 14 of 17", "#ffffff"],
+                   ["672", "attack-matrix cases on three databases · 0 leaks", "sqlite · postgresql · mysql", "#9ec2ff"],
+                   ["35 / 35", "sensitive columns found in the organisers' bank data", "first contact: 22 of 35 found, 0 of 1,300 values leaked", "#c6f432"],
+                   ["1,320", "automated tests passed", "plus 45 end-to-end container checks", "#ffffff"]];
+    items.forEach(([big, what, scope, c], i) => { const a = life(p, i / 4, (i + 1) / 4 + 0.02);
+      rise(big, W / 2, 560, seg(p, i / 4, i / 4 + 0.06), { size: 230, weight: 600, align: "center", color: c, alpha: a, track: -8 });
+      text(what, W / 2, 660, { size: 38, weight: 400, align: "center", alpha: a }); label(scope, W / 2, 720, DIM, a, 18, "center"); });
+  },
+  brand(p, t) {
+    show("brand"); layoutField(t, { amp: 0.2, base: "#0b0d0b", collapse: eExpo(seg(p, 0, 0.45)), rise: 1 - seg(p, 0, 0.4) });
+    markFrame.position.set(0, 2.8, 0); markBar.position.set(0, 2.8, 0); markBar.scale.set(eOut(seg(p, 0.2, 0.45)) + 0.001, 1, 1);
+    markFrame.rotation.y = markBar.rotation.y = (1 - eOut(seg(p, 0, 0.5))) * 1.2;
+    cam(V(0, 2.8, lerp(30, 14, eOut(seg(p, 0, 0.6)))), V(0, 2.8, 0), 40);
+    text("MASKGUARD", W / 2, 840, { size: 120, weight: 600, align: "center", alpha: eOut(seg(p, 0.35, 0.55)), track: 10 });
+    label("discover · control · protect", W / 2, 900, "#c6f432", eOut(seg(p, 0.45, 0.62)), 26, "center");
+    text("AI discovers. Policy authorizes. The database enforces.", W / 2, 990, { size: 32, weight: 400, align: "center", alpha: eOut(seg(p, 0.55, 0.72)) });
+    label("talentap 2026 · bfsi b1 · team 0262 · pip install maskguard", W / 2, 1050, DIM, eOut(seg(p, 0.65, 0.82)), 15, "center");
+  },
+};
+function eExpo(x) { return x === 1 ? 1 : 1 - Math.pow(2, -10 * x); }
+
+// ------------------------------------------------------------------ frame
+function sceneAt(t) { let s0 = 0; for (const [n, d] of CUT) { if (t < s0 + d) return [n, (t - s0) / d, s0, d]; s0 += d; } const [n, d] = CUT[CUT.length - 1]; return [n, 1, s0 - d, d]; }
+function render(t) {
+  const [name, p, s0, d] = sceneAt(t);
+  // palette: blend into the next scene's colours over the last second
+  const idx = CUT.findIndex(([n]) => n === name), next = CUT[Math.min(idx + 1, CUT.length - 1)][0], b = seg(t, s0 + d - 1, s0 + d);
+  const pa = PAL[name].map(col), pb = PAL[next].map(col);
+  const mix = (i) => pa[i].clone().lerp(pb[i], b);
+  sky.material.uniforms.uT.value = t; sky.material.uniforms.uA.value = mix(0); sky.material.uniforms.uB.value = mix(1).multiplyScalar(0.55); sky.material.uniforms.uC.value = mix(2).multiplyScalar(0.6);
+  scene.fog.color.copy(mix(0)); bloom.strength = name === "enforce" ? 0.7 : 0.8;
+  ui.clearRect(0, 0, W, H);
+  S[name](p, t);
+  composer.render();
+  // cut flash on scene boundaries, letterbox fades at start and end
+  let bnd = 0; for (const [, dd] of CUT.slice(0, -1)) { bnd += dd; const k = 1 - Math.abs(t - bnd) / 0.35; if (k > 0) { ui.save(); ui.globalAlpha = k * 0.85; ui.fillStyle = "#000"; ui.fillRect(0, 0, W, H); ui.restore(); } }
+  ui.save(); ui.globalAlpha = 1 - eOut(seg(t, 0, 1)); ui.fillStyle = "#000"; ui.fillRect(0, 0, W, H); ui.restore();
+  ui.save(); ui.globalAlpha = seg(t, DURATION - 1.2, DURATION); ui.fillStyle = "#000"; ui.fillRect(0, 0, W, H); ui.restore();
+}
+window.DURATION = DURATION; window.render = render;
+let s0 = 0; window.CUES = CUT.map(([n, d]) => { const c = [n, s0, d]; s0 += d; return c; });
+window.ready = document.fonts.load("600 40px Plex").then(() => Promise.all(["400 10px Plex", "500 10px PlexMono"].map((f) => document.fonts.load(f)))).then(() => true);
+</script>
+</body>
+</html>

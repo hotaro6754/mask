@@ -118,13 +118,31 @@ const ROW = [["NAME", "Ravi Kumar"], ["PAN", "ABCPK1234F"], ["PHONE", "98765 432
 
 const SCENES = {
   hook(p, t) {
-    dataField(t, { alpha: eOut(seg(p, 0, 0.25)), lit: lerp(0.0, 0.07, seg(p, 0.1, 0.5)), zoom: lerp(1.25, 1, eInOut(p)), drift: p });
-    const g = ctx.createRadialGradient(W / 2, H / 2, 200, W / 2, H / 2, 1100); g.addColorStop(0, "rgba(13,14,16,0.2)"); g.addColorStop(1, "rgba(13,14,16,0.95)");
-    ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
-    rect(0, H / 2 - 170, W, 340, C.bg, 0.72 * eOut(seg(p, 0.08, 0.2)));
-    headline(["EVERY DATABASE HOLDS VALUE."], W / 2, H / 2 + 30, seg(p, 0.1, 0.32) * life(p, 0.1, 0.52), { size: 92, align: "center" });
-    headline(["NOT EVERY QUERY", "SHOULD ACCESS IT."], W / 2, H / 2 - 20, seg(p, 0.55, 0.78) * life(p, 0.55, 1.02), { size: 92, align: "center", color: C.ink });
-    rect(W / 2 - 240, H / 2 + 100, 480 * eOut(seg(p, 0.7, 0.9)), 4, C.lime, life(p, 0.7, 1.02));
+    // a plane of data cells seen in perspective; the camera dollies in while one query runs down a row
+    const camZ = lerp(-6, 4, eInOut(p)), camH = 3.2, f = 900, horizon = 330, a = eOut(seg(p, 0, 0.2));
+    const proj = (x, z) => { const dz = z - camZ; return dz <= 0.3 ? null : [W / 2 + (x * f) / dz, horizon + (camH * f) / dz]; };
+    const qz = lerp(-2, 34, eInOut(seg(p, 0.12, 0.85)));  // the query's position along its row
+    for (let z = 34; z >= -2; z--) for (let x = -14; x <= 14; x++) {
+      const c = [proj(x - 0.45, z - 0.45), proj(x + 0.45, z - 0.45), proj(x + 0.45, z + 0.45), proj(x - 0.45, z + 0.45)];
+      if (c.some((q) => !q)) continue;
+      const id = (x + 20) * 131 + z * 17, sensitive = rnd(id) < 0.16, onPath = x === 0 || x === 1;
+      const exposed = sensitive && x >= -2 && x <= 3 && z < qz;
+      const reach = exposed ? eOut(clamp((qz - z) / 3)) : 0;
+      const fog = clamp(1 - (z - camZ) / 34);
+      ctx.beginPath(); c.forEach(([u, v], k) => (k ? ctx.lineTo(u, v) : ctx.moveTo(u, v))); ctx.closePath();
+      ctx.globalAlpha = a * fog * (reach > 0 ? 0.95 : sensitive ? 0.5 : 0.38);
+      ctx.fillStyle = reach > 0 ? C.warm : sensitive ? "#2a2f20" : C.bg2; ctx.fill();
+      ctx.globalAlpha = a * fog * 0.6; ctx.strokeStyle = onPath && z < qz ? C.lime : C.line; ctx.lineWidth = 1; ctx.stroke();
+    }
+    ctx.globalAlpha = 1;
+    // the query itself: a bright head travelling down the row
+    const head = proj(0.5, qz);
+    if (head && p > 0.12 && p < 0.88) { const g = ctx.createRadialGradient(head[0], head[1], 0, head[0], head[1], 60); g.addColorStop(0, "rgba(198,244,50,0.9)"); g.addColorStop(1, "rgba(198,244,50,0)"); ctx.fillStyle = g; ctx.fillRect(head[0] - 60, head[1] - 60, 120, 120); }
+    const sky = ctx.createLinearGradient(0, 0, 0, H * 0.62); sky.addColorStop(0, "rgba(13,14,16,1)"); sky.addColorStop(1, "rgba(13,14,16,0)");
+    ctx.fillStyle = sky; ctx.fillRect(0, 0, W, H * 0.62);
+    headline(["EVERY DATABASE HOLDS VALUE."], W / 2, 250, seg(p, 0.1, 0.3) * life(p, 0.1, 0.5), { size: 88, align: "center" });
+    headline(["NOT EVERY QUERY SHOULD ACCESS IT."], W / 2, 250, seg(p, 0.55, 0.75) * life(p, 0.55, 1.02), { size: 88, align: "center" });
+    label("a support query · one row requested · every sensitive cell it touches is exposed", W / 2 - 520, 330, C.dim, life(p, 0.3, 0.9), 18);
   },
 
   problem(p, t) {
@@ -153,7 +171,7 @@ const SCENES = {
       text("SELECT name FROM customers", 200, 420, { size: 34, mono: true, weight: 500, color: C.dim, alpha: f });
       text("WHERE pan LIKE 'ABCPK%'", 200, 470, { size: 34, mono: true, weight: 500, color: C.ink, alpha: f });
       label("what the screen shows", 1100, 380, C.faint, f);
-      text("PAN  XXXXX1234X", 1100, 430, { size: 34, mono: true, color: C.dim, alpha: f });
+      text("PAN  ABXXXXXXXF", 1100, 430, { size: 34, mono: true, color: C.dim, alpha: f });
       const hit = eOut(seg(p, 0.82, 0.9));
       label("what the query learned", 1100, 520, C.warm, f * hit);
       text("1 row → his PAN starts ABCPK", 1100, 570, { size: 34, mono: true, color: C.warm, alpha: f * hit });
@@ -200,6 +218,64 @@ const SCENES = {
     text("Regex + check digits alone: 57%.  Column names alone: 32%.", x0 + 330, 705, { size: 26, weight: 400, color: C.dim, alpha: s });
   },
 
+  classify(p, t) {
+    // evidence, not magic: measured features of one column flow through boosted trees into class scores
+    const feats = [["pat_pan_shape", 1.0], ["val_pan  (check digit)", 0.96], ["len_mean", 0.62], ["frac_all_upper", 0.9],
+                   ["digits_mean", 0.4], ["char_entropy", 0.71], ["hdr_generic  (col_7)", 1.0]];
+    const a = life(p, 0, 1.02), x0 = 160;
+    text("EVIDENCE, NOT MAGIC.", x0, 170, { size: 60, weight: 600, alpha: a, track: -1 });
+    label("lightgbm · 99 measured features per column · 127 boosting rounds · 2.3 ms on a cpu", x0, 215, C.dim, a);
+    feats.forEach(([n, v], i) => {
+      const y = 320 + i * 82, k = eOut(seg(p, 0.05 + i * 0.03, 0.2 + i * 0.03)) * a;
+      label(n, x0, y, C.dim, k, 17); rect(x0, y + 14, 380, 10, C.bg2, k); rect(x0, y + 14, 380 * v * k, 10, i < 2 ? C.lime : C.steel, k);
+    });
+    // three trees of the ensemble; the column's path through each lights up
+    const trees = [[760, 330], [1040, 330], [1320, 330]], go = seg(p, 0.35, 0.7);
+    trees.forEach(([tx, ty], ti) => {
+      const k = eOut(seg(p, 0.25 + ti * 0.04, 0.4 + ti * 0.04)) * a;
+      feats.forEach((_, i) => line(x0 + 400, 344 + i * 82, tx, ty, C.faint, k * 0.35 * (1 - go)));
+      const levels = [[[tx, ty]], [[tx - 66, ty + 110], [tx + 66, ty + 110]], [[tx - 100, ty + 220], [tx - 33, ty + 220], [tx + 33, ty + 220], [tx + 100, ty + 220]]];
+      const path = [0, ti % 2, (ti % 2) * 2 + (ti === 1 ? 0 : 1)];
+      levels.forEach((lv, d) => lv.forEach(([nx, ny], ni) => {
+        if (d) { const par = levels[d - 1][Math.floor(ni / 2)]; const on = path[d] === ni && path[d - 1] === Math.floor(ni / 2);
+          line(par[0], par[1], nx, ny, on ? C.lime : C.faint, k * (on ? eOut(seg(go, d * 0.3, d * 0.3 + 0.3)) : 0.5), on ? 3 : 1.2); }
+        const lit = path[d] === ni && go > d * 0.3;
+        ctx.save(); ctx.globalAlpha = k; ctx.fillStyle = lit ? C.lime : C.bg; ctx.strokeStyle = lit ? C.lime : C.steel; ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.arc(nx, ny, d === 2 ? 9 : 12, 0, 7); ctx.fill(); ctx.stroke(); ctx.restore();
+      }));
+      label(`tree ${[1, 2, 127][ti]}`, tx - 30, ty + 280, C.faint, k, 15);
+    });
+    text("…", 1180, 620, { size: 40, color: C.faint, alpha: a, align: "center" });
+    // class scores, summed over the trees
+    const sc = [["PAN", 0.99, C.lime], ["PASSPORT", 0.004, C.steel], ["VOTER ID", 0.003, C.steel], ["NOT PERSONAL", 0.002, C.steel]];
+    sc.forEach(([n, v, col], i) => {
+      const y = 360 + i * 90, k = eOut(seg(p, 0.66 + i * 0.03, 0.8 + i * 0.03)) * a;
+      label(n, 1530, y, i ? C.dim : C.lime, k, 18); rect(1530, y + 16, 240, 12, C.bg2, k); rect(1530, y + 16, 240 * Math.max(v, 0.02) * k, 12, col, k);
+      text(v.toFixed(3), 1770, y, { size: 20, mono: true, align: "right", color: i ? C.dim : C.ink, alpha: k });
+    });
+  },
+
+  policy(p, t) {
+    // the decision is written down: each role, each sensitivity, one action (policies/default.yaml)
+    const tags = ["PII_HIGH", "FINANCIAL", "PII_MEDIUM", "HEALTH", "UNREVIEWED"];
+    const rows = [["ADMIN", ["allow", "allow", "allow", "allow", "allow"]], ["SUPPORT", ["partial", "partial", "allow", "redact", "redact"]],
+                  ["ANALYST", ["hmac", "aggregate", "redact", "hmac", "redact"]], ["AUDITOR", ["redact", "redact", "redact", "redact", "redact"]]];
+    const a = life(p, 0, 1.02), x0 = 420, cw = 250, y0 = 380;
+    text("ACCESS IS A DECISION, WRITTEN DOWN.", 160, 170, { size: 60, weight: 600, alpha: a, track: -1 });
+    label("policies/default.yaml · versioned · every change audited · unknown means deny", 160, 215, C.dim, a);
+    tags.forEach((g, i) => label(g, x0 + i * cw + 20, y0 - 30, i === 0 ? C.lime : C.faint, a * eOut(seg(p, 0.05, 0.15)), 17));
+    rows.forEach(([r, acts], ri) => {
+      const y = y0 + ri * 110, k = eOut(seg(p, 0.08 + ri * 0.05, 0.2 + ri * 0.05)) * a;
+      label(r, 160, y + 50, C.steel, k, 22);
+      acts.forEach((act, ci) => {
+        const c = eOut(seg(p, 0.15 + ri * 0.05 + ci * 0.025, 0.3 + ri * 0.05 + ci * 0.025)) * a, hot = ci === 0 && p > 0.55;
+        strokeRect(x0 + ci * cw, y, cw - 14, 86, hot ? C.lime : C.line, c, hot ? 2 : 1);
+        text(act, x0 + ci * cw + 20, y + 54, { size: 28, mono: true, weight: 500, color: act === "allow" ? C.ink : hot ? C.lime : C.dim, alpha: c });
+      });
+    });
+    label("one pan column · four roles · four outcomes →", x0, y0 + 470, C.lime, eOut(seg(p, 0.6, 0.75)) * a, 18);
+  },
+
   enforce(p, t) {
     // the query enters, is parsed into a tree, meets the role's policy, and is rewritten before the database runs it
     const q = "SELECT name, pan, phone FROM customers";
@@ -218,7 +294,7 @@ const SCENES = {
       text(n, x, y + 4, { size: 26, mono: true, align: "center", alpha: k, color: i === 4 ? C.steel : C.ink });
     });
     // three lanes: the same stored value, three answers
-    const lanes = [["ADMIN", "ABCPK1234F", "authorised · raw value", C.ink], ["SUPPORT", "XXXXX1234X", "mg_partial(pan, 0, 4)", C.lime], ["ANALYST", "tok_7f3a9c21", "mg_token(pan) · HMAC", C.steel]];
+    const lanes = [["ADMIN", "ABCPK1234F", "authorised · raw value", C.ink], ["SUPPORT", "ABXXXXXXXF", "mg_partial(pan, 2, 1)", C.lime], ["ANALYST", "ab20ed0c…87c44b", "mg_token(pan) · HMAC-SHA-256", C.steel]];
     const L = life(p, 0.3, 0.8);
     if (L > 0) {
       label("stored in the database · never changed", 160, 330, C.faint, L);
@@ -231,7 +307,7 @@ const SCENES = {
         // the policy gate
         rect(1140, y + 6, 14, 60, col === C.ink ? C.faint : C.lime, k);
         const m = seg(p, 0.45 + i * 0.06, 0.6 + i * 0.06);
-        text(morph("ABCPK1234F", val, m, i * 31), 1200, y + 50, { size: 44, mono: true, weight: 500, color: m >= 1 ? col : C.ink, alpha: k });
+        text(morph("ABCPK1234F", val, m, i * 31), 1200, y + 50, { size: val.length > 12 ? 36 : 44, mono: true, weight: 500, color: m >= 1 ? col : C.ink, alpha: k });
         text(how, 1560, y + 48, { size: 22, mono: true, color: C.dim, alpha: k * eOut(seg(m, 0.8, 1)) });
       });
     }
@@ -322,8 +398,8 @@ const SCENES = {
 
 // ------------------------------------------------------------------ the two cuts
 const CUTS = {
-  master: [["hook", 8], ["problem", 12], ["discovery", 14], ["enforce", 18], ["engines", 6], ["threat", 12], ["proof", 12], ["brand", 8]],
-  cut: [["hook", 5], ["problem", 9], ["discovery", 11], ["enforce", 15], ["engines", 4], ["threat", 5], ["proof", 7], ["brand", 4]],
+  master: [["hook", 9], ["problem", 12], ["discovery", 11], ["classify", 9], ["policy", 7], ["enforce", 18], ["engines", 6], ["threat", 11], ["proof", 10], ["brand", 8]],
+  cut: [["hook", 5], ["problem", 7], ["discovery", 7], ["classify", 5], ["policy", 4], ["enforce", 13], ["engines", 3], ["threat", 5], ["proof", 6], ["brand", 5]],
 };
 const CUT = CUTS[(location.hash || "#master").slice(1)];
 const DURATION = CUT.reduce((s, [, d]) => s + d, 0);

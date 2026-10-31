@@ -1,0 +1,18 @@
+{
+  "name": "launch-film",
+  "version": "1.0.0",
+  "description": "A 90-second product film and a 60-second cutdown, made entirely in code: no screen recording, stock footage, samples or templates. Every frame is a pure function of time, so a render is identical every time.",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@fontsource-variable/inter": "^5.1.0",
+    "gsap": "^3.12.5",
+    "lucide-static": "^0.460.0",
+    "three": "^0.169.0"
+  }
+}

@@ -6,16 +6,19 @@ const path = require("path");
 const fs = require("fs");
 
 const [cut, out, flag, ...stills] = process.argv.slice(2);
+const PAGE = process.env.FILM || "film.html";
 const FPS = 30;
 
 (async () => {
-  const browser = await chromium.launch();
+  const browser = await chromium.launch({ args: ["--use-angle=swiftshader", "--enable-unsafe-swiftshader", "--ignore-gpu-blocklist"] });
   const page = await browser.newPage({ viewport: { width: 1920, height: 1080 } });
-  await page.goto("file://" + path.join(__dirname, "film.html") + "#" + cut);
+  await page.goto(`http://127.0.0.1:${process.env.PORT || 8765}/src/${PAGE}#${cut}`);
+  await page.waitForFunction(() => window.ready !== undefined);
   await page.evaluate(() => window.ready);
   const duration = await page.evaluate(() => window.DURATION);
   fs.writeFileSync(out.replace(/\.mp4$/, ".cues.json"), JSON.stringify(await page.evaluate(() => window.CUES)));
-  const canvas = await page.$("canvas");
+  fs.writeFileSync(out.replace(/\.mp4$/, ".sfx.json"), JSON.stringify(await page.evaluate(() => window.SFX || [])));
+  const canvas = await page.$(process.env.FILM ? "#stage" : "canvas");
   if (flag === "--preview") {  // single frames for inspection
     for (const s of stills) {
       await page.evaluate((t) => window.render(t), Number(s));

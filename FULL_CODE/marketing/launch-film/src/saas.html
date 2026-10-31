@@ -1,0 +1,317 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>MaskGuard launch film</title>
+<style>
+  @font-face { font-family: Inter; src: url(/node_modules/@fontsource-variable/inter/files/inter-latin-wght-normal.woff2) format("woff2"); font-weight: 100 900; }
+  @font-face { font-family: Mono; src: url(plex-mono-400.woff2); font-weight: 400; }
+  @font-face { font-family: Mono; src: url(plex-mono-500.woff2); font-weight: 500; }
+  :root { --ivory: #f2f0eb; --ink: #0b0b0c; --muted: #6b6a66; --line: #d9d6cf; --indigo: #2e3cff; --violet: #2e3cff;
+          --sky: #2e3cff; --lime: #2e3cff; --coral: #ff4f1a; --amber: #ff4f1a; --card: #fbfaf7; }
+  * { box-sizing: border-box; margin: 0; }
+  html, body { width: 1920px; height: 1080px; overflow: hidden; background: var(--ivory); font-family: Inter, sans-serif; color: var(--ink); }
+  #stage { position: relative; width: 1920px; height: 1080px; overflow: hidden; background: var(--ivory); }
+  /* backdrop: soft light gradients, slow rays, film grain */
+  .blob { position: absolute; border-radius: 50%; filter: blur(90px); opacity: .55; }
+  #rays { position: absolute; inset: -40%; background: conic-gradient(from 200deg at 50% 60%, transparent 0 8%, rgba(139,92,246,.22) 10%, transparent 14%, rgba(56,189,248,.18) 20%, transparent 25%, rgba(245,158,11,.16) 31%, transparent 36%, rgba(240,90,60,.12) 42%, transparent 47%); filter: blur(30px); opacity: 0; }
+  #grain { position: absolute; inset: -50px; pointer-events: none; opacity: .07; z-index: 50;
+           background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='240' height='240'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 .55 0'/></filter><rect width='240' height='240' filter='url(%23n)'/></svg>"); }
+  #cam { position: absolute; inset: 0; perspective: 2200px; }
+  .shot { position: absolute; inset: 0; opacity: 0; visibility: hidden; transform-style: preserve-3d; }
+  .center { display: flex; align-items: center; justify-content: center; flex-direction: column; }
+  .h1 { font-size: 150px; font-weight: 700; letter-spacing: -6px; line-height: .95; }
+  .h2 { font-size: 92px; font-weight: 700; letter-spacing: -3.5px; line-height: 1; }
+  .h3 { font-size: 56px; font-weight: 650; letter-spacing: -1.8px; line-height: 1.05; }
+  .sub { font-size: 28px; color: var(--muted); font-weight: 450; letter-spacing: -.3px; }
+  .eyebrow { font: 500 18px Mono; letter-spacing: 3px; text-transform: uppercase; color: var(--indigo); }
+  .word { display: inline-block; }
+  .grad { color: var(--indigo); }
+  #grid { position: absolute; inset: 0; background-image: linear-gradient(to right, rgba(11,11,12,.06) 1px, transparent 1px); background-size: 160px 100%; }
+  .foot { position: absolute; inset: 0; width: 1920px; height: 1080px; object-fit: cover; }
+  .scrim { position: absolute; inset: 0; background: linear-gradient(0deg, rgba(11,11,12,.72), rgba(11,11,12,.05) 55%); }
+  .ftxt { position: absolute; left: 120px; bottom: 110px; color: #f2f0eb; }
+  .idx { position: absolute; left: 120px; top: 90px; font: 500 18px Mono; letter-spacing: 3px; color: #f2f0eb; text-transform: uppercase; }
+  .card { position: absolute; background: var(--card); border: 1px solid var(--ink); border-radius: 4px; box-shadow: 10px 10px 0 rgba(11,11,12,.07); }
+  .mono { font-family: Mono; }
+  .pill { display: inline-flex; align-items: center; gap: 10px; padding: 10px 18px; border-radius: 4px; font-weight: 600; font-size: 20px; }
+  .ico { width: 26px; height: 26px; background: currentColor; -webkit-mask-size: contain; -webkit-mask-repeat: no-repeat; -webkit-mask-position: center; display: inline-block; }
+  table { border-collapse: collapse; width: 100%; }
+  td, th { text-align: left; padding: 16px 22px; border-bottom: 1px solid var(--line); font-size: 24px; }
+  th { font: 500 15px Mono; letter-spacing: 2px; text-transform: uppercase; color: var(--muted); }
+  .hot { background: rgba(255,79,26,.10); color: #e0400f; }
+  #cursor { position: absolute; width: 34px; height: 34px; z-index: 40; left: 0; top: 0; opacity: 0; }
+  .ripple { position: absolute; width: 80px; height: 80px; border-radius: 50%; border: 3px solid var(--indigo); opacity: 0; z-index: 39; }
+  .bar { height: 10px; border-radius: 6px; background: #ecebf3; overflow: hidden; } .bar > i { display: block; height: 100%; width: 0; border-radius: 6px; }
+  .chip { display: inline-flex; align-items: center; gap: 8px; padding: 8px 14px; border-radius: 3px; font: 600 18px Mono; }
+</style>
+</head>
+<body>
+<div id="stage">
+  <div id="grid"></div><div id="rays" style="display:none"></div>
+  <div id="cam">
+    <section class="shot" id="s-f1"><img class="foot" data-clip="35580"><div class="scrim"></div><div class="idx">(01) &nbsp;MaskGuard — privacy at the query layer</div>
+      <div class="ftxt"><div class="h1" style="color:#f2f0eb">Every bank<br>runs on data.</div></div></section>
+    <section class="shot" id="s-f2"><img class="foot" data-clip="38481"><div class="scrim"></div><div class="idx">(02) &nbsp;customer records</div>
+      <div class="ftxt"><div class="h1" style="color:#f2f0eb">Names. PANs.<br>Cards. Balances.</div></div></section>
+    <section class="shot" id="s-f3"><img class="foot" data-clip="24604"><div class="scrim"></div><div class="idx">(03) &nbsp;access</div>
+      <div class="ftxt"><div class="h1" style="color:#f2f0eb">Everyone gets<br>the <span style="color:#ff4f1a">same key.</span></div></div></section>
+    <section class="shot" id="s-f4"><img class="foot" data-clip="23282"><div class="scrim"></div><div class="idx">(06) &nbsp;enforcement</div>
+      <div class="ftxt"><div class="h1" style="color:#f2f0eb">Masked inside<br>the database.</div><div class="sub" style="color:#d9d6cf;margin-top:24px">Before a filter, join or sort ever sees the real value.</div></div></section>
+    <!-- 1 hook -->
+    <section class="shot center" id="s-hook"><div class="h1" id="hook1"><span class="word">Your</span> <span class="word">data</span> <span class="word">is</span> <span class="word grad">everywhere.</span></div>
+      <div class="sub" id="hook2" style="margin-top:34px">Customer records, PANs, phone numbers, balances: in every query your team runs.</div></section>
+    <!-- 2 one table, everyone sees all -->
+    <section class="shot" id="s-table">
+      <div class="h3" id="t-title" style="position:absolute;left:150px;top:120px">Every query <span class="grad">sees everything.</span></div>
+      <div class="card" id="t-card" style="left:150px;top:260px;width:1100px;padding:10px 0">
+        <table><tr><th>name</th><th>pan</th><th>phone</th><th>balance</th></tr>
+          <tr><td>Ravi Kumar</td><td class="mono pc">ABCPK1234F</td><td class="mono pc">98765 43210</td><td class="mono pc">₹2,40,000</td></tr>
+          <tr><td>Sita Devi</td><td class="mono pc">BNZPM2501F</td><td class="mono pc">91234 56780</td><td class="mono pc">₹18,250</td></tr>
+          <tr><td>Arjun Rao</td><td class="mono pc">CLMPS0921Q</td><td class="mono pc">99887 76655</td><td class="mono pc">₹7,02,113</td></tr>
+          <tr><td>Meera Nair</td><td class="mono pc">DXEPK7712R</td><td class="mono pc">90011 22334</td><td class="mono pc">₹96,400</td></tr></table>
+      </div>
+      <div id="roles" style="position:absolute;left:1340px;top:280px;display:flex;flex-direction:column;gap:26px">
+        <div class="card role" style="position:relative;padding:24px 28px;width:430px"><div class="eyebrow">support</div><div class="sub" style="font-size:24px;margin-top:6px">needs the ticket</div></div>
+        <div class="card role" style="position:relative;padding:24px 28px;width:430px"><div class="eyebrow">analyst</div><div class="sub" style="font-size:24px;margin-top:6px">needs the trend</div></div>
+        <div class="card role" style="position:relative;padding:24px 28px;width:430px"><div class="eyebrow">contractor</div><div class="sub" style="font-size:24px;margin-top:6px">needs the schema</div></div>
+      </div>
+      <div class="pill" id="t-warn" style="position:absolute;left:1340px;top:780px;background:#fff1ec;color:#c2361c;border:1px solid #fbd0c3">All three get every column</div>
+    </section>
+    <!-- 3 screen masking fails -->
+    <section class="shot center" id="s-leak">
+      <div class="h2" id="l-title">Hiding it on screen <span class="grad">isn't enough.</span></div>
+      <div style="display:flex;gap:40px;margin-top:70px;align-items:stretch">
+        <div class="card" id="l-q" style="position:relative;padding:34px 40px;width:640px"><div class="eyebrow" style="color:var(--muted)">what a support agent types</div>
+          <div class="mono" style="font-size:30px;margin-top:18px;line-height:1.5">SELECT name FROM customers<br><b style="color:var(--indigo)">WHERE pan LIKE 'ABCPK%'</b></div></div>
+        <div class="card" id="l-r" style="position:relative;padding:34px 40px;width:640px"><div class="eyebrow" style="color:var(--muted)">what comes back</div>
+          <div class="mono" style="font-size:30px;margin-top:18px">pan &nbsp;ABXXXXXXXF</div>
+          <div class="pill" id="l-badge" style="margin-top:22px;background:#fff1ec;color:#c2361c">1 row → his PAN starts ABCPK</div></div>
+      </div>
+      <div class="sub" id="l-foot" style="margin-top:44px;font-size:24px">Output-only masking leaked 14 of the 17 attacks in our test suite.</div>
+    </section>
+    <!-- 4 meet -->
+    <section class="shot center" id="s-meet"><div class="h1" id="meet" style="font-size:230px;letter-spacing:-10px">Meet</div>
+      <div id="logo" style="display:flex;align-items:center;gap:30px;margin-top:10px">
+        <div id="mark" style="width:120px;height:120px;border:9px solid var(--ink);border-radius:6px;position:relative"><i id="markbar" style="position:absolute;left:18px;right:18px;top:42px;height:20px;border-radius:2px;background:var(--indigo)"></i></div>
+        <div style="font-size:130px;font-weight:750;letter-spacing:-5px">MaskGuard</div></div>
+      <div class="sub" id="meet-sub" style="margin-top:28px;font-size:34px">Privacy enforced where your data lives: inside the query.</div></section>
+    <!-- 5 discover -->
+    <section class="shot" id="s-scan">
+      <div style="position:absolute;left:150px;top:150px;width:620px"><div class="eyebrow">01 · discover</div><div class="h2" style="margin-top:20px" id="d-title">Finds what your schema hides.</div>
+        <div class="sub" style="margin-top:26px" id="d-sub">Column names lie. MaskGuard reads the values: check digits, a LightGBM model and a person who approves.</div>
+        <div id="d-stat" style="margin-top:56px"><div class="h1 grad" style="font-size:140px" id="d-num">0%</div><div class="sub" style="font-size:22px">of personal columns found in 9,780 columns it never trained on · regex alone: 57%</div></div></div>
+      <div class="card" id="d-card" style="left:880px;top:150px;width:900px;padding:30px">
+        <div style="display:flex;justify-content:space-between;align-items:center"><div style="font-weight:650;font-size:28px">customers · 6 columns</div>
+          <div class="pill" id="d-btn" style="background:var(--indigo);color:#fff"><span class="ico" style="-webkit-mask-image:url(/node_modules/lucide-static/icons/scan-search.svg)"></span>Scan</div></div>
+        <div class="bar" style="margin:24px 0 10px"><i id="d-prog" style="background:linear-gradient(90deg,var(--indigo),var(--sky))"></i></div>
+        <div id="d-rows"></div></div>
+    </section>
+    <!-- 6 policy -->
+    <section class="shot" id="s-policy">
+      <div style="position:absolute;left:150px;top:150px;width:600px"><div class="eyebrow">02 · decide</div><div class="h2" style="margin-top:20px">Access is a decision, written down.</div>
+        <div class="sub" style="margin-top:26px">One policy file: each role, each kind of data, one action. Versioned, audited. Unknown means deny.</div></div>
+      <div class="card" id="p-card" style="left:860px;top:170px;width:920px;padding:20px 10px"><table id="p-table"></table></div>
+    </section>
+    <!-- 7 hero: one value, three answers -->
+    <section class="shot" id="s-hero">
+      <div class="center" style="position:absolute;left:0;right:0;top:90px"><div class="eyebrow">03 · enforce</div><div class="h2" style="margin-top:18px" id="h-title">Same data. <span class="grad">Three answers.</span></div></div>
+      <div class="card" id="h-q" style="left:610px;top:300px;width:700px;padding:26px 34px;text-align:center"><div class="eyebrow" style="color:var(--muted)">one query · stored value never changes</div>
+        <div class="mono" style="font-size:30px;margin-top:14px">SELECT name, pan FROM customers</div></div>
+      <svg id="h-lines" width="1920" height="1080" style="position:absolute;left:0;top:0"><path id="hl0" d="M960 430 C 960 520, 430 520, 430 600" stroke="#0b0b0c" stroke-width="3" fill="none"/><path id="hl1" d="M960 430 L 960 600" stroke="#0b0b0c" stroke-width="3" fill="none"/><path id="hl2" d="M960 430 C 960 520, 1490 520, 1490 600" stroke="#0b0b0c" stroke-width="3" fill="none"/></svg>
+      <div id="h-outs"></div>
+      <div class="sub center" id="h-foot" style="position:absolute;left:0;right:0;top:960px;font-size:26px">Masked inside the database, before WHERE, JOIN or ORDER BY can see the value.</div>
+    </section>
+    <!-- 8 integrations -->
+    <section class="shot center" id="s-int"><div class="eyebrow">04 · drop in</div><div class="h2" style="margin-top:18px">Works with the database you have.</div>
+      <div id="i-row" style="display:flex;gap:28px;margin-top:70px"></div><div id="i-row2" style="display:flex;gap:20px;margin-top:34px"></div>
+      <div class="sub" style="margin-top:46px">No data copies. Runs offline on a CPU: no customer value ever leaves the bank.</div></section>
+    <!-- 9 threats and audit -->
+    <section class="shot" id="s-threat">
+      <div style="position:absolute;left:150px;top:150px;width:640px"><div class="eyebrow">05 · prove</div><div class="h2" style="margin-top:20px">Sees the unusual. Records everything.</div>
+        <div class="sub" style="margin-top:26px">Rules and an IsolationForest flag enumeration and probing. Every decision lands in a SHA-256 hash chain.</div></div>
+      <div class="card" id="a-chart" style="left:880px;top:150px;width:900px;height:330px;padding:28px"><div class="eyebrow" style="color:var(--muted)">queries per minute · intruder.ian</div><div id="a-bars" style="position:absolute;left:28px;right:28px;bottom:28px;height:220px;display:flex;align-items:flex-end;gap:8px"></div></div>
+      <div class="card" id="a-toast" style="left:1260px;top:110px;padding:18px 24px;display:flex;gap:14px;align-items:center;border-color:#fbd0c3"><span class="ico" style="color:var(--coral);-webkit-mask-image:url(/node_modules/lucide-static/icons/siren.svg)"></span><div><b style="font-size:22px">Alert · enumeration</b><div class="sub" style="font-size:18px">risk 87 · session flagged</div></div></div>
+      <div id="a-chain" style="position:absolute;left:880px;top:540px;display:flex;gap:18px"></div>
+    </section>
+    <!-- 10 proof -->
+    <section class="shot center" id="s-proof"><div class="eyebrow">measured, not promised</div>
+      <div id="pf" style="display:grid;grid-template-columns:repeat(4,370px);gap:28px;margin-top:40px"></div>
+      <div class="sub" style="margin-top:40px;font-size:20px">Our test suites and public benchmarks · SQLite, PostgreSQL 16, MySQL 8.4 · docs/AI_EVALUATION.md</div></section>
+    <!-- 11 close -->
+    <section class="shot center" id="s-end">
+      <div style="display:flex;align-items:center;gap:30px"><div style="width:110px;height:110px;border:9px solid var(--ink);border-radius:6px;position:relative"><i id="endbar" style="position:absolute;left:16px;right:16px;top:37px;height:20px;border-radius:2px;background:var(--indigo)"></i></div>
+        <div style="font-size:120px;font-weight:750;letter-spacing:-5px">MaskGuard</div></div>
+      <div class="h3" style="margin-top:40px" id="e-line"><span class="word">Find.</span> <span class="word">Hide.</span> <span class="word grad">Prove.</span></div>
+      <div class="sub" style="margin-top:26px" id="e-sub">AI discovers. Policy authorizes. The database enforces.</div>
+      <div class="pill mono" id="e-pip" style="margin-top:44px;background:var(--ink);color:#fff;font-family:Mono;font-weight:500">$ pip install maskguard</div>
+      <div class="sub" style="position:absolute;bottom:60px;font-size:18px" id="e-team">TalentAP 2026 · BFSI B1 · Team 0262 · Music: "Volatile Reaction", Kevin MacLeod (incompetech.com), CC BY 4.0</div></section>
+  </div>
+  <div class="ripple" id="ripple"></div>
+  <svg id="cursor" viewBox="0 0 24 24"><path d="M3 2 L20 12 L12 13.5 L8.5 21 Z" fill="#0e1020" stroke="#fff" stroke-width="1.5" stroke-linejoin="round"/></svg>
+  <div id="grain"></div>
+</div>
+<script src="/node_modules/gsap/dist/gsap.min.js"></script>
+<script>
+// Light, kinetic product film. One paused GSAP timeline; render(t) seeks it, so each frame is a pure function of time.
+const $ = (s) => document.querySelector(s), $$ = (s) => [...document.querySelectorAll(s)];
+const CUTS = {
+  master: [["f1", 4.5], ["f2", 4], ["f3", 4.5], ["table", 8], ["leak", 8], ["meet", 6], ["scan", 12], ["policy", 7], ["f4", 4.5], ["hero", 14], ["int", 6], ["threat", 8], ["proof", 8], ["end", 8]],
+  cut: [["f1", 3.5], ["f2", 3], ["f3", 3.5], ["table", 5], ["leak", 6], ["meet", 4], ["scan", 8], ["f4", 3.5], ["hero", 11], ["int", 3.5], ["proof", 5], ["end", 4]],
+};
+const CUT = CUTS[(location.hash || "#master").slice(1)].filter(([, d]) => d > 0);
+const DURATION = CUT.reduce((s, [, d]) => s + d, 0);
+const SFX = []; // [seconds, name] for the sound mix
+const E = "expo.out", E2 = "power3.inOut";
+const tl = gsap.timeline({ paused: true });
+const GLYPHS = "ABCDEFGHJKLMNPQRSTUVWXYZ0123456789";
+function morphText(el, from, to, at, dur) {
+  const o = { k: 0 };
+  tl.to(o, { k: 1, duration: dur, ease: "none", onUpdate() {
+    let s = ""; const n = Math.max(from.length, to.length);
+    for (let i = 0; i < n; i++) { const a = Math.min(1, Math.max(0, o.k * 1.4 - (i / n) * 0.4));
+      s += a >= 1 ? to[i] || "" : a <= 0 ? from[i] || "" : GLYPHS[(i * 7 + Math.floor(a * 9) * 13) % GLYPHS.length]; }
+    el.textContent = s; } }, at);
+}
+function count(el, to, at, dur, fmt) { const o = { v: 0 }; tl.to(o, { v: to, duration: dur, ease: "power2.out", onUpdate() { el.textContent = fmt(o.v); } }, at); }
+function click(x, y, at) {
+  tl.to("#cursor", { x, y, duration: 0.7, ease: E2 }, at - 0.7).to("#cursor", { scale: 0.82, duration: 0.08, yoyo: true, repeat: 1 }, at)
+    .fromTo("#ripple", { x: x - 40, y: y - 40, scale: 0.3, opacity: 0.8 }, { scale: 1.4, opacity: 0, duration: 0.6, ease: "power2.out", immediateRender: false }, at);
+  SFX.push([at, "click"]);
+}
+
+// build the per-shot content that is data-driven
+const COLS = [["col_7", "PAN", "0.99", "#2e3cff"], ["ref", "UPI ID", "0.97", "#2e3cff"], ["field_x", "PHONE", "1.00", "#2e3cff"], ["acct", "ACCOUNT", "0.93", "#2e3cff"], ["bal", "BALANCE", "0.88", "#2e3cff"], ["status", "NOT PERSONAL", "—", "#6b6a66"]];
+$("#d-rows").innerHTML = COLS.map(([c, k, p, col]) => `<div class="drow" style="display:flex;justify-content:space-between;align-items:center;padding:16px 4px;border-bottom:1px solid var(--line)"><span class="mono" style="font-size:24px">${c}</span><span class="chip" style="background:${col}1a;color:${col}">${k} · ${p}</span></div>`).join("");
+const POL = [["", "PII_HIGH", "FINANCIAL", "PII_MEDIUM", "UNREVIEWED"], ["Admin", "allow", "allow", "allow", "allow"], ["Support", "partial", "partial", "allow", "redact"], ["Analyst", "hmac", "aggregate", "redact", "redact"], ["Auditor", "redact", "redact", "redact", "redact"]];
+const PCOL = { allow: "#0b0b0c", partial: "#2e3cff", hmac: "#2e3cff", aggregate: "#2e3cff", redact: "#8d8b85" };
+$("#p-table").innerHTML = POL.map((r, i) => `<tr>${r.map((c, j) => i === 0 ? `<th>${c}</th>` : j === 0 ? `<td style="font-weight:650">${c}</td>` : `<td><span class="chip pcell" style="background:${PCOL[c]}14;color:${PCOL[c]}">${c}</span></td>`).join("")}</tr>`).join("");
+const OUTS = [["Admin", "raw value", "ABCPK1234F", "#0b0b0c", "user"], ["Support", "mg_partial · keeps 2 + 1", "ABXXXXXXXF", "#2e3cff", "headset"], ["Analyst", "mg_token · HMAC-SHA-256", "ab20ed0c…87c44b", "#2e3cff", "chart-line"]];
+$("#h-outs").innerHTML = OUTS.map(([r, how, v, c, ic], i) => `<div class="card hout" style="left:${[180, 710, 1240][i]}px;top:600px;width:500px;padding:30px 34px"><div style="display:flex;align-items:center;gap:12px"><span class="ico" style="color:${c};-webkit-mask-image:url(/node_modules/lucide-static/icons/${ic}.svg)"></span><b style="font-size:26px">${r}</b></div><div class="mono hv" style="font-size:44px;margin-top:20px;color:${c}">ABCPK1234F</div><div class="sub mono" style="font-size:18px;margin-top:12px">${how}</div></div>`).join("");
+$("#i-row").innerHTML = [["SQLite", "database"], ["PostgreSQL", "database"], ["MySQL", "database"]].map(([n, ic]) => `<div class="card ii" style="position:relative;padding:30px 44px;display:flex;gap:16px;align-items:center;font-size:34px;font-weight:650"><span class="ico" style="width:36px;height:36px;color:var(--indigo);-webkit-mask-image:url(/node_modules/lucide-static/icons/${ic}.svg)"></span>${n}</div>`).join("");
+$("#i-row2").innerHTML = [["REST API", "plug"], ["CLI", "terminal"], ["Python SDK", "sparkles"], ["PostgreSQL wire proxy", "server"]].map(([n, ic]) => `<div class="pill ii2" style="background:#fff;border:1px solid var(--line)"><span class="ico" style="width:22px;height:22px;color:var(--violet);-webkit-mask-image:url(/node_modules/lucide-static/icons/${ic}.svg)"></span>${n}</div>`).join("");
+$("#a-bars").innerHTML = Array.from({ length: 40 }, (_, i) => `<i class="abar" style="flex:1;border-radius:4px 4px 0 0;height:${i > 28 ? 22 + (i - 28) * 7 : 18 + ((i * 37) % 23)}%;background:${i > 34 ? "var(--coral)" : "#c9c6be"}"></i>`).join("");
+$("#a-chain").innerHTML = [["support · allow", "9f3a…c21e"], ["analyst · tokens", "51d0…7b42"], ["intruder · reject", "e8c4…09fa"], ["admin · allow", "2b77…d613"]].map(([w, h], i) => `<div class="card ch" style="position:relative;padding:18px 20px;width:205px"><div class="eyebrow" style="font-size:13px;color:${i === 2 ? "var(--coral)" : "var(--muted)"}">entry ${1204 + i}</div><div style="font-size:18px;margin-top:8px;font-weight:600">${w}</div><div class="mono" style="font-size:16px;margin-top:8px;color:var(--indigo)">${h}</div></div>`).join("");
+$("#pf").innerHTML = [["0", "/17", "attacks leaked, per role"], ["672", "", "attack-matrix cases, 0 leaks"], ["35", "/35", "sensitive columns found in the organisers' bank data"], ["1,320", "", "automated tests passed"]].map(([n, s, w], i) => `<div class="card pfc" style="position:relative;padding:40px 34px"><div class="h1 ${i === 0 ? "grad" : ""}" style="font-size:110px;letter-spacing:-5px"><span class="pfn">${n}</span><span style="font-size:60px;color:var(--muted)">${s}</span></div><div class="sub" style="font-size:22px;margin-top:14px">${w}</div></div>`).join("");
+
+// shots: each gets (start, duration) and animates in fractions of it
+const CLIPS = []; // [img, start]: the footage frame for second t is frames/<clip>/<n>.jpg
+function foot(name, a, d) {
+  const sec = $("#s-" + name), img = sec.querySelector(".foot"); CLIPS.push([img, a]);
+  tl.fromTo(img, { scale: 1.12 }, { scale: 1.0, duration: d + 0.5, ease: "none" }, a);
+  tl.from(sec.querySelector(".ftxt"), { y: 70, opacity: 0, duration: 1.0, ease: E }, a + 0.25);
+  tl.from(sec.querySelector(".idx"), { opacity: 0, x: -20, duration: 0.7, ease: E }, a + 0.15);
+  SFX.push([a + 0.1, "whoosh"]);
+}
+const SHOT = {
+  f1(a, d) { foot("f1", a, d); }, f2(a, d) { foot("f2", a, d); }, f3(a, d) { foot("f3", a, d); }, f4(a, d) { foot("f4", a, d); },
+  hook(a, d) {
+    tl.fromTo("#rays", { opacity: 0, rotate: -8 }, { opacity: 1, rotate: 4, duration: d, ease: "none" }, a);
+    tl.from("#hook1 .word", { yPercent: 110, opacity: 0, stagger: 0.18, duration: 0.9, ease: E }, a + 0.3);
+    tl.from("#hook2", { y: 30, opacity: 0, duration: 0.8, ease: E }, a + d * 0.45); SFX.push([a + 0.3, "whoosh"]);
+  },
+  table(a, d) {
+    tl.from("#t-title", { y: 40, opacity: 0, duration: 0.8, ease: E }, a + 0.1);
+    tl.from("#t-card", { y: 120, rotationX: 18, opacity: 0, duration: 1.1, ease: E }, a + 0.2);
+    tl.from("#t-card tr", { opacity: 0, x: -30, stagger: 0.08, duration: 0.5, ease: E }, a + 0.6);
+    tl.from(".role", { x: 80, opacity: 0, stagger: 0.18, duration: 0.8, ease: E }, a + d * 0.3); SFX.push([a + d * 0.3, "pop"]);
+    tl.to(".pc", { backgroundColor: "rgba(240,90,60,.12)", color: "#c2361c", stagger: 0.03, duration: 0.3 }, a + d * 0.55);
+    tl.from("#t-warn", { scale: 0.6, opacity: 0, duration: 0.6, ease: "back.out(2)" }, a + d * 0.72); SFX.push([a + d * 0.72, "pop2"]);
+    tl.fromTo("#s-table", { scale: 1.0 }, { scale: 1.04, duration: d, ease: "none" }, a);
+  },
+  leak(a, d) {
+    tl.from("#l-title", { y: 50, opacity: 0, duration: 0.9, ease: E }, a + 0.1);
+    tl.from("#l-q", { x: -80, opacity: 0, rotationY: 12, duration: 0.9, ease: E }, a + d * 0.2);
+    tl.from("#l-r", { x: 80, opacity: 0, rotationY: -12, duration: 0.9, ease: E }, a + d * 0.32);
+    tl.from("#l-badge", { scale: 0.5, opacity: 0, duration: 0.6, ease: "back.out(2.2)" }, a + d * 0.55); SFX.push([a + d * 0.55, "pop2"]);
+    tl.from("#l-foot", { opacity: 0, y: 20, duration: 0.6 }, a + d * 0.7);
+  },
+  meet(a, d) {
+    tl.fromTo("#rays", { opacity: 0.4 }, { opacity: 1, rotate: 14, duration: d, ease: "none" }, a);
+    tl.from("#meet", { scale: 1.6, opacity: 0, duration: 1.0, ease: E }, a); SFX.push([a, "whoosh2"]);
+    tl.to("#meet", { opacity: 0, y: -60, duration: 0.5, ease: "power2.in" }, a + d * 0.32);
+    tl.from("#logo", { y: 60, opacity: 0, duration: 0.9, ease: E }, a + d * 0.36).from("#markbar", { scaleX: 0, transformOrigin: "left", duration: 0.7, ease: E }, a + d * 0.45);
+    tl.from("#meet-sub", { opacity: 0, y: 20, duration: 0.7 }, a + d * 0.6);
+  },
+  scan(a, d) {
+    tl.from("#s-scan .eyebrow, #d-title, #d-sub", { y: 40, opacity: 0, stagger: 0.12, duration: 0.8, ease: E }, a + 0.1);
+    tl.from("#d-card", { x: 120, rotationY: -14, opacity: 0, duration: 1.0, ease: E }, a + 0.3);
+    tl.set("#cursor", { opacity: 1, x: 1500, y: 900 }, a + 0.9); click(1680, 205, a + 2.0);
+    tl.to("#d-prog", { width: "100%", duration: d * 0.45, ease: "none" }, a + 2.1);
+    tl.from(".drow", { opacity: 0, x: 40, stagger: d * 0.07, duration: 0.5, ease: E }, a + 2.3);
+    $$(".drow").forEach((_, i) => SFX.push([a + 2.3 + i * d * 0.07, "pop"]));
+    tl.to("#cursor", { opacity: 0, duration: 0.3 }, a + 3);
+    tl.from("#d-stat", { opacity: 0, y: 40, duration: 0.8, ease: E }, a + d * 0.62); count($("#d-num"), 95.4, a + d * 0.62, 1.6, (v) => v.toFixed(1) + "%");
+  },
+  policy(a, d) {
+    tl.from("#s-policy .eyebrow, #s-policy .h2, #s-policy .sub", { y: 40, opacity: 0, stagger: 0.12, duration: 0.8, ease: E }, a + 0.1);
+    tl.from("#p-card", { y: 100, rotationX: 16, opacity: 0, duration: 1.0, ease: E }, a + 0.3);
+    tl.from(".pcell", { scale: 0.4, opacity: 0, stagger: 0.05, duration: 0.4, ease: "back.out(2)" }, a + 1.0); SFX.push([a + 1.0, "pop"]);
+  },
+  hero(a, d) {
+    tl.from("#s-hero .eyebrow, #h-title", { y: 50, opacity: 0, stagger: 0.12, duration: 0.9, ease: E }, a + 0.1);
+    tl.from("#h-q", { y: -40, scale: 0.9, opacity: 0, duration: 0.9, ease: E }, a + 0.5); SFX.push([a + 0.5, "whoosh"]);
+    $$("#h-lines path").forEach((p, i) => { const L = p.getTotalLength(); gsap.set(p, { strokeDasharray: L, strokeDashoffset: L });
+      tl.to(p, { strokeDashoffset: 0, duration: 0.8, ease: E2 }, a + 1.4 + i * 0.15); });
+    tl.from(".hout", { y: 80, opacity: 0, stagger: 0.18, duration: 0.9, ease: E }, a + 1.9); SFX.push([a + 1.9, "pop"]);
+    $$(".hv").forEach((el, i) => { morphText(el, "ABCPK1234F", OUTS[i][2], a + d * 0.32 + i * 0.5, 1.2); if (i) SFX.push([a + d * 0.32 + i * 0.5, "click2"]); });
+    tl.from("#h-foot", { opacity: 0, y: 20, duration: 0.7 }, a + d * 0.62);
+    tl.fromTo("#s-hero", { scale: 1.0 }, { scale: 1.035, duration: d, ease: "none" }, a);
+  },
+  int(a, d) {
+    tl.from("#s-int .eyebrow, #s-int .h2", { y: 40, opacity: 0, stagger: 0.12, duration: 0.8, ease: E }, a + 0.1);
+    tl.from(".ii", { y: 60, opacity: 0, scale: 0.9, stagger: 0.15, duration: 0.8, ease: E }, a + 0.6); SFX.push([a + 0.6, "pop"]);
+    tl.from(".ii2", { y: 30, opacity: 0, stagger: 0.1, duration: 0.6, ease: E }, a + 1.4);
+    tl.from("#s-int .sub", { opacity: 0, duration: 0.6 }, a + d * 0.5);
+  },
+  threat(a, d) {
+    tl.from("#s-threat .eyebrow, #s-threat .h2, #s-threat .sub", { y: 40, opacity: 0, stagger: 0.12, duration: 0.8, ease: E }, a + 0.1);
+    tl.from("#a-chart", { x: 100, opacity: 0, duration: 0.9, ease: E }, a + 0.3);
+    tl.from(".abar", { scaleY: 0, transformOrigin: "bottom", stagger: 0.05, duration: 0.4, ease: E }, a + 0.8);
+    tl.from("#a-toast", { y: -40, opacity: 0, scale: 0.9, duration: 0.6, ease: "back.out(2)" }, a + 3.0); SFX.push([a + 3.0, "pop2"]);
+    tl.from(".ch", { x: 60, opacity: 0, stagger: 0.25, duration: 0.6, ease: E }, a + d * 0.5); SFX.push([a + d * 0.5, "click"]);
+  },
+  proof(a, d) {
+    tl.from("#s-proof .eyebrow", { opacity: 0, y: 20, duration: 0.6 }, a + 0.1);
+    tl.from(".pfc", { y: 80, opacity: 0, stagger: 0.2, duration: 0.9, ease: E }, a + 0.3); SFX.push([a + 0.3, "whoosh"]);
+    const nums = [0, 672, 35, 1320], fm = [(v) => "0", (v) => Math.round(v), (v) => Math.round(v), (v) => Math.round(v).toLocaleString("en-US")];
+    $$(".pfn").forEach((el, i) => count(el, nums[i], a + 0.5 + i * 0.2, 1.6, fm[i]));
+    tl.from("#s-proof > .sub", { opacity: 0, duration: 0.6 }, a + d * 0.5);
+  },
+  end(a, d) {
+    tl.fromTo("#rays", { opacity: 0.3 }, { opacity: 1, rotate: 20, duration: d, ease: "none" }, a);
+    tl.from("#s-end > div:first-child", { scale: 0.8, opacity: 0, duration: 1.0, ease: E }, a + 0.1).from("#endbar", { scaleX: 0, transformOrigin: "left", duration: 0.8, ease: E }, a + 0.5);
+    SFX.push([a + 0.1, "whoosh2"]);
+    tl.from("#e-line .word", { yPercent: 100, opacity: 0, stagger: 0.25, duration: 0.8, ease: E }, a + 1.2);
+    tl.from("#e-sub, #e-pip, #e-team", { opacity: 0, y: 20, stagger: 0.3, duration: 0.7, ease: E }, a + 2.4);
+  },
+};
+// assemble: each shot is shown for its slot, with a soft cross-blur between shots
+let t0 = 0;
+CUT.forEach(([name, d], i) => {
+  const el = "#s-" + name;
+  tl.set(el, { autoAlpha: 1 }, t0).fromTo(el, { opacity: 0, scale: 0.985 }, { opacity: 1, scale: 1, duration: 0.5, ease: E }, t0);
+  SHOT[name](t0, d);
+  if (i < CUT.length - 1) tl.to(el, { opacity: 0, scale: 1.015, duration: 0.4, ease: "power2.in" }, t0 + d - 0.4).set(el, { autoAlpha: 0 }, t0 + d);
+  t0 += d;
+});
+// the backdrop drifts the whole time
+
+tl.set({}, {}, DURATION);
+async function render(t) {
+  tl.seek(t, false); $("#grain").style.transform = `translate(${(t * 997) % 40 - 20}px, ${(t * 613) % 40 - 20}px)`;
+  const loads = [];
+  for (const [img, a] of CLIPS) {
+    const n = Math.max(1, Math.min(Number(img.dataset.max), Math.floor((t - a) * 30) + 1));
+    const src = `/renders/frames/${img.dataset.clip}/${String(n).padStart(4, "0")}.jpg`;
+    if (img.getAttribute("src") !== src && t > a - 0.6 && t < a + 8) { img.src = src; loads.push(img.decode().catch(() => {})); }
+  }
+  await Promise.all(loads);
+}
+$$(".foot").forEach((img) => (img.dataset.max = { 24604: 139 }[img.dataset.clip] || 210));
+window.DURATION = DURATION; window.render = render; window.SFX = SFX;
+let c0 = 0; window.CUES = CUT.map(([n, d]) => { const c = [n, c0, d]; c0 += d; return c; });
+window.ready = document.fonts.ready.then(() => Promise.all([document.fonts.load("700 40px Inter"), document.fonts.load("500 20px Mono")])).then(() => true);
+</script>
+</body>
+</html>
